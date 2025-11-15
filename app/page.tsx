@@ -41,11 +41,33 @@ export const revalidate = 3600; // Revalidate every hour
 export const dynamic = 'force-dynamic'; // Ensure fresh data but with caching
 
 // Cache the jobs query for better TTFB
-const getCachedJobs = unstable_cache(
-  async (type?: string) => {
+// Create separate cached functions for each filter type
+const getAllJobs = unstable_cache(
+  async () => {
     try {
-      // Build query with proper filtering at database level
-      if (type && type !== 'all') {
+      return await db
+        .select()
+        .from(jobs)
+        .where(eq(jobs.status, 'approved'))
+        .orderBy(desc(jobs.createdAt))
+        .limit(50);
+    } catch (error) {
+      console.error('Failed to fetch jobs:', error);
+      return [];
+    }
+  },
+  ['approved-jobs-all'],
+  {
+    revalidate: 300, // Revalidate every 5 minutes
+    tags: ['jobs'],
+  }
+);
+
+// Helper to get filtered jobs with proper cache key
+async function getFilteredJobs(type: string) {
+  return unstable_cache(
+    async () => {
+      try {
         return await db
           .select()
           .from(jobs)
@@ -60,26 +82,18 @@ const getCachedJobs = unstable_cache(
           )
           .orderBy(desc(jobs.createdAt))
           .limit(50);
+      } catch (error) {
+        console.error('Failed to fetch jobs:', error);
+        return [];
       }
-
-      // Default query for all jobs
-      return await db
-        .select()
-        .from(jobs)
-        .where(eq(jobs.status, 'approved'))
-        .orderBy(desc(jobs.createdAt))
-        .limit(50);
-    } catch (error) {
-      console.error('Failed to fetch jobs:', error);
-      return [];
+    },
+    ['approved-jobs-filtered', type], // Include type in cache key
+    {
+      revalidate: 300,
+      tags: ['jobs'],
     }
-  },
-  (type) => ['approved-jobs', type || 'all'], // Cache key includes type
-  {
-    revalidate: 300, // Revalidate every 5 minutes
-    tags: ['jobs'], // Cache tag for manual revalidation
-  }
-);
+  )();
+}
 
 export default async function HomePage({
   searchParams,
@@ -90,7 +104,9 @@ export default async function HomePage({
   const selectedType = params.type || 'all';
 
   // Fetch jobs with caching for better TTFB
-  const allJobs = await getCachedJobs(selectedType);
+  const allJobs = selectedType && selectedType !== 'all' 
+    ? await getFilteredJobs(selectedType)
+    : await getAllJobs();
 
   // Generate structured data
   const organizationData = generateOrganizationStructuredData();
