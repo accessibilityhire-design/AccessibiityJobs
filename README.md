@@ -1,6 +1,8 @@
-# AccessibilityJobs - Free Accessibility Job Board
+# AccessibilityJobs - Accessibility Job Board
 
-A 100% free, modern, and accessible job board platform built with Next.js 16, exclusively focused on digital accessibility roles. Connecting accessibility professionals with companies committed to creating inclusive digital experiences.
+A modern, accessible, and professional job board platform built with Next.js 16, exclusively focused on digital accessibility roles. Connecting accessibility professionals with companies committed to creating inclusive digital experiences.
+
+🌐 **Live Site:** [https://accessibilityjobs.net](https://accessibilityjobs.net)
 
 🔗 **Repository:** [https://github.com/accessibilityhire-design/AccessibiityJobs](https://github.com/accessibilityhire-design/AccessibiityJobs)
 
@@ -16,16 +18,17 @@ A 100% free, modern, and accessible job board platform built with Next.js 16, ex
 
 ## Features
 
-- 🆓 **100% Free** - No fees for job seekers or employers
 - ♿ **Accessibility-Focused** - Exclusively accessibility-related jobs (WCAG, A11y, Inclusive Design)
-- 🎨 **Professional Branding** - Clean SVG logo with gradient design
-- 📝 Job posting with admin approval workflow
-- 🔍 Job board with filtering capabilities (Remote, Hybrid, Onsite)
-- 💅 Modern, accessible UI with shadcn/ui components
-- 🔐 Secure admin dashboard with environment-based authentication
-- 🌐 SEO optimized with structured data
-- ✅ WCAG 2.1 AA compliant
-- 📱 Fully responsive design
+- 🎨 **Professional Branding** - Minimalistic 2D line art SVG logo
+- ✍️ **Rich Text Editor** - Professional job descriptions with formatting (TipTap)
+- 📝 **Detailed Job Posting** - Comprehensive 6-step form with auto-detection
+- 🔍 **Job Board** - Advanced filtering capabilities (Remote, Hybrid, Onsite)
+- 💅 **Modern UI** - shadcn/ui components with Tailwind CSS
+- 🔐 **Secure Admin Dashboard** - Environment-based authentication
+- 🌐 **SEO Optimized** - Complete Schema.org JobPosting structured data, Google Jobs ready, server-side rendering
+- ✅ **WCAG 2.1 AA Compliant** - Fully accessible with skip navigation, keyboard support
+- 📱 **Fully Responsive** - Mobile-first design
+- 📊 **Analytics Ready** - Vercel Analytics & Speed Insights integrated
 
 ## Getting Started
 
@@ -107,6 +110,75 @@ npm run db:studio
 
 Opens a web interface at [https://local.drizzle.studio](https://local.drizzle.studio) to view and edit your database.
 
+### Seed Database with Real Accessibility Jobs (Optional but Recommended)
+
+You have two options to populate your database with real accessibility jobs:
+
+#### Option 1: Scrape from a11yjobs.com (Recommended)
+
+Scrape jobs directly from [a11yjobs.com](https://www.a11yjobs.com), a dedicated accessibility job board:
+
+**Prerequisites**: Python 3.10+ is required (check with `python3 --version`)
+
+1. **Install Python dependencies**:
+```bash
+cd scripts
+pip3 install -r requirements.txt
+```
+
+2. **Extract jobs using browser** (one-time setup):
+   - The script includes browser-based extraction
+   - Or use the provided `process_a11yjobs.py` script
+
+3. **Process and insert jobs**:
+```bash
+python3 process_a11yjobs.py
+```
+
+This will:
+- ✅ Scrape accessibility jobs from a11yjobs.com
+- ✅ Fetch full job descriptions from detail pages
+- ✅ Format jobs according to your schema
+- ✅ Insert jobs one by one with "approved" status
+- ✅ Skip duplicates automatically
+
+#### Option 2: Scrape from Multiple Job Boards (JobSpy)
+
+To populate from LinkedIn, Indeed, and ZipRecruiter using [JobSpy](https://github.com/speedyapply/JobSpy):
+
+1. **Install Python dependencies**:
+```bash
+cd scripts
+pip3 install -r requirements.txt
+```
+
+If you get Python version errors, use a virtual environment:
+```bash
+# Create virtual environment with Python 3.10+
+python3.10 -m venv venv  # or python3.11, python3.12, etc.
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+2. **Run the seeding script**:
+```bash
+python3 seed_jobs.py
+# Or if using venv: python seed_jobs.py
+```
+
+The script will:
+- ✅ Scrape accessibility jobs from multiple job boards using JobSpy
+- ✅ Search for terms like "accessibility engineer", "WCAG specialist", "a11y engineer", "digital accessibility", etc.
+- ✅ Automatically map job data to your database schema
+- ✅ Extract skills (WCAG, ARIA, screen readers), certifications (CPACC, WAS), and salary information
+- ✅ Insert jobs with "approved" status (ready to display immediately)
+- ✅ Deduplicate jobs based on title and company
+- ✅ Parse job descriptions into overview, responsibilities, and qualifications
+
+**Configuration**: Adjust `results_per_term` in `seed_jobs.py` to control the number of jobs per search term (default: 20)
+
+**Note**: Both scripts use the `DATABASE_URL` from your `.env.local` file.
+
 ### Running the Development Server
 
 ```bash
@@ -122,15 +194,24 @@ accessibilityjobs/
 ├── app/                    # Next.js app directory
 │   ├── (routes)/          # Application routes
 │   ├── api/               # API routes
-│   └── layout.tsx         # Root layout
+│   ├── jobs/              # Job detail pages
+│   ├── admin/             # Admin dashboard
+│   └── layout.tsx         # Root layout with SEO
 ├── components/            # React components
 │   ├── ui/               # shadcn/ui components
-│   └── ...               # Custom components
+│   ├── RichTextEditor.tsx # TipTap rich text editor
+│   ├── JobCard.tsx        # Job listing card
+│   └── JobFilters.tsx     # Job filtering component
 ├── lib/                   # Utility functions
 │   ├── db/               # Database configuration
 │   │   ├── schema.ts     # Drizzle schema
 │   │   └── index.ts      # Database client
-│   └── utils.ts          # Helper functions
+│   ├── seo.ts            # SEO structured data generators
+│   └── validations/      # Zod validation schemas
+├── scripts/              # Python scripts for job scraping
+│   ├── seed_jobs.py      # JobSpy-based scraper
+│   ├── process_a11yjobs.py # a11yjobs.com scraper
+│   └── requirements.txt  # Python dependencies
 └── public/               # Static assets
     ├── logo.svg          # Main logo (200x200)
     ├── logo-light.svg    # Horizontal logo variant
@@ -140,16 +221,74 @@ accessibilityjobs/
 ## Database Schema
 
 ### Jobs Table (Only Table in Database)
+
+**Basic Information:**
 - `id`: UUID (Primary Key)
 - `title`: Job title (accessibility-focused)
 - `company`: Company name
-- `location`: Job location
-- `type`: Employment type (remote/hybrid/onsite)
-- `description`: Full job description
-- `requirements`: Job requirements
-- `salary_range`: Salary information (optional)
 - `company_website`: Company website URL (optional)
+- `company_size`: Company size (optional)
+- `industry`: Industry (optional)
+
+**Job Details:**
+- `job_level`: Entry/Mid/Senior/Lead/Manager/Director/Executive
+- `employment_type`: Full-time/Part-time/Contract/Temporary/Internship
+- `department`: Department name (optional)
+
+**Location & Work Arrangement:**
+- `work_arrangement`: Remote/Hybrid/Onsite
+- `location`: Job location (legacy field)
+- `type`: Employment type (legacy field)
+- `timezone`: Timezone (e.g., America/New_York)
+- `country`: Country name
+- `city`: City name
+- `specific_location`: Specific address (optional)
+- `relocation_assistance`: Boolean
+
+**Compensation:**
+- `salary_min`: Minimum salary
+- `salary_max`: Maximum salary
+- `currency`: Currency code (USD, EUR, etc.)
+- `salary_type`: Annual/Hourly/Monthly
+- `salary_range`: Legacy field (optional)
+- `equity_offered`: Boolean
+- `bonus_structure`: Bonus details (optional)
+
+**Experience & Education:**
+- `years_experience`: Experience range (0-1, 1-3, 3-5, etc.)
+- `education_level`: High School/Associate/Bachelor's/Master's/PhD
+- `required_certifications`: JSON array (CPACC, WAS, etc.)
+- `preferred_certifications`: JSON array
+
+**Skills & Accessibility:**
+- `required_skills`: JSON array
+- `preferred_skills`: JSON array
+- `wcag_level`: WCAG level (A, AA, AAA)
+- `accessibility_focus`: JSON array (web, mobile, desktop, etc.)
+- `assistive_tech_experience`: JSON array (JAWS, NVDA, VoiceOver, etc.)
+
+**Job Description:**
+- `description`: Full job description (rich text HTML)
+- `key_responsibilities`: Key responsibilities (rich text HTML)
+- `requirements`: Required qualifications (rich text HTML)
+- `nice_to_have`: Preferred qualifications (rich text HTML, optional)
+
+**Benefits:**
+- `benefits`: JSON array
+- `professional_development`: Boolean
+- `health_insurance`: Boolean
+- `retirement`: Boolean
+- `pto_details`: PTO information (optional)
+
+**Application Details:**
 - `contact_email`: Contact email for applications
+- `application_deadline`: Application deadline (optional)
+- `expected_start_date`: Expected start date (optional)
+- `visa_sponsorship`: Boolean
+- `security_clearance`: Boolean
+- `travel_required`: Travel requirements (optional)
+
+**Meta:**
 - `status`: Job status (pending/approved/rejected)
 - `created_at`: Timestamp
 - `updated_at`: Timestamp
@@ -270,9 +409,12 @@ This app can be deployed to any platform that supports Next.js:
    - Verify job approval workflow
 
 2. **Configure SEO:**
-   - Update `baseUrl` in `app/sitemap.ts`
-   - Update `baseUrl` in `app/robots.ts`
-   - Verify `/sitemap.xml` and `/robots.txt` are accessible
+   - ✅ Sitemap is automatically generated at `/sitemap.xml`
+   - ✅ Robots.txt is configured at `/robots.txt`
+   - ✅ Complete Schema.org JobPosting structured data for Google Jobs
+   - ✅ Server-side rendering for better SEO
+   - ✅ Submit sitemap to Google Search Console: `https://accessibilityjobs.net/sitemap.xml`
+   - ✅ Test structured data: [Google Rich Results Test](https://search.google.com/test/rich-results)
 
 3. **Optional: Add Custom Domain**
    - Configure in your hosting platform settings
@@ -386,12 +528,56 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 MIT License - feel free to use this project for your own purposes.
 
+## SEO & Search Engine Optimization
+
+This project is fully optimized for search engines and job search platforms:
+
+### ✅ Implemented SEO Features
+
+- **Complete Schema.org JobPosting Structured Data** - All required fields for Google Jobs
+- **JobPostingCollection** - Homepage includes collection of all jobs
+- **Organization Structured Data** - Proper organization markup
+- **Server-Side Rendering** - Homepage is SSR for better crawlability
+- **Sitemap.xml** - Automatically generated with all approved jobs
+- **Robots.txt** - Properly configured for search engines
+- **Canonical URLs** - Prevent duplicate content issues
+- **Enhanced Meta Tags** - Comprehensive OpenGraph and Twitter cards
+- **Rich Text Validation** - Validates text content, not HTML markup
+
+### Google Jobs Integration
+
+Your jobs will appear in Google Jobs search results because:
+- ✅ Complete JobPosting structured data with all required fields
+- ✅ `validThrough` dates set (90 days from posting)
+- ✅ Proper `jobLocation` with PostalAddress structure
+- ✅ `baseSalary` properly formatted (if provided)
+- ✅ `employmentType` uses correct Schema.org values
+- ✅ `hiringOrganization` includes company name and website
+
+### Next Steps for SEO
+
+1. **Submit Sitemap to Google Search Console:**
+   - Go to [Google Search Console](https://search.google.com/search-console)
+   - Add your site: `https://accessibilityjobs.net`
+   - Submit sitemap: `https://accessibilityjobs.net/sitemap.xml`
+
+2. **Test Structured Data:**
+   - [Google Rich Results Test](https://search.google.com/test/rich-results)
+   - [Schema.org Validator](https://validator.schema.org/)
+
+3. **Monitor Indexing:**
+   - Check Google Search Console for indexing status
+   - Monitor click-through rates
+   - Track job impressions in Google Jobs
+
 ## Support & Resources
 
 - **Next.js Documentation:** [nextjs.org/docs](https://nextjs.org/docs)
 - **Drizzle ORM Documentation:** [orm.drizzle.team](https://orm.drizzle.team)
 - **Tailwind CSS Documentation:** [tailwindcss.com/docs](https://tailwindcss.com/docs)
 - **shadcn/ui Documentation:** [ui.shadcn.com](https://ui.shadcn.com)
+- **TipTap Editor:** [tiptap.dev](https://tiptap.dev)
+- **JobSpy Library:** [github.com/speedyapply/JobSpy](https://github.com/speedyapply/JobSpy)
 
 ## Acknowledgments
 

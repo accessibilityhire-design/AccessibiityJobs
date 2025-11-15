@@ -32,34 +32,33 @@ export default function AboutPage() {
 
           <Card>
             <CardContent className="pt-6">
-              <h2 className="text-2xl font-semibold mb-4">100% Free for Job Seekers</h2>
+              <h2 className="text-2xl font-semibold mb-4">For Job Seekers</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
-                We believe that finding the right job should be accessible to everyone. That&apos;s why AccessibilityJobs 
-                is completely <strong>free for all job seekers</strong>. Browse unlimited job listings, apply to as many 
-                positions as you like, and discover your next career opportunity—all without any fees or hidden charges.
+                We believe that finding the right job should be accessible to everyone. Browse our curated job listings 
+                from companies committed to accessibility, apply to positions that match your expertise, and discover your 
+                next career opportunity in the accessibility field.
               </p>
               <ul className="list-disc list-inside space-y-2 text-gray-700">
-                <li>No registration fees</li>
-                <li>Unlimited job applications</li>
-                <li>Full access to all job listings</li>
+                <li>Curated accessibility-focused opportunities</li>
                 <li>Direct contact with employers</li>
+                <li>Detailed job descriptions and requirements</li>
+                <li>Connect with inclusive organizations</li>
               </ul>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="pt-6">
-              <h2 className="text-2xl font-semibold mb-4">Free Job Posting for Employers</h2>
+              <h2 className="text-2xl font-semibold mb-4">For Employers</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
-                We also keep it simple for employers! Posting accessibility-focused job opportunities on our platform 
-                is <strong>completely free</strong>. We review all submissions to ensure quality and relevance, helping 
-                you connect with the right accessibility professionals for your team.
+                Post your accessibility-focused job opportunities and connect with qualified professionals. We review all 
+                submissions to ensure quality and relevance, helping you find the right accessibility talent for your team.
               </p>
               <ul className="list-disc list-inside space-y-2 text-gray-700">
-                <li>No posting fees</li>
-                <li>Quick approval process</li>
+                <li>Simple job posting process</li>
+                <li>Quick review and approval</li>
                 <li>Reach qualified accessibility professionals</li>
-                <li>Full job description and requirements</li>
+                <li>Detailed job listings with rich formatting</li>
               </ul>
             </CardContent>
           </Card>

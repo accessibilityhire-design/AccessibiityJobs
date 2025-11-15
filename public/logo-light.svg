@@ -1,31 +1,20 @@
-<svg width="200" height="50" viewBox="0 0 200 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Horizontal logo version for header -->
-  <defs>
-    <linearGradient id="logoGradientHoriz" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
-    </linearGradient>
-  </defs>
+<svg width="200" height="40" viewBox="0 0 200 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Minimalistic Logo with Text -->
   
-  <!-- Icon circle -->
-  <circle cx="25" cy="25" r="22" fill="url(#logoGradientHoriz)"/>
+  <!-- Icon -->
+  <!-- Outer Circle -->
+  <circle cx="20" cy="20" r="18" stroke="#2563EB" stroke-width="2" fill="none"/>
   
-  <!-- Accessibility person icon (simplified) -->
-  <circle cx="25" cy="18" r="4" fill="white"/>
-  <path d="M 18 35 L 21 25 L 25 28 L 29 25 L 32 35" 
-        stroke="white" 
-        stroke-width="3" 
-        stroke-linecap="round" 
-        stroke-linejoin="round"
-        fill="none"/>
-  <line x1="25" y1="22" x2="25" y2="28" 
-        stroke="white" 
-        stroke-width="3" 
-        stroke-linecap="round"/>
+  <!-- Person Figure -->
+  <circle cx="20" cy="12" r="3" stroke="#2563EB" stroke-width="2" fill="none"/>
+  <path d="M 20 15 L 20 20 L 14 20" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M 20 20 Q 24 18 26 20" stroke="#2563EB" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M 20 20 L 20 26" stroke="#2563EB" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M 20 26 L 16 32" stroke="#2563EB" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M 20 26 L 24 32" stroke="#2563EB" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <circle cx="13" cy="20" r="1.5" fill="#2563EB"/>
+  <path d="M 8 20 L 12 20" stroke="#2563EB" stroke-width="2" stroke-linecap="round" fill="none"/>
   
   <!-- Text -->
-  <text x="55" y="32" font-family="Inter, system-ui, sans-serif" font-size="20" font-weight="700" fill="#1F2937">
-    AccessibilityJobs
-  </text>
+  <text x="48" y="26" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" fill="#1F2937">AccessibilityJobs</text>
 </svg>
-

@@ -7,16 +7,12 @@ export function Footer() {
     <footer className="border-t bg-gray-50 mt-auto" role="contentinfo">
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div>
-            <h3 className="font-bold text-lg mb-4">AccessibilityJobs</h3>
-            <p className="text-sm text-gray-600 mb-3">
-              A 100% free job board connecting accessibility professionals with inclusive organizations worldwide.
-            </p>
-            <p className="text-sm text-green-700 font-semibold">
-              ✓ Free for Job Seekers<br/>
-              ✓ Free Job Posting
-            </p>
-          </div>
+        <div>
+          <h3 className="font-bold text-lg mb-4">AccessibilityJobs</h3>
+          <p className="text-sm text-gray-600">
+            Connecting accessibility professionals with inclusive organizations worldwide through meaningful career opportunities.
+          </p>
+        </div>
           
           <div>
             <h4 className="font-semibold mb-4">For Job Seekers</h4>
@@ -52,11 +48,11 @@ export function Footer() {
             <h4 className="font-semibold mb-4">For Employers</h4>
             <ul className="space-y-2">
               <li>
-                <Link 
-                  href="/post-job" 
+                <Link
+                  href="/post-job"
                   className="text-sm text-gray-600 hover:text-primary transition-colors"
                 >
-                  Post a Job (Free)
+                  Post a Job
                 </Link>
               </li>
               <li>

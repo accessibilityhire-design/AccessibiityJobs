@@ -1,14 +1,28 @@
 'use client';
 
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 
 interface JobFiltersProps {
-  selectedType: string;
-  onTypeChange: (type: string) => void;
+  initialType?: string;
 }
 
-export function JobFilters({ selectedType, onTypeChange }: JobFiltersProps) {
+export function JobFilters({ initialType = 'all' }: JobFiltersProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedType = searchParams.get('type') || initialType;
+
+  const handleTypeChange = (type: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (type === 'all') {
+      params.delete('type');
+    } else {
+      params.set('type', type);
+    }
+    router.push(`/?${params.toString()}`);
+  };
+
   return (
     <div className="bg-white p-6 rounded-lg border mb-8">
       <div className="flex flex-col md:flex-row gap-4 items-end">
@@ -16,7 +30,7 @@ export function JobFilters({ selectedType, onTypeChange }: JobFiltersProps) {
           <Label htmlFor="job-type" className="mb-2 block">
             Job Type
           </Label>
-          <Select value={selectedType} onValueChange={onTypeChange}>
+          <Select value={selectedType} onValueChange={handleTypeChange}>
             <SelectTrigger id="job-type" aria-label="Filter jobs by type">
               <SelectValue placeholder="All job types" />
             </SelectTrigger>

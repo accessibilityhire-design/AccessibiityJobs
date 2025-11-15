@@ -31,19 +31,37 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const jobData = job[0];
 
+  const jobUrl = `https://accessibilityjobs.net/jobs/${jobData.id}`;
+  const location = jobData.location || 'Remote';
+  const workType = jobData.type || jobData.workArrangement || 'Full-time';
+  const metaDescription = `${jobData.title} at ${jobData.company} - ${workType} position in ${location}. ${jobData.description.slice(0, 120)}...`;
+
   return {
-    title: `${jobData.title} at ${jobData.company}`,
-    description: jobData.description.slice(0, 160),
+    title: `${jobData.title} at ${jobData.company} | AccessibilityJobs`,
+    description: metaDescription,
+    keywords: [
+      'accessibility jobs',
+      'a11y jobs',
+      jobData.title.toLowerCase(),
+      `${jobData.company} jobs`,
+      'digital accessibility',
+      'WCAG jobs',
+      workType === 'remote' ? 'remote accessibility jobs' : undefined,
+    ].filter(Boolean) as string[],
     openGraph: {
       title: `${jobData.title} at ${jobData.company}`,
-      description: jobData.description.slice(0, 160),
+      description: metaDescription,
       type: 'website',
-      url: `https://accessibilityjobs.com/jobs/${jobData.id}`,
+      url: jobUrl,
+      siteName: 'AccessibilityJobs',
     },
     twitter: {
       card: 'summary_large_image',
       title: `${jobData.title} at ${jobData.company}`,
-      description: jobData.description.slice(0, 160),
+      description: metaDescription,
+    },
+    alternates: {
+      canonical: jobUrl,
     },
   };
 }
@@ -71,7 +89,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
   const typeColor = typeColors[job.type as keyof typeof typeColors] || 'bg-gray-100 text-gray-800';
 
-  const structuredData = generateJobStructuredData(job, `https://accessibilityjobs.com/jobs/${job.id}`);
+  const structuredData = generateJobStructuredData(job, `https://accessibilityjobs.net/jobs/${job.id}`);
 
   return (
     <>
