@@ -85,7 +85,7 @@ export default function AboutPage() {
             <CardContent className="pt-6">
               <h2 className="text-2xl font-semibold mb-4">Why Accessibility Matters</h2>
               <p className="text-gray-700 leading-relaxed">
-                Digital accessibility isn&apos;t just about compliance—it&apos;s about ensuring that everyone, regardless 
+                Digital accessibility isn&apos;t just about compliance - it&apos;s about ensuring that everyone, regardless 
                 of their abilities, can access and use digital products and services. By focusing exclusively on accessibility 
                 roles, we&apos;re helping build a more inclusive digital future for all users, including the over 1 billion 
                 people worldwide living with disabilities.
