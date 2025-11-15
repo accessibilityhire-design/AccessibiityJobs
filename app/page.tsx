@@ -37,12 +37,10 @@ export const metadata: Metadata = {
   },
 };
 
-export const revalidate = 3600; // Revalidate every hour
-export const dynamic = 'force-dynamic'; // Ensure fresh data but with caching
+export const revalidate = 300; // Revalidate every 5 minutes (aligned with cache)
 
 // Cache the jobs query for better TTFB
-// Create separate cached functions for each filter type
-const getAllJobs = unstable_cache(
+const getCachedJobs = unstable_cache(
   async () => {
     try {
       return await db
@@ -63,38 +61,6 @@ const getAllJobs = unstable_cache(
   }
 );
 
-// Helper to get filtered jobs with proper cache key
-async function getFilteredJobs(type: string) {
-  return unstable_cache(
-    async () => {
-      try {
-        return await db
-          .select()
-          .from(jobs)
-          .where(
-            and(
-              eq(jobs.status, 'approved'),
-              or(
-                eq(jobs.type, type),
-                eq(jobs.workArrangement, type)
-              )
-            )
-          )
-          .orderBy(desc(jobs.createdAt))
-          .limit(50);
-      } catch (error) {
-        console.error('Failed to fetch jobs:', error);
-        return [];
-      }
-    },
-    ['approved-jobs-filtered', type], // Include type in cache key
-    {
-      revalidate: 300,
-      tags: ['jobs'],
-    }
-  )();
-}
-
 export default async function HomePage({
   searchParams,
 }: {
@@ -104,9 +70,22 @@ export default async function HomePage({
   const selectedType = params.type || 'all';
 
   // Fetch jobs with caching for better TTFB
-  const allJobs = selectedType && selectedType !== 'all' 
-    ? await getFilteredJobs(selectedType)
-    : await getAllJobs();
+  let allJobs: Job[] = [];
+  try {
+    allJobs = await getCachedJobs();
+
+    // Filter by type if specified (in-memory filtering for cached data)
+    if (selectedType && selectedType !== 'all') {
+      allJobs = allJobs.filter(job => 
+        (job.type && job.type === selectedType) || 
+        (job.workArrangement && job.workArrangement === selectedType)
+      );
+    }
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    // Ensure we always have an array, even on error
+    allJobs = [];
+  }
 
   // Generate structured data
   const organizationData = generateOrganizationStructuredData();
