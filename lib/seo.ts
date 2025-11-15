@@ -28,7 +28,14 @@ export function generateJobStructuredData(job: Job, url: string) {
   ].filter(Boolean).join('\n\n');
 
   // Calculate validThrough (90 days from posting date)
-  const validThrough = new Date(job.createdAt);
+  // Ensure createdAt is a Date object
+  const createdAtDate = job.createdAt instanceof Date 
+    ? job.createdAt 
+    : new Date(job.createdAt);
+  
+  // Validate date - fallback to current date if invalid
+  const validCreatedAt = isNaN(createdAtDate.getTime()) ? new Date() : createdAtDate;
+  const validThrough = new Date(validCreatedAt);
   validThrough.setDate(validThrough.getDate() + 90);
 
   // Determine occupational category
@@ -93,7 +100,7 @@ export function generateJobStructuredData(job: Job, url: string) {
       name: 'AccessibilityJobs',
       value: job.id,
     },
-    datePosted: job.createdAt.toISOString(),
+    datePosted: validCreatedAt.toISOString(),
     validThrough: validThrough.toISOString(),
     hiringOrganization: {
       '@type': 'Organization',
@@ -208,18 +215,27 @@ export function generateJobPostingCollection(jobs: Job[], baseUrl: string = 'htt
     mainEntity: {
       '@type': 'ItemList',
       numberOfItems: jobs.length,
-      itemListElement: jobs.map((job, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        item: {
-          '@type': 'JobPosting',
-          title: job.title,
-          identifier: {
-            '@type': 'PropertyValue',
-            name: 'AccessibilityJobs',
-            value: job.id,
-          },
-          datePosted: job.createdAt.toISOString(),
+      itemListElement: jobs.map((job, index) => {
+        // Ensure createdAt is a Date object
+        const createdAtDate = job.createdAt instanceof Date 
+          ? job.createdAt 
+          : new Date(job.createdAt);
+        
+        // Validate date - fallback to current date if invalid
+        const validCreatedAt = isNaN(createdAtDate.getTime()) ? new Date() : createdAtDate;
+        
+        return {
+          '@type': 'ListItem',
+          position: index + 1,
+          item: {
+            '@type': 'JobPosting',
+            title: job.title,
+            identifier: {
+              '@type': 'PropertyValue',
+              name: 'AccessibilityJobs',
+              value: job.id,
+            },
+            datePosted: createdAtDate.toISOString(),
           hiringOrganization: {
             '@type': 'Organization',
             name: job.company,
@@ -234,7 +250,8 @@ export function generateJobPostingCollection(jobs: Job[], baseUrl: string = 'htt
           employmentType: mapEmploymentType((job.employmentType || job.type || 'full-time') as string),
           url: `${baseUrl}/jobs/${job.id}`,
         },
-      })),
+      };
+      }),
     },
   };
 }
