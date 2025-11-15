@@ -12,9 +12,6 @@ const client = postgres(connectionString, {
   max: 10, // Maximum number of connections in the pool
   idle_timeout: 20, // Close idle connections after 20 seconds
   connect_timeout: 10, // Connection timeout in seconds
-  transform: {
-    undefined: null, // Transform undefined to null for PostgreSQL compatibility
-  },
 });
 
 export const db = drizzle(client, { schema });
