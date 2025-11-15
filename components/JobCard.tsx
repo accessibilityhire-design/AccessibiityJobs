@@ -1,9 +1,16 @@
+'use client';
+
 import Link from 'next/link';
+import { lazy, Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Job } from '@/lib/db/schema';
 import { formatDistanceToNow } from 'date-fns';
-import { MapPin, Building2, Briefcase } from 'lucide-react';
+
+// Lazy load icons to reduce initial bundle
+const MapPin = lazy(() => import('lucide-react').then(mod => ({ default: mod.MapPin })));
+const Building2 = lazy(() => import('lucide-react').then(mod => ({ default: mod.Building2 })));
+const Briefcase = lazy(() => import('lucide-react').then(mod => ({ default: mod.Briefcase })));
 
 interface JobCardProps {
   job: Job;
@@ -36,7 +43,9 @@ export function JobCard({ job }: JobCardProps) {
               </Link>
             </CardTitle>
             <CardDescription className="flex items-center gap-2 text-base">
-              <Building2 className="h-4 w-4" aria-hidden="true" />
+              <Suspense fallback={<span className="h-4 w-4" />}>
+                <Building2 className="h-4 w-4" aria-hidden="true" />
+              </Suspense>
               <span>{job.company}</span>
             </CardDescription>
           </div>
@@ -51,13 +60,17 @@ export function JobCard({ job }: JobCardProps) {
       
       <CardContent className="flex-1">
         <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
-          <MapPin className="h-4 w-4" aria-hidden="true" />
+          <Suspense fallback={<span className="h-4 w-4" />}>
+            <MapPin className="h-4 w-4" aria-hidden="true" />
+          </Suspense>
           <span>{job.location}</span>
         </div>
         
         {job.salaryRange && (
           <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
-            <Briefcase className="h-4 w-4" aria-hidden="true" />
+            <Suspense fallback={<span className="h-4 w-4" />}>
+              <Briefcase className="h-4 w-4" aria-hidden="true" />
+            </Suspense>
             <span>{job.salaryRange}</span>
           </div>
         )}
@@ -80,4 +93,3 @@ export function JobCard({ job }: JobCardProps) {
     </Card>
   );
 }
-

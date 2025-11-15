@@ -54,12 +54,19 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <head>
-        {/* Preload critical resources */}
-        <link rel="preload" href="/logo.svg" as="image" type="image/svg+xml" />
-        {/* Preconnect to external domains for faster loading */}
+        {/* Preload critical resources for FCP */}
+        <link rel="preload" href="/logo.svg" as="image" type="image/svg+xml" fetchPriority="high" />
+        {/* Inline critical CSS for immediate render */}
+        <style dangerouslySetInnerHTML={{__html: `
+          .container{max-width:1280px;margin:0 auto}
+          header{border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0;z-index:50}
+          nav{display:flex;align-items:center;justify-content:space-between}
+          .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
+        `}} />
+        {/* Preconnect to external domains */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* DNS prefetch for analytics - defer to not block FCP */}
+        {/* DNS prefetch for analytics - deferred */}
         <link rel="dns-prefetch" href="https://vitals.vercel-insights.com" />
         <link rel="dns-prefetch" href="https://va.vercel-scripts.com" />
       </head>

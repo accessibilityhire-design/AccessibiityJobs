@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
 
 export function Header() {
   return (
@@ -64,10 +63,12 @@ export function Header() {
               </Link>
             </li>
             <li>
-              <Link href="/post-job">
-                <Button size="sm" aria-label="Post a job now">
-                  Post a Job
-                </Button>
+              <Link 
+                href="/post-job"
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 bg-blue-600 text-white hover:bg-blue-700 h-9 px-3"
+                aria-label="Post a job now"
+              >
+                Post a Job
               </Link>
             </li>
           </ul>

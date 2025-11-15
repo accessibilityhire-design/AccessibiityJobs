@@ -1,13 +1,15 @@
 import { Metadata } from 'next';
 import { unstable_cache } from 'next/cache';
-import { Suspense } from 'react';
-import { JobFilters } from '@/components/JobFilters';
-import { JobsView } from '@/components/JobsView';
+import { Suspense, lazy } from 'react';
 import { Job } from '@/lib/db/schema';
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { generateOrganizationStructuredData, generateJobPostingCollection } from '@/lib/seo';
+
+// Lazy load non-critical components for better FCP
+const JobFilters = lazy(() => import('@/components/JobFilters').then(mod => ({ default: mod.JobFilters })));
+const JobsView = lazy(() => import('@/components/JobsView').then(mod => ({ default: mod.JobsView })));
 
 export const metadata: Metadata = {
   title: 'Accessibility Jobs - Find Digital Accessibility Careers | AccessibilityJobs',
@@ -125,14 +127,24 @@ export default async function HomePage({
           </p>
         </div>
 
-        <JobFilters initialType={selectedType} />
+        <Suspense fallback={<div className="bg-white p-6 rounded-lg border mb-8 h-24 animate-pulse" />}>
+          <JobFilters initialType={selectedType} />
+        </Suspense>
 
         {allJobs.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-600 text-lg">No accessibility jobs found. Check back soon for new opportunities!</p>
           </div>
         ) : (
-          <JobsView jobs={allJobs as Job[]} itemsPerPage={12} />
+          <Suspense fallback={
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="bg-white rounded-lg border p-6 h-64 animate-pulse" />
+              ))}
+            </div>
+          }>
+            <JobsView jobs={allJobs as Job[]} itemsPerPage={12} />
+          </Suspense>
         )}
       </div>
 
