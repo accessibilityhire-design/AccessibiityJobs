@@ -46,15 +46,6 @@ export function Header() {
             </li>
             <li>
               <Link 
-                href="/post-job" 
-                className="text-sm font-medium hover:text-primary transition-colors"
-                aria-label="Post a job"
-              >
-                Post a Job
-              </Link>
-            </li>
-            <li>
-              <Link 
                 href="/contact" 
                 className="text-sm font-medium hover:text-primary transition-colors"
                 aria-label="Contact us"
@@ -66,7 +57,7 @@ export function Header() {
               <Link 
                 href="/post-job"
                 className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 bg-blue-600 text-white hover:bg-blue-700 h-9 px-3"
-                aria-label="Post a job now"
+                aria-label="Post a job"
               >
                 Post a Job
               </Link>
