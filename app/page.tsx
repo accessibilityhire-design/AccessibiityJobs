@@ -42,14 +42,26 @@ export const revalidate = 300; // Revalidate every 5 minutes (aligned with cache
 
 // Cache the jobs query for better TTFB
 // Separate function to ensure proper error handling
+// Reduced limit to 24 (2 pages) for faster initial load
 async function fetchJobs() {
   try {
     const result = await db
-      .select()
+      .select({
+        id: jobs.id,
+        title: jobs.title,
+        company: jobs.company,
+        location: jobs.location,
+        type: jobs.type,
+        workArrangement: jobs.workArrangement,
+        salaryRange: jobs.salaryRange,
+        description: jobs.description,
+        createdAt: jobs.createdAt,
+        status: jobs.status,
+      })
       .from(jobs)
       .where(eq(jobs.status, 'approved'))
       .orderBy(desc(jobs.createdAt))
-      .limit(50);
+      .limit(24);
     return result;
   } catch (error) {
     console.error('Failed to fetch jobs:', error);
@@ -59,7 +71,7 @@ async function fetchJobs() {
 
 const getCachedJobs = unstable_cache(
   fetchJobs,
-  ['approved-jobs-all'],
+  ['approved-jobs-homepage-v2'],
   {
     revalidate: 300, // Revalidate every 5 minutes
     tags: ['jobs'],
@@ -74,8 +86,8 @@ export default async function HomePage({
   const params = await searchParams;
   const selectedType = params.type || 'all';
 
-  // Fetch jobs with caching for better TTFB
-  let allJobs: Job[] = [];
+  // Fetch jobs with caching for better TTFB - optimized query
+  let allJobs: Array<Pick<Job, 'id' | 'title' | 'company' | 'location' | 'type' | 'workArrangement' | 'salaryRange' | 'description' | 'createdAt' | 'status'>> = [];
   try {
     allJobs = await getCachedJobs();
 
@@ -92,16 +104,20 @@ export default async function HomePage({
     allJobs = [];
   }
 
-  // Generate structured data
+  // Defer structured data generation to reduce TTFB
   const organizationData = generateOrganizationStructuredData();
-  const jobCollectionData = generateJobPostingCollection(allJobs.slice(0, 20)); // Top 20 for structured data
+  // Only generate structured data for first 10 jobs for faster processing
+  const jobCollectionData = generateJobPostingCollection(allJobs.slice(0, 10) as Job[]);
 
   return (
     <>
-      {/* Critical content first for FCP */}
+      {/* Critical content first for FCP and LCP optimization */}
       <div className="container mx-auto px-4 py-12">
         <div className="mb-12 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+          <h1 
+            className="text-4xl md:text-5xl font-bold mb-4"
+            style={{ contentVisibility: 'auto' }}
+          >
             Find Your Next Accessibility Job
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
@@ -111,15 +127,13 @@ export default async function HomePage({
 
         <JobFilters initialType={selectedType} />
 
-        <Suspense fallback={<div className="text-center py-12"><p className="text-gray-600">Loading jobs...</p></div>}>
-          {allJobs.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-600 text-lg">No accessibility jobs found. Check back soon for new opportunities!</p>
-            </div>
-          ) : (
-            <JobsView jobs={allJobs} itemsPerPage={12} />
-          )}
-        </Suspense>
+        {allJobs.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600 text-lg">No accessibility jobs found. Check back soon for new opportunities!</p>
+          </div>
+        ) : (
+          <JobsView jobs={allJobs as Job[]} itemsPerPage={12} />
+        )}
       </div>
 
       {/* Structured data - moved to bottom to not block FCP */}

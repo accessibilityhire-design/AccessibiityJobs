@@ -19,7 +19,10 @@ export function JobCard({ job }: JobCardProps) {
   const typeColor = typeColors[job.type as keyof typeof typeColors] || 'bg-gray-100 text-gray-800';
 
   return (
-    <Card className="hover:shadow-lg transition-shadow h-full flex flex-col">
+    <Card 
+      className="hover:shadow-lg transition-shadow h-full flex flex-col"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '0 400px' }}
+    >
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
