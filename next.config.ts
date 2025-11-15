@@ -63,6 +63,9 @@ const nextConfig: NextConfig = {
 
   // Optimize server-side rendering
   poweredByHeader: false,
+  
+  // Compress responses
+  compress: true,
 };
 
 export default nextConfig;

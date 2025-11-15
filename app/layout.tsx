@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { Suspense } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Analytics } from "@vercel/analytics/next";
+import { DeferredAnalytics } from "@/components/DeferredAnalytics";
 
 const inter = Inter({
   subsets: ["latin"],
-  display: "swap",
+  display: "optional", // Better for FCP - uses fallback immediately
   variable: "--font-inter",
   preload: true,
   fallback: ['system-ui', 'arial'],
+  adjustFontFallback: true,
 });
 
 export const metadata: Metadata = {
@@ -53,10 +54,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <head>
+        {/* Preload critical resources */}
+        <link rel="preload" href="/logo.svg" as="image" type="image/svg+xml" />
         {/* Preconnect to external domains for faster loading */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* DNS prefetch for analytics */}
+        {/* DNS prefetch for analytics - defer to not block FCP */}
         <link rel="dns-prefetch" href="https://vitals.vercel-insights.com" />
         <link rel="dns-prefetch" href="https://va.vercel-scripts.com" />
       </head>
@@ -71,9 +74,10 @@ export default function RootLayout({
         <main id="main-content" className="flex-1" tabIndex={-1}>
           {children}
         </main>
-        <Footer />
-        <SpeedInsights />
-        <Analytics />
+        <Suspense fallback={null}>
+          <Footer />
+        </Suspense>
+        <DeferredAnalytics />
       </body>
     </html>
   );

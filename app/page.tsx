@@ -1,11 +1,12 @@
 import { Metadata } from 'next';
 import { unstable_cache } from 'next/cache';
+import { Suspense } from 'react';
 import { JobFilters } from '@/components/JobFilters';
 import { JobsView } from '@/components/JobsView';
 import { Job } from '@/lib/db/schema';
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
-import { eq, desc, or, and } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { generateOrganizationStructuredData, generateJobPostingCollection } from '@/lib/seo';
 
 export const metadata: Metadata = {
@@ -97,17 +98,7 @@ export default async function HomePage({
 
   return (
     <>
-      {/* Organization Structured Data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationData) }}
-      />
-      {/* Job Posting Collection Structured Data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jobCollectionData) }}
-      />
-      
+      {/* Critical content first for FCP */}
       <div className="container mx-auto px-4 py-12">
         <div className="mb-12 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
@@ -120,14 +111,26 @@ export default async function HomePage({
 
         <JobFilters initialType={selectedType} />
 
-        {allJobs.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-600 text-lg">No accessibility jobs found. Check back soon for new opportunities!</p>
-          </div>
-        ) : (
-          <JobsView jobs={allJobs} itemsPerPage={12} />
-        )}
+        <Suspense fallback={<div className="text-center py-12"><p className="text-gray-600">Loading jobs...</p></div>}>
+          {allJobs.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600 text-lg">No accessibility jobs found. Check back soon for new opportunities!</p>
+            </div>
+          ) : (
+            <JobsView jobs={allJobs} itemsPerPage={12} />
+          )}
+        </Suspense>
       </div>
+
+      {/* Structured data - moved to bottom to not block FCP */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationData) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jobCollectionData) }}
+      />
     </>
   );
 }
