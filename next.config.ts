@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Performance optimizations
-  compress: true,
+  // Performance optimizations - compression enabled
   
   // Image optimization
   images: {
@@ -61,6 +60,9 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', '@radix-ui/react-select', '@radix-ui/react-checkbox'],
   },
+
+  // Optimize server-side rendering
+  poweredByHeader: false,
 };
 
 export default nextConfig;

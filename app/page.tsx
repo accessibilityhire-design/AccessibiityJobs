@@ -1,10 +1,11 @@
 import { Metadata } from 'next';
+import { unstable_cache } from 'next/cache';
 import { JobFilters } from '@/components/JobFilters';
 import { JobsView } from '@/components/JobsView';
 import { Job } from '@/lib/db/schema';
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, or, and } from 'drizzle-orm';
 import { generateOrganizationStructuredData, generateJobPostingCollection } from '@/lib/seo';
 
 export const metadata: Metadata = {
@@ -37,6 +38,48 @@ export const metadata: Metadata = {
 };
 
 export const revalidate = 3600; // Revalidate every hour
+export const dynamic = 'force-dynamic'; // Ensure fresh data but with caching
+
+// Cache the jobs query for better TTFB
+const getCachedJobs = unstable_cache(
+  async (type?: string) => {
+    try {
+      // Build query with proper filtering at database level
+      if (type && type !== 'all') {
+        return await db
+          .select()
+          .from(jobs)
+          .where(
+            and(
+              eq(jobs.status, 'approved'),
+              or(
+                eq(jobs.type, type),
+                eq(jobs.workArrangement, type)
+              )
+            )
+          )
+          .orderBy(desc(jobs.createdAt))
+          .limit(50);
+      }
+
+      // Default query for all jobs
+      return await db
+        .select()
+        .from(jobs)
+        .where(eq(jobs.status, 'approved'))
+        .orderBy(desc(jobs.createdAt))
+        .limit(50);
+    } catch (error) {
+      console.error('Failed to fetch jobs:', error);
+      return [];
+    }
+  },
+  ['approved-jobs'], // Cache key
+  {
+    revalidate: 300, // Revalidate every 5 minutes
+    tags: ['jobs'], // Cache tag for manual revalidation
+  }
+);
 
 export default async function HomePage({
   searchParams,
@@ -46,27 +89,8 @@ export default async function HomePage({
   const params = await searchParams;
   const selectedType = params.type || 'all';
 
-  // Fetch jobs server-side - optimized query
-  let allJobs: Job[] = [];
-  try {
-    // Limit results for faster initial load
-    const query = db
-      .select()
-      .from(jobs)
-      .where(eq(jobs.status, 'approved'))
-      .orderBy(desc(jobs.createdAt))
-      .limit(50); // Reduced limit for faster initial load
-
-    allJobs = await query;
-
-    // Filter by type if specified
-    if (selectedType && selectedType !== 'all') {
-      allJobs = allJobs.filter(job => job.type === selectedType || job.workArrangement === selectedType);
-    }
-  } catch (error) {
-    console.error('Failed to fetch jobs:', error);
-    allJobs = [];
-  }
+  // Fetch jobs with caching for better TTFB
+  const allJobs = await getCachedJobs(selectedType);
 
   // Generate structured data
   const organizationData = generateOrganizationStructuredData();
