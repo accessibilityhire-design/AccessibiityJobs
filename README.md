@@ -21,7 +21,7 @@ A modern, accessible, and professional job board platform built with Next.js 16,
 - ♿ **Accessibility-Focused** - Exclusively accessibility-related jobs (WCAG, A11y, Inclusive Design)
 - 🎨 **Professional Branding** - Minimalistic 2D line art SVG logo
 - ✍️ **Rich Text Editor** - Professional job descriptions with formatting (TipTap)
-- 📝 **Detailed Job Posting** - Comprehensive 6-step form with auto-detection
+- 📝 **Detailed Job Posting** - Comprehensive 6-step form with isolated step components (prevents data leakage)
 - 🔍 **Job Board** - Advanced filtering capabilities (Remote, Hybrid, Onsite)
 - 💅 **Modern UI** - shadcn/ui components with Tailwind CSS
 - 🔐 **Secure Admin Dashboard** - Environment-based authentication
@@ -199,6 +199,13 @@ accessibilityjobs/
 │   └── layout.tsx         # Root layout with SEO
 ├── components/            # React components
 │   ├── ui/               # shadcn/ui components
+│   ├── post-job/         # Job posting form step components
+│   │   ├── Step1BasicInfo.tsx    # Step 1: Basic information
+│   │   ├── Step2Location.tsx     # Step 2: Location & work arrangement
+│   │   ├── Step3Compensation.tsx # Step 3: Compensation & benefits
+│   │   ├── Step4Requirements.tsx # Step 4: Requirements & qualifications
+│   │   ├── Step5Skills.tsx       # Step 5: Skills & accessibility focus
+│   │   └── Step6Description.tsx  # Step 6: Job description & details
 │   ├── RichTextEditor.tsx # TipTap rich text editor
 │   ├── JobCard.tsx        # Job listing card
 │   └── JobFilters.tsx     # Job filtering component
@@ -206,6 +213,8 @@ accessibilityjobs/
 │   ├── db/               # Database configuration
 │   │   ├── schema.ts     # Drizzle schema
 │   │   └── index.ts      # Database client
+│   ├── constants/        # Shared constants
+│   │   └── job-form.ts   # Job form constants (certifications, skills, etc.)
 │   ├── seo.ts            # SEO structured data generators
 │   └── validations/      # Zod validation schemas
 ├── scripts/              # Python scripts for job scraping
@@ -331,13 +340,33 @@ All logos use a modern gradient (blue #3B82F6 to purple #8B5CF6) and incorporate
 - `/` - Job Board (lists all approved accessibility jobs)
 - `/about` - About Us (free job board information)
 - `/jobs/[id]` - Individual job details
-- `/post-job` - Submit a new accessibility job posting (free)
+- `/post-job` - Submit a new accessibility job posting (6-step wizard form with isolated components)
 - `/privacy-policy` - Privacy policy
 - `/terms-of-service` - Terms of service
 - `/contact` - Contact form
 - `/accessibility-statement` - Accessibility commitment
 - `/admin/login` - Admin login page
 - `/admin/dashboard` - Admin dashboard (protected)
+
+## Architecture Highlights
+
+### Multi-Step Form with Isolated Components
+
+The job posting form (`/post-job`) uses a **component-based architecture** to ensure data isolation and prevent data leakage between steps:
+
+- **Separate Step Components**: Each of the 6 steps is a self-contained React component
+- **Data Isolation**: Each step component only receives the form methods it needs (`register`, `control`, `watch`, `setValue`, `errors`)
+- **Shared Constants**: Form options (certifications, skills, benefits) are centralized in `lib/constants/job-form.ts`
+- **Type Safety**: Each step component has explicit TypeScript prop types
+- **Maintainability**: Steps can be modified independently without affecting others
+
+**Step Components:**
+1. `Step1BasicInfo` - Company and job basic information
+2. `Step2Location` - Location and work arrangement (with auto-detection)
+3. `Step3Compensation` - Salary and benefits
+4. `Step4Requirements` - Experience, education, and certifications
+5. `Step5Skills` - Technical skills and accessibility focus areas
+6. `Step6Description` - Rich text job descriptions and application details
 
 ## Deployment
 
