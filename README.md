@@ -2,6 +2,8 @@
 
 A 100% free, modern, and accessible job board platform built with Next.js 16, exclusively focused on digital accessibility roles. Connecting accessibility professionals with companies committed to creating inclusive digital experiences.
 
+🔗 **Repository:** [https://github.com/accessibilityhire-design/AccessibiityJobs](https://github.com/accessibilityhire-design/AccessibiityJobs)
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)
