@@ -59,8 +59,8 @@ export function JobCard({ job }: JobCardProps) {
           </div>
         )}
         
-        <p className="text-sm text-gray-700 line-clamp-3">
-          {job.description}
+        <p className="text-sm text-gray-700 line-clamp-3 min-h-[4.5rem]">
+          {job.description?.replace(/<[^>]*>/g, '').substring(0, 150) || 'No description available'}
         </p>
       </CardContent>
       

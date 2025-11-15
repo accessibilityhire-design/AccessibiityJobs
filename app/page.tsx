@@ -46,15 +46,16 @@ export default async function HomePage({
   const params = await searchParams;
   const selectedType = params.type || 'all';
 
-  // Fetch jobs server-side
+  // Fetch jobs server-side - optimized query
   let allJobs: Job[] = [];
   try {
+    // Limit results for faster initial load
     const query = db
       .select()
       .from(jobs)
       .where(eq(jobs.status, 'approved'))
       .orderBy(desc(jobs.createdAt))
-      .limit(100); // Limit for performance
+      .limit(50); // Reduced limit for faster initial load
 
     allJobs = await query;
 

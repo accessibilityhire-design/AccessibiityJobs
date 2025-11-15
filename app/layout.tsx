@@ -10,6 +10,8 @@ const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-inter",
+  preload: true,
+  fallback: ['system-ui', 'arial'],
 });
 
 export const metadata: Metadata = {
@@ -50,6 +52,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={inter.variable}>
+      <head>
+        {/* Preconnect to external domains for faster loading */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* DNS prefetch for analytics */}
+        <link rel="dns-prefetch" href="https://vitals.vercel-insights.com" />
+        <link rel="dns-prefetch" href="https://va.vercel-scripts.com" />
+      </head>
       <body className="flex flex-col min-h-screen antialiased">
         <a 
           href="#main-content" 

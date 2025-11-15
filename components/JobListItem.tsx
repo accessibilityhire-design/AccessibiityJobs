@@ -64,8 +64,9 @@ export function JobListItem({ job }: JobListItemProps) {
             </div>
           </div>
           
-          <p className="text-sm text-gray-700 line-clamp-2">
-            {job.description?.replace(/<[^>]*>/g, '').substring(0, 200)}...
+          <p className="text-sm text-gray-700 line-clamp-2 min-h-[3rem]">
+            {job.description?.replace(/<[^>]*>/g, '').substring(0, 200) || 'No description available'}
+            {job.description && job.description.replace(/<[^>]*>/g, '').length > 200 ? '...' : ''}
           </p>
         </div>
 
