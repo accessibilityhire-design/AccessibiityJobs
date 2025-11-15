@@ -40,20 +40,24 @@ export const metadata: Metadata = {
 export const revalidate = 300; // Revalidate every 5 minutes (aligned with cache)
 
 // Cache the jobs query for better TTFB
+// Separate function to ensure proper error handling
+async function fetchJobs() {
+  try {
+    const result = await db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.status, 'approved'))
+      .orderBy(desc(jobs.createdAt))
+      .limit(50);
+    return result;
+  } catch (error) {
+    console.error('Failed to fetch jobs:', error);
+    return [];
+  }
+}
+
 const getCachedJobs = unstable_cache(
-  async () => {
-    try {
-      return await db
-        .select()
-        .from(jobs)
-        .where(eq(jobs.status, 'approved'))
-        .orderBy(desc(jobs.createdAt))
-        .limit(50);
-    } catch (error) {
-      console.error('Failed to fetch jobs:', error);
-      return [];
-    }
-  },
+  fetchJobs,
   ['approved-jobs-all'],
   {
     revalidate: 300, // Revalidate every 5 minutes
