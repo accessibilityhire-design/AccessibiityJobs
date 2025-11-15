@@ -1,0 +1,77 @@
+import Link from 'next/link';
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
+
+export function Header() {
+  return (
+    <header className="border-b bg-white sticky top-0 z-50">
+      <div className="container mx-auto px-4 py-4">
+        <nav className="flex items-center justify-between" aria-label="Main navigation">
+          <Link 
+            href="/" 
+            className="flex items-center gap-3 hover:opacity-90 transition-opacity"
+            aria-label="AccessibilityJobs Home"
+          >
+            <Image 
+              src="/logo.svg" 
+              alt="AccessibilityJobs Logo" 
+              width={40} 
+              height={40}
+              className="w-10 h-10"
+            />
+            <span className="text-xl md:text-2xl font-bold text-gray-900">
+              AccessibilityJobs
+            </span>
+          </Link>
+          
+          <ul className="flex items-center gap-6">
+            <li>
+              <Link 
+                href="/" 
+                className="text-sm font-medium hover:text-primary transition-colors"
+                aria-label="Browse jobs"
+              >
+                Jobs
+              </Link>
+            </li>
+            <li>
+              <Link 
+                href="/about" 
+                className="text-sm font-medium hover:text-primary transition-colors"
+                aria-label="About us"
+              >
+                About
+              </Link>
+            </li>
+            <li>
+              <Link 
+                href="/post-job" 
+                className="text-sm font-medium hover:text-primary transition-colors"
+                aria-label="Post a job"
+              >
+                Post a Job
+              </Link>
+            </li>
+            <li>
+              <Link 
+                href="/contact" 
+                className="text-sm font-medium hover:text-primary transition-colors"
+                aria-label="Contact us"
+              >
+                Contact
+              </Link>
+            </li>
+            <li>
+              <Link href="/post-job">
+                <Button size="sm" aria-label="Post a job now">
+                  Post a Job
+                </Button>
+              </Link>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+  );
+}
+

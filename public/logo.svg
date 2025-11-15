@@ -1,0 +1,42 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with gradient -->
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main circle background -->
+  <circle cx="100" cy="100" r="90" fill="url(#logoGradient)"/>
+  
+  <!-- Accessibility person icon (stylized) -->
+  <!-- Head -->
+  <circle cx="100" cy="65" r="15" fill="white"/>
+  
+  <!-- Body and arms forming an 'A' shape -->
+  <path d="M 70 140 L 85 95 L 100 105 L 115 95 L 130 140" 
+        stroke="white" 
+        stroke-width="12" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"
+        fill="none"/>
+  
+  <!-- Connecting body line -->
+  <line x1="100" y1="80" x2="100" y2="105" 
+        stroke="white" 
+        stroke-width="12" 
+        stroke-linecap="round"/>
+  
+  <!-- Curved base representing inclusion/support -->
+  <path d="M 60 150 Q 100 160 140 150" 
+        stroke="white" 
+        stroke-width="8" 
+        stroke-linecap="round"
+        fill="none"/>
+  
+  <!-- Small accent dots for a11y representation -->
+  <circle cx="50" cy="100" r="4" fill="white" opacity="0.7"/>
+  <circle cx="150" cy="100" r="4" fill="white" opacity="0.7"/>
+</svg>
+
