@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
-import { JobCard } from '@/components/JobCard';
 import { JobFilters } from '@/components/JobFilters';
+import { JobsView } from '@/components/JobsView';
 import { Job } from '@/lib/db/schema';
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
@@ -101,18 +101,7 @@ export default async function HomePage({
             <p className="text-gray-600 text-lg">No accessibility jobs found. Check back soon for new opportunities!</p>
           </div>
         ) : (
-          <>
-            <div className="mb-4">
-              <p className="text-sm text-gray-600">
-                Showing <span className="font-semibold">{allJobs.length}</span> {allJobs.length === 1 ? 'job' : 'jobs'}
-              </p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {allJobs.map((job) => (
-                <JobCard key={job.id} job={job} />
-              ))}
-            </div>
-          </>
+          <JobsView jobs={allJobs} itemsPerPage={12} />
         )}
       </div>
     </>
