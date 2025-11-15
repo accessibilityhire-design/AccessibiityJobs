@@ -74,7 +74,7 @@ const getCachedJobs = unstable_cache(
       return [];
     }
   },
-  ['approved-jobs'], // Cache key
+  (type) => ['approved-jobs', type || 'all'], // Cache key includes type
   {
     revalidate: 300, // Revalidate every 5 minutes
     tags: ['jobs'], // Cache tag for manual revalidation
