@@ -202,7 +202,7 @@ export default function PostJobPage() {
                   }`}
                 >
                   {step}
-                </div>
+              </div>
                 {step < totalSteps && (
                   <div
                     className={`flex-1 h-1 mx-2 ${
@@ -212,8 +212,8 @@ export default function PostJobPage() {
                 )}
               </div>
             ))}
-          </div>
-        </div>
+                </div>
+              </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Step Components - Properly Isolated */}
@@ -222,7 +222,7 @@ export default function PostJobPage() {
               register={register}
               control={control}
               errors={errors}
-            />
+                />
           )}
 
           {currentStep === 2 && (
@@ -235,14 +235,14 @@ export default function PostJobPage() {
               detectedCountry={detectedCountry}
               detectedTimezone={detectedTimezone}
             />
-          )}
+                )}
 
           {currentStep === 3 && (
             <Step3Compensation
               register={register}
               control={control}
               errors={errors}
-            />
+                  />
           )}
 
           {currentStep === 4 && (
@@ -252,7 +252,7 @@ export default function PostJobPage() {
               watch={watch}
               setValue={setValue}
               errors={errors}
-            />
+                  />
           )}
 
           {currentStep === 5 && (
@@ -262,7 +262,7 @@ export default function PostJobPage() {
               watch={watch}
               setValue={setValue}
               errors={errors}
-            />
+                />
           )}
 
           {currentStep === 6 && (
@@ -274,11 +274,11 @@ export default function PostJobPage() {
             />
           )}
 
-          {submitError && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-md" role="alert">
-              <p className="text-sm text-red-600">{submitError}</p>
-            </div>
-          )}
+              {submitError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-md" role="alert">
+                  <p className="text-sm text-red-600">{submitError}</p>
+                </div>
+              )}
 
           {/* Navigation Buttons */}
           <div className="flex gap-4 sticky bottom-0 bg-white p-4 border-t">
@@ -302,17 +302,17 @@ export default function PostJobPage() {
                 Next Step
               </Button>
             ) : (
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1"
-                aria-label={isSubmitting ? 'Submitting job...' : 'Submit job for review'}
-              >
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1"
+                  aria-label={isSubmitting ? 'Submitting job...' : 'Submit job for review'}
+                >
                 {isSubmitting ? 'Submitting...' : 'Submit Job for Review'}
-              </Button>
+                </Button>
             )}
-          </div>
-        </form>
+              </div>
+            </form>
       </div>
     </div>
   );
