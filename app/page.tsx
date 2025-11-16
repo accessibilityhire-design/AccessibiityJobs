@@ -1,15 +1,11 @@
 import { Metadata } from 'next';
-import { unstable_cache } from 'next/cache';
-import { Suspense, lazy } from 'react';
 import { Job } from '@/lib/db/schema';
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { generateOrganizationStructuredData, generateJobPostingCollection } from '@/lib/seo';
-
-// Lazy load non-critical components for better FCP
-const JobFilters = lazy(() => import('@/components/JobFilters').then(mod => ({ default: mod.JobFilters })));
-const JobsView = lazy(() => import('@/components/JobsView').then(mod => ({ default: mod.JobsView })));
+import { JobFilters } from '@/components/JobFilters';
+import { JobsView } from '@/components/JobsView';
 
 export const metadata: Metadata = {
   title: 'Accessibility Jobs - Find Digital Accessibility Careers | AccessibilityJobs',
@@ -40,13 +36,13 @@ export const metadata: Metadata = {
   },
 };
 
-export const revalidate = 300; // Revalidate every 5 minutes (aligned with cache)
+export const revalidate = 60; // Revalidate every minute for fresh data
 
-// Cache the jobs query for better TTFB
-// Separate function to ensure proper error handling
-// Reduced limit to 24 (2 pages) for faster initial load
+// Fetch jobs with robust error handling
+// Fetch directly without aggressive caching to prevent blank screens
 async function fetchJobs() {
   try {
+    console.log('Fetching jobs from database...');
     const result = await db
       .select({
         id: jobs.id,
@@ -63,22 +59,16 @@ async function fetchJobs() {
       .from(jobs)
       .where(eq(jobs.status, 'approved'))
       .orderBy(desc(jobs.createdAt))
-      .limit(24);
+      .limit(50); // Increased limit for more jobs
+    
+    console.log(`Successfully fetched ${result.length} jobs`);
     return result;
   } catch (error) {
     console.error('Failed to fetch jobs:', error);
+    // Return empty array instead of throwing to prevent page crash
     return [];
   }
 }
-
-const getCachedJobs = unstable_cache(
-  fetchJobs,
-  ['approved-jobs-homepage-v2'],
-  {
-    revalidate: 300, // Revalidate every 5 minutes
-    tags: ['jobs'],
-  }
-);
 
 export default async function HomePage({
   searchParams,
@@ -88,20 +78,24 @@ export default async function HomePage({
   const params = await searchParams;
   const selectedType = params.type || 'all';
 
-  // Fetch jobs with caching for better TTFB - optimized query
+  // Fetch jobs with robust error handling
   let allJobs: Array<Pick<Job, 'id' | 'title' | 'company' | 'location' | 'type' | 'workArrangement' | 'salaryRange' | 'description' | 'createdAt' | 'status'>> = [];
+  
   try {
-    allJobs = await getCachedJobs();
+    // Direct fetch without aggressive caching to prevent stale/blank data
+    allJobs = await fetchJobs();
 
-    // Filter by type if specified (in-memory filtering for cached data)
+    // Filter by type if specified
     if (selectedType && selectedType !== 'all') {
       allJobs = allJobs.filter(job => 
         (job.type && job.type === selectedType) || 
         (job.workArrangement && job.workArrangement === selectedType)
       );
     }
+    
+    console.log(`Rendering ${allJobs.length} jobs (filtered by: ${selectedType})`);
   } catch (error) {
-    console.error('Error fetching jobs:', error);
+    console.error('Error fetching or filtering jobs:', error);
     // Ensure we always have an array, even on error
     allJobs = [];
   }
@@ -113,13 +107,10 @@ export default async function HomePage({
 
   return (
     <>
-      {/* Critical content first for FCP and LCP optimization */}
+      {/* Critical content first - no lazy loading to prevent flicker */}
       <div className="container mx-auto px-4 py-12">
         <div className="mb-12 text-center">
-          <h1 
-            className="text-4xl md:text-5xl font-bold mb-4"
-            style={{ contentVisibility: 'auto' }}
-          >
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">
             Find Your Next Accessibility Job
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
@@ -127,24 +118,17 @@ export default async function HomePage({
           </p>
         </div>
 
-        <Suspense fallback={<div className="bg-white p-6 rounded-lg border mb-8 h-24 animate-pulse" />}>
-          <JobFilters initialType={selectedType} />
-        </Suspense>
+        {/* Render filters immediately without Suspense */}
+        <JobFilters initialType={selectedType} />
 
+        {/* Render jobs immediately without Suspense to prevent flicker */}
         {allJobs.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-600 text-lg">No accessibility jobs found. Check back soon for new opportunities!</p>
+          <div className="text-center py-12 bg-blue-50 rounded-lg border border-blue-200 p-8">
+            <p className="text-gray-700 text-lg font-medium mb-2">No Accessibility Jobs Available Right Now</p>
+            <p className="text-gray-600">Check back soon for new opportunities, or post a job to get started!</p>
           </div>
         ) : (
-          <Suspense fallback={
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3, 4, 5, 6].map(i => (
-                <div key={i} className="bg-white rounded-lg border p-6 h-64 animate-pulse" />
-              ))}
-            </div>
-          }>
-            <JobsView jobs={allJobs as Job[]} itemsPerPage={12} />
-          </Suspense>
+          <JobsView jobs={allJobs as Job[]} itemsPerPage={12} />
         )}
       </div>
 
