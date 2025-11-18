@@ -10,7 +10,7 @@ export function Footer() {
         {/* Main Footer Content */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 md:gap-12 mb-10">
           {/* Brand */}
-          <div className="col-span-2 md:col-span-1">
+          <div className="col-span-2 md:col-span-1 text-left">
             <Link href="/" className="inline-block mb-4">
               <Image 
                 src="/logo.png" 
@@ -26,64 +26,64 @@ export function Footer() {
           </div>
           
           {/* Resources */}
-          <div>
-            <h4 className="text-gray-900 font-semibold text-sm mb-4 uppercase tracking-wider">Resources</h4>
-            <nav className="flex flex-col space-y-3" aria-label="Resources navigation">
-              <Link href="/certifications" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+          <div className="text-left">
+            <h4 className="text-gray-900 font-semibold text-sm mb-4 uppercase tracking-wider text-left">Resources</h4>
+            <nav className="flex flex-col space-y-3 items-start" aria-label="Resources navigation">
+              <Link href="/certifications" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 Certifications
               </Link>
-              <Link href="/tools" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+              <Link href="/tools" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 Tools
               </Link>
-              <Link href="/skills" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+              <Link href="/skills" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 Skills
               </Link>
-              <Link href="/resources" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+              <Link href="/resources" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 Learning
               </Link>
             </nav>
           </div>
 
           {/* Guidelines */}
-          <div>
-            <h4 className="text-gray-900 font-semibold text-sm mb-4 uppercase tracking-wider">Guidelines</h4>
-            <nav className="flex flex-col space-y-3" aria-label="Guidelines navigation">
-              <Link href="/wcag" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+          <div className="text-left">
+            <h4 className="text-gray-900 font-semibold text-sm mb-4 uppercase tracking-wider text-left">Guidelines</h4>
+            <nav className="flex flex-col space-y-3 items-start" aria-label="Guidelines navigation">
+              <Link href="/wcag" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 WCAG
               </Link>
-              <Link href="/section-508" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+              <Link href="/section-508" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 Section 508
               </Link>
-              <Link href="/ada" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+              <Link href="/ada" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 ADA
               </Link>
             </nav>
           </div>
 
           {/* Company */}
-          <div>
-            <h4 className="text-gray-900 font-semibold text-sm mb-4 uppercase tracking-wider">Company</h4>
-            <nav className="flex flex-col space-y-3" aria-label="Company navigation">
-              <Link href="/about" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+          <div className="text-left">
+            <h4 className="text-gray-900 font-semibold text-sm mb-4 uppercase tracking-wider text-left">Company</h4>
+            <nav className="flex flex-col space-y-3 items-start" aria-label="Company navigation">
+              <Link href="/about" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 About
               </Link>
-              <Link href="/contact" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+              <Link href="/contact" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 Contact
               </Link>
-              <Link href="/post-job" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+              <Link href="/post-job" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 Post a Job
               </Link>
             </nav>
           </div>
 
           {/* Legal */}
-          <div>
-            <h4 className="text-gray-900 font-semibold text-sm mb-4 uppercase tracking-wider">Legal</h4>
-            <nav className="flex flex-col space-y-3" aria-label="Legal navigation">
-              <Link href="/privacy-policy" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+          <div className="text-left">
+            <h4 className="text-gray-900 font-semibold text-sm mb-4 uppercase tracking-wider text-left">Legal</h4>
+            <nav className="flex flex-col space-y-3 items-start" aria-label="Legal navigation">
+              <Link href="/privacy-policy" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 Privacy
               </Link>
-              <Link href="/terms-of-service" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+              <Link href="/terms-of-service" className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left block">
                 Terms
               </Link>
             </nav>
