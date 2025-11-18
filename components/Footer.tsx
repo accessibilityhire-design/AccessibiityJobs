@@ -5,153 +5,91 @@ export function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="mt-auto bg-gray-50 border-t border-gray-100" role="contentinfo">
+    <footer className="bg-white border-t border-gray-100 mt-auto">
       <div className="container mx-auto px-4 py-16">
-        {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
-          {/* Brand Section */}
-          <div className="lg:col-span-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12 mb-16">
+          {/* Brand Section - Spans 4 columns */}
+          <div className="lg:col-span-4">
             <Link href="/" className="inline-block mb-6">
               <Image 
                 src="/logo.png" 
-                alt="AccessibilityJobs Logo" 
-                width={180} 
-                height={50}
-                className="h-10 w-auto"
+                alt="AccessibilityJobs" 
+                width={160} 
+                height={44}
+                className="h-9 w-auto"
               />
             </Link>
-            <p className="text-sm text-gray-600 leading-relaxed mb-6">
-              Connecting accessibility professionals with inclusive organizations worldwide.
+            <p className="text-gray-500 leading-relaxed mb-8 max-w-sm">
+              The leading job board for digital accessibility professionals. We connect inclusive organizations with the talent they need to build a better web for everyone.
             </p>
-            <Link 
-              href="/post-job"
-              className="inline-flex items-center justify-center rounded-md bg-blue-600 text-white text-sm font-medium px-4 py-2 hover:bg-blue-700 transition-colors"
-            >
-              Post a Job
-            </Link>
-          </div>
-
-          {/* Quick Links */}
-          <div>
-            <h3 className="text-gray-900 font-semibold text-base mb-6">Quick Links</h3>
-            <nav className="flex flex-col space-y-4" aria-label="Quick links navigation">
-              <Link 
-                href="/" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Browse Jobs
-              </Link>
-              <Link 
-                href="/about" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                About Us
-              </Link>
-              <Link 
-                href="/contact" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Contact
-              </Link>
+            <div className="flex items-center gap-4">
               <Link 
                 href="/post-job" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
+                className="inline-flex items-center justify-center px-6 py-2.5 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
               >
                 Post a Job
               </Link>
-            </nav>
+              <Link 
+                href="/contact" 
+                className="inline-flex items-center justify-center px-6 py-2.5 rounded-full border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Contact Us
+              </Link>
+            </div>
           </div>
 
-          {/* Resources */}
-          <div>
-            <h3 className="text-gray-900 font-semibold text-base mb-6">Resources</h3>
-            <nav className="flex flex-col space-y-4" aria-label="Resources navigation">
-              <Link 
-                href="/certifications" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Certifications
-              </Link>
-              <Link 
-                href="/tools" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Tools
-              </Link>
-              <Link 
-                href="/skills" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Skills
-              </Link>
-              <Link 
-                href="/resources" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Learning Resources
-              </Link>
-            </nav>
-          </div>
+          {/* Navigation Sections - Spans 8 columns total */}
+          <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-8">
+            {/* Column 1: Platform */}
+            <div className="flex flex-col space-y-4">
+              <h4 className="font-semibold text-gray-900">Platform</h4>
+              <Link href="/" className="text-gray-500 hover:text-blue-600 transition-colors">Browse Jobs</Link>
+              <Link href="/post-job" className="text-gray-500 hover:text-blue-600 transition-colors">Post a Job</Link>
+              <Link href="/companies" className="text-gray-500 hover:text-blue-600 transition-colors">Companies</Link>
+              <Link href="/salaries" className="text-gray-500 hover:text-blue-600 transition-colors">Salaries</Link>
+            </div>
 
-          {/* Guidelines & Legal */}
-          <div>
-            <h3 className="text-gray-900 font-semibold text-base mb-6">Guidelines</h3>
-            <nav className="flex flex-col space-y-4 mb-8" aria-label="Guidelines navigation">
-              <Link 
-                href="/wcag" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                WCAG
-              </Link>
-              <Link 
-                href="/section-508" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Section 508
-              </Link>
-              <Link 
-                href="/ada" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                ADA Compliance
-              </Link>
-            </nav>
-            <h3 className="text-gray-900 font-semibold text-base mb-6">Legal</h3>
-            <nav className="flex flex-col space-y-4" aria-label="Legal navigation">
-              <Link 
-                href="/privacy-policy" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Privacy Policy
-              </Link>
-              <Link 
-                href="/terms-of-service" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Terms of Service
-              </Link>
-              <Link 
-                href="/accessibility-statement" 
-                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                Accessibility Statement
-              </Link>
-            </nav>
+            {/* Column 2: Resources */}
+            <div className="flex flex-col space-y-4">
+              <h4 className="font-semibold text-gray-900">Resources</h4>
+              <Link href="/certifications" className="text-gray-500 hover:text-blue-600 transition-colors">Certifications</Link>
+              <Link href="/tools" className="text-gray-500 hover:text-blue-600 transition-colors">Tools & Software</Link>
+              <Link href="/skills" className="text-gray-500 hover:text-blue-600 transition-colors">Skills Guide</Link>
+              <Link href="/resources" className="text-gray-500 hover:text-blue-600 transition-colors">Learning Hub</Link>
+            </div>
+
+            {/* Column 3: Guidelines */}
+            <div className="flex flex-col space-y-4">
+              <h4 className="font-semibold text-gray-900">Guidelines</h4>
+              <Link href="/wcag" className="text-gray-500 hover:text-blue-600 transition-colors">WCAG 2.1/2.2</Link>
+              <Link href="/section-508" className="text-gray-500 hover:text-blue-600 transition-colors">Section 508</Link>
+              <Link href="/ada" className="text-gray-500 hover:text-blue-600 transition-colors">ADA Compliance</Link>
+              <Link href="/accessibility-statement" className="text-gray-500 hover:text-blue-600 transition-colors">A11y Statement</Link>
+            </div>
+
+            {/* Column 4: Company */}
+            <div className="flex flex-col space-y-4">
+              <h4 className="font-semibold text-gray-900">Company</h4>
+              <Link href="/about" className="text-gray-500 hover:text-blue-600 transition-colors">About Us</Link>
+              <Link href="/contact" className="text-gray-500 hover:text-blue-600 transition-colors">Contact</Link>
+              <Link href="/privacy-policy" className="text-gray-500 hover:text-blue-600 transition-colors">Privacy Policy</Link>
+              <Link href="/terms-of-service" className="text-gray-500 hover:text-blue-600 transition-colors">Terms of Service</Link>
+            </div>
           </div>
         </div>
 
-        {/* Bottom Bar */}
-        <div className="border-t border-gray-200 pt-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-gray-500 text-center md:text-left">
-              &copy; {currentYear} AccessibilityJobs. All rights reserved.
-            </p>
-            <p className="text-sm text-gray-500 text-center md:text-right">
-              Made with <span className="text-red-500">♥</span> for accessibility
-            </p>
+        {/* Footer Bottom */}
+        <div className="pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-gray-400">
+            &copy; {currentYear} AccessibilityJobs. All rights reserved.
+          </p>
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            <span>Built for the community with</span>
+            <span className="text-red-500" aria-label="love">♥</span>
           </div>
         </div>
       </div>
     </footer>
   );
 }
+
