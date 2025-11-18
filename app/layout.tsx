@@ -27,11 +27,15 @@ export const metadata: Metadata = {
   creator: "AccessibilityJobs",
   icons: {
     icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico', sizes: 'any' }
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
     ],
-    apple: '/favicon.svg',
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
+  manifest: '/site.webmanifest',
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -64,7 +68,7 @@ export default function RootLayout({
               const style=document.createElement('style');
               style.textContent='.container{max-width:1280px;margin:0 auto}header{border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0;z-index:50}nav{display:flex;align-items:center;justify-content:space-between}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}';
               document.head.appendChild(style);
-              const link1=document.createElement('link');link1.rel='preload';link1.href='/logo.svg';link1.as='image';link1.type='image/svg+xml';
+              const link1=document.createElement('link');link1.rel='preload';link1.href='/logo.png';link1.as='image';link1.type='image/png';
               const link2=document.createElement('link');link2.rel='preconnect';link2.href='https://fonts.googleapis.com';
               const link3=document.createElement('link');link3.rel='preconnect';link3.href='https://fonts.gstatic.com';link3.crossOrigin='anonymous';
               const link4=document.createElement('link');link4.rel='dns-prefetch';link4.href='https://vitals.vercel-insights.com';

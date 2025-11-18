@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -10,10 +11,14 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-x-8 gap-y-10 mb-10 items-start">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <Link href="/" className="inline-block group">
-              <h3 className="text-xl font-bold text-white mb-3 group-hover:text-blue-400 transition-colors">
-                AccessibilityJobs
-              </h3>
+            <Link href="/" className="inline-block group mb-3">
+              <Image 
+                src="/logo.png" 
+                alt="AccessibilityJobs Logo" 
+                width={180} 
+                height={50}
+                className="h-8 md:h-10 w-auto opacity-90 group-hover:opacity-100 transition-opacity"
+              />
             </Link>
             <p className="text-sm text-gray-400 leading-relaxed">
               Connecting accessibility professionals worldwide

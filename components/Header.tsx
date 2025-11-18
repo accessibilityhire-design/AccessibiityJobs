@@ -21,22 +21,19 @@ export function Header() {
           {/* Logo */}
           <Link 
             href="/" 
-            className="flex items-center gap-2 md:gap-3 hover:opacity-90 transition-opacity"
+            className="flex items-center hover:opacity-90 transition-opacity"
             aria-label="AccessibilityJobs Home"
             onClick={closeMobileMenu}
           >
             <Image 
-              src="/logo.svg" 
+              src="/logo.png" 
               alt="AccessibilityJobs Logo" 
-              width={40} 
-              height={40}
-              className="w-8 h-8 md:w-10 md:h-10"
+              width={180} 
+              height={50}
+              className="h-8 md:h-10 w-auto"
               priority
               fetchPriority="high"
             />
-            <span className="text-lg md:text-xl lg:text-2xl font-bold text-gray-900">
-              AccessibilityJobs
-            </span>
           </Link>
           
           {/* Desktop Navigation */}
