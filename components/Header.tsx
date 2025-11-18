@@ -16,7 +16,7 @@ export function Header() {
 
   return (
     <header className="border-b bg-white sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-6 md:px-8 py-5 md:py-6">
         <nav className="flex items-center justify-between" aria-label="Main navigation">
           {/* Logo */}
           <Link 
@@ -28,9 +28,9 @@ export function Header() {
             <Image 
               src="/logo.png" 
               alt="AccessibilityJobs Logo" 
-              width={180} 
-              height={50}
-              className="h-8 md:h-10 w-auto"
+              width={220} 
+              height={60}
+              className="h-12 md:h-14 w-auto"
               priority
               fetchPriority="high"
             />
