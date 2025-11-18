@@ -9,7 +9,7 @@ export function Header() {
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileResourcesOpen, setMobileResourcesOpen] = useState(false);
-  const resourcesMenuRef = useRef<HTMLDivElement>(null);
+  const resourcesMenuRef = useRef<HTMLLIElement>(null);
   const resourcesButtonRef = useRef<HTMLButtonElement>(null);
 
   const closeMobileMenu = () => {
