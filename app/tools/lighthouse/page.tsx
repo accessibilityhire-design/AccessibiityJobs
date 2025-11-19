@@ -121,7 +121,7 @@ export default function LighthousePage() {
               <div className="flex items-start">
                 <div className="bg-blue-100 rounded-full w-8 h-8 flex items-center justify-center text-blue-600 font-bold mr-3 flex-shrink-0">2</div>
                 <div>
-                  <strong>Open Lighthouse Tab:</strong> Click on the "Lighthouse" tab in DevTools (if not visible, click the ">>" icon to see more tabs).
+                  <strong>Open Lighthouse Tab:</strong> Click on the "Lighthouse" tab in DevTools (if not visible, click the &quot;&gt;&gt;&quot; icon to see more tabs).
                 </div>
               </div>
               <div className="flex items-start">
