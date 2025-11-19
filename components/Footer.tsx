@@ -25,6 +25,7 @@ export function Footer() {
         { label: 'ADA Compliance', href: '/ada' },
         { label: 'Certifications', href: '/certifications' },
         { label: 'Tools', href: '/tools' },
+        { label: 'Professional Tools', href: '/accessibility-professional-tools' },
       ],
     },
     {

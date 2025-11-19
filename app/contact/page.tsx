@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { Metadata } from 'next';
+import { useForm, ValidationError } from '@formspree/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,35 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Mail } from 'lucide-react';
 
 export default function ContactPage() {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: '',
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    // Simulate form submission (in a real app, this would send to an API)
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setSubmitSuccess(true);
-    setIsSubmitting(false);
-    
-    // Reset form
-    setFormData({ name: '', email: '', subject: '', message: '' });
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
-  };
+  const [state, handleSubmit] = useForm('xzzoevkp');
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -96,7 +67,7 @@ export default function ContactPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {submitSuccess ? (
+            {state.succeeded ? (
               <div className="py-8 text-center">
                 <div className="mb-4">
                   <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
@@ -107,7 +78,7 @@ export default function ContactPage() {
                 <p className="text-gray-600 mb-4">
                   Thank you for contacting us. We'll get back to you soon.
                 </p>
-                <Button onClick={() => setSubmitSuccess(false)}>
+                <Button onClick={() => window.location.reload()}>
                   Send Another Message
                 </Button>
               </div>
@@ -119,11 +90,17 @@ export default function ContactPage() {
                     <Input
                       id="name"
                       name="name"
-                      value={formData.name}
-                      onChange={handleChange}
+                      type="text"
                       required
                       aria-required="true"
                       placeholder="Your name"
+                      disabled={state.submitting}
+                    />
+                    <ValidationError 
+                      prefix="Name" 
+                      field="name"
+                      errors={state.errors}
+                      className="text-sm text-red-600"
                     />
                   </div>
 
@@ -133,11 +110,16 @@ export default function ContactPage() {
                       id="email"
                       name="email"
                       type="email"
-                      value={formData.email}
-                      onChange={handleChange}
                       required
                       aria-required="true"
                       placeholder="your.email@example.com"
+                      disabled={state.submitting}
+                    />
+                    <ValidationError 
+                      prefix="Email" 
+                      field="email"
+                      errors={state.errors}
+                      className="text-sm text-red-600"
                     />
                   </div>
                 </div>
@@ -147,11 +129,17 @@ export default function ContactPage() {
                   <Input
                     id="subject"
                     name="subject"
-                    value={formData.subject}
-                    onChange={handleChange}
+                    type="text"
                     required
                     aria-required="true"
                     placeholder="What is your message about?"
+                    disabled={state.submitting}
+                  />
+                  <ValidationError 
+                    prefix="Subject" 
+                    field="subject"
+                    errors={state.errors}
+                    className="text-sm text-red-600"
                   />
                 </div>
 
@@ -160,22 +148,37 @@ export default function ContactPage() {
                   <Textarea
                     id="message"
                     name="message"
-                    value={formData.message}
-                    onChange={handleChange}
                     required
                     aria-required="true"
                     rows={6}
                     placeholder="Tell us more about your inquiry..."
+                    disabled={state.submitting}
+                  />
+                  <ValidationError 
+                    prefix="Message" 
+                    field="message"
+                    errors={state.errors}
+                    className="text-sm text-red-600"
                   />
                 </div>
+
+                {state.errors && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-600 font-medium mb-2">Please fix the following errors:</p>
+                    <ValidationError 
+                      errors={state.errors}
+                      className="text-sm text-red-600"
+                    />
+                  </div>
+                )}
 
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={isSubmitting}
-                  aria-label={isSubmitting ? 'Sending message...' : 'Send message'}
+                  disabled={state.submitting}
+                  aria-label={state.submitting ? 'Sending message...' : 'Send message'}
                 >
-                  {isSubmitting ? 'Sending...' : 'Send Message'}
+                  {state.submitting ? 'Sending...' : 'Send Message'}
                 </Button>
               </form>
             )}
