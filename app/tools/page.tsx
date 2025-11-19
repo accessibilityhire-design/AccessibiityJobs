@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { Monitor, Code, Eye, Wrench } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Testing Tools 2025 - Complete Toolkit Guide',
   description: 'Comprehensive guide to accessibility testing tools: JAWS, NVDA, axe DevTools, WAVE, Lighthouse. Compare features, pricing, and find the right tools for your workflow.',
-  keywords: ['accessibility testing tools', 'screen readers', 'JAWS', 'NVDA', 'axe DevTools', 'WAVE', 'accessibility automation'],
-  alternates: { canonical: 'https://accessibilityjobs.net/tools' },
-};
+  path: '/tools',
+  keywords: ['accessibility testing tools', 'screen readers', 'JAWS', 'NVDA', 'axe DevTools', 'WAVE', 'accessibility automation', 'accessibility tools', 'a11y tools', 'WCAG testing tools'],
+});
 
 const screenReaders = [
   { name: 'JAWS', slug: 'jaws', cost: '$1,095', platform: 'Windows', icon: '🔊' },

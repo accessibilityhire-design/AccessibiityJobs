@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'WCAG Guidelines 2025 - Web Content Accessibility Guidelines Complete Guide',
   description: 'Comprehensive WCAG guide: 2.0, 2.1, 2.2 comparison, Level AA requirements, common violations, compliance checklist, and WCAG 3.0 preview.',
-  keywords: ['WCAG', 'WCAG 2.2', 'web accessibility guidelines', 'WCAG compliance', 'WCAG Level AA'],
-  alternates: { canonical: 'https://accessibilityjobs.net/wcag' },
-};
+  path: '/wcag',
+  keywords: ['WCAG', 'WCAG 2.2', 'web accessibility guidelines', 'WCAG compliance', 'WCAG Level AA', 'WCAG 2.1', 'WCAG 3.0', 'accessibility standards', 'WCAG checklist'],
+});
 
 export default function WCAGPage() {
   return (

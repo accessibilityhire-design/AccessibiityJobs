@@ -201,6 +201,20 @@ export function Header() {
                   >
                     Learning Resources
                   </Link>
+                  <Link 
+                    href="/accessibility-career-guide"
+                    className="block px-4 py-3 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset transition-colors"
+                    role="menuitem"
+                    onClick={() => setResourcesOpen(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setResourcesOpen(false);
+                        resourcesButtonRef.current?.focus();
+                      }
+                    }}
+                  >
+                    Accessibility Career Guide
+                  </Link>
                 </div>
               )}
             </li>
@@ -342,6 +356,15 @@ export function Header() {
                         onClick={closeMobileMenu}
                       >
                         Learning Resources
+                      </Link>
+                    </li>
+                    <li>
+                      <Link 
+                        href="/accessibility-career-guide"
+                        className="block py-2 px-3 text-sm font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
+                        onClick={closeMobileMenu}
+                      >
+                        Accessibility Career Guide
                       </Link>
                     </li>
                   </ul>

@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { ExternalLink, BookOpen, Users, Video, FileText } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Resources 2025 - Free Learning & Community',
   description: 'Curated accessibility resources: free courses, tutorials, communities, forums, blogs, newsletters, government resources, and professional development.',
-  keywords: ['accessibility resources', 'accessibility training', 'WCAG tutorials', 'accessibility community', 'free accessibility courses'],
-  alternates: { canonical: 'https://accessibilityjobs.net/resources' },
-};
+  path: '/resources',
+  keywords: ['accessibility resources', 'accessibility training', 'WCAG tutorials', 'accessibility community', 'free accessibility courses', 'accessibility learning', 'a11y resources', 'accessibility education'],
+});
 
 export default function ResourcesPage() {
   return (

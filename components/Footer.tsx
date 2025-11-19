@@ -32,6 +32,7 @@ export function Footer() {
       links: [
         { label: 'Skills Guide', href: '/skills' },
         { label: 'Learning Resources', href: '/resources' },
+        { label: 'Accessibility Career Guide', href: '/accessibility-career-guide' },
       ],
     },
   ];

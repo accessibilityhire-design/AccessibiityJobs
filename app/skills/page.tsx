@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { Code, Search, TestTube, Palette, Settings, Briefcase } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Skills 2025 - Complete Career Roadmap',
   description: 'Master accessibility skills for remediation, auditing, testing, development, design, and management. Career paths and learning resources for accessibility professionals.',
-  keywords: ['accessibility skills', 'accessibility career', 'WCAG skills', 'accessibility developer skills', 'accessibility auditor skills'],
-  alternates: { canonical: 'https://accessibilityjobs.net/skills' },
-};
+  path: '/skills',
+  keywords: ['accessibility skills', 'accessibility career', 'WCAG skills', 'accessibility developer skills', 'accessibility auditor skills', 'accessibility testing skills', 'accessibility design skills', 'accessibility management skills'],
+});
 
 const skillCategories = [
   { name: 'Remediation', slug: 'remediation', icon: Code, color: 'blue', description: 'Fix accessibility issues in existing code and content' },

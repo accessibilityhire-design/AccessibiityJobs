@@ -7,9 +7,12 @@ import { generateOrganizationStructuredData, generateJobPostingCollection } from
 import { JobFilters } from '@/components/JobFilters';
 import { JobsView } from '@/components/JobsView';
 
-export const metadata: Metadata = {
+import { generatePageMetadata } from '@/lib/seo-config';
+
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Jobs - Find Digital Accessibility Careers | AccessibilityJobs',
   description: 'Discover 300+ accessibility jobs including accessibility engineer, WCAG specialist, a11y consultant, digital accessibility roles, and inclusive design positions. Remote, hybrid, and onsite opportunities.',
+  path: '/',
   keywords: [
     'accessibility jobs',
     'a11y jobs',
@@ -23,18 +26,10 @@ export const metadata: Metadata = {
     'accessibility tester jobs',
     'Section 508 jobs',
     'ADA compliance jobs',
+    'accessibility careers',
+    'accessibility job board',
   ],
-  openGraph: {
-    title: 'Accessibility Jobs - Find Digital Accessibility Careers',
-    description: 'Browse 300+ accessibility jobs including accessibility engineer, WCAG specialist, and a11y consultant positions. Remote, hybrid, and onsite opportunities.',
-    type: 'website',
-    url: 'https://accessibilityjobs.net',
-    siteName: 'AccessibilityJobs',
-  },
-  alternates: {
-    canonical: 'https://accessibilityjobs.net',
-  },
-};
+});
 
 export const revalidate = 60; // Revalidate every minute for fresh data
 

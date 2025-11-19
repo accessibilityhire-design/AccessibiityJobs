@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { ComparisonTable, ComparisonColumn, ComparisonRow } from '@/components/ComparisonTable';
 import { Award, BookOpen, TrendingUp, Users } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Certifications 2025 - Complete Guide | AccessibilityJobs',
   description: 'Discover the top accessibility certifications for 2025 including CPACC, WAS, CPWA, and more. Compare requirements, costs, and career benefits to advance your accessibility career.',
+  path: '/certifications',
   keywords: [
     'accessibility certifications',
     'CPACC certification',
@@ -18,11 +20,10 @@ export const metadata: Metadata = {
     'Section 508 certification',
     'WCAG certification',
     'how to become accessibility specialist',
+    'accessibility certification guide',
+    'best accessibility certifications',
   ],
-  alternates: {
-    canonical: 'https://accessibilityjobs.net/certifications',
-  },
-};
+});
 
 const certifications = [
   {
