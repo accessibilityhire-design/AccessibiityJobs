@@ -47,9 +47,21 @@ async function fetchJobs() {
         type: jobs.type,
         workArrangement: jobs.workArrangement,
         salaryRange: jobs.salaryRange,
+        salaryMin: jobs.salaryMin,
+        salaryMax: jobs.salaryMax,
+        currency: jobs.currency,
+        salaryType: jobs.salaryType,
         description: jobs.description,
         createdAt: jobs.createdAt,
         status: jobs.status,
+        employmentType: jobs.employmentType,
+        jobLevel: jobs.jobLevel,
+        industry: jobs.industry,
+        specificLocation: jobs.specificLocation,
+        city: jobs.city,
+        country: jobs.country,
+        jobSource: jobs.jobSource,
+        sourceUrl: jobs.sourceUrl,
       })
       .from(jobs)
       .where(eq(jobs.status, 'approved'))
@@ -74,7 +86,7 @@ export default async function HomePage({
   const selectedType = params.type || 'all';
 
   // Fetch jobs with robust error handling
-  let allJobs: Array<Pick<Job, 'id' | 'title' | 'company' | 'location' | 'type' | 'workArrangement' | 'salaryRange' | 'description' | 'createdAt' | 'status'>> = [];
+  let allJobs: Array<Pick<Job, 'id' | 'title' | 'company' | 'location' | 'type' | 'workArrangement' | 'salaryRange' | 'salaryMin' | 'salaryMax' | 'currency' | 'salaryType' | 'description' | 'createdAt' | 'status' | 'employmentType' | 'jobLevel' | 'industry' | 'specificLocation' | 'city' | 'country' | 'jobSource' | 'sourceUrl'>> = [];
   
   try {
     // Direct fetch without aggressive caching to prevent stale/blank data

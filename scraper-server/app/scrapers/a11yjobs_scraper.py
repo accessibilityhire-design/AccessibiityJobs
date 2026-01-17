@@ -237,6 +237,11 @@ class A11yJobsScraper(BaseScraper):
             'requirements': desc_parts['requirements'],
             
             'contact_email': email[:255],
+            
+            # Job Source Tracking
+            'job_source': 'a11yjobs',
+            'source_url': raw_job.get('url', '')[:500] if raw_job.get('url') else None,
+            
             'status': 'approved',
             'created_at': datetime.now(),
             'updated_at': datetime.now()

@@ -74,6 +74,10 @@ export const jobs = pgTable('jobs', {
   type: varchar('type', { length: 50 }), // Kept for backward compatibility
   salaryRange: varchar('salary_range', { length: 100 }), // Kept for backward compatibility
   
+  // Job Source Tracking
+  jobSource: varchar('job_source', { length: 50 }), // linkedin, indeed, a11yjobs, ziprecruiter, direct
+  sourceUrl: varchar('source_url', { length: 500 }), // Original job posting URL
+  
   // Meta
   status: varchar('status', { length: 20 }).notNull().default('pending'), // pending, approved, rejected
   createdAt: timestamp('created_at').defaultNow().notNull(),

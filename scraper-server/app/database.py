@@ -120,6 +120,7 @@ class Database:
                         benefits, professional_development, health_insurance, retirement, pto_details,
                         contact_email, application_deadline, expected_start_date, visa_sponsorship, security_clearance, travel_required,
                         additional_notes, location, type, salary_range,
+                        job_source, source_url,
                         status, created_at, updated_at
                     ) VALUES (
                         %(title)s, %(company)s, %(company_website)s, %(company_size)s, %(industry)s,
@@ -132,6 +133,7 @@ class Database:
                         %(benefits)s, %(professional_development)s, %(health_insurance)s, %(retirement)s, %(pto_details)s,
                         %(contact_email)s, %(application_deadline)s, %(expected_start_date)s, %(visa_sponsorship)s, %(security_clearance)s, %(travel_required)s,
                         %(additional_notes)s, %(location)s, %(type)s, %(salary_range)s,
+                        %(job_source)s, %(source_url)s,
                         %(status)s, %(created_at)s, %(updated_at)s
                     )
                     RETURNING id
@@ -156,6 +158,7 @@ class Database:
                     'visa_sponsorship': False, 'security_clearance': False,
                     'travel_required': None, 'additional_notes': None,
                     'location': None, 'type': None, 'salary_range': None,
+                    'job_source': None, 'source_url': None,
                     'status': 'approved',
                     'created_at': datetime.now(),
                     'updated_at': datetime.now()

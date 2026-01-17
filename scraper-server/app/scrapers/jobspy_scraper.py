@@ -233,6 +233,11 @@ class JobSpyScraper(BaseScraper):
             'requirements': desc_parts['requirements'],
             
             'contact_email': email[:255],
+            
+            # Job Source Tracking
+            'job_source': raw_job.get('site', 'jobspy'),  # linkedin, indeed, zip_recruiter
+            'source_url': raw_job.get('job_url', '')[:500] if raw_job.get('job_url') else None,
+            
             'status': 'approved',
             'created_at': datetime.now(),
             'updated_at': datetime.now()

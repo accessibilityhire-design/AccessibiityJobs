@@ -5,7 +5,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import {
   MapPin, Building2, Briefcase, Calendar, Mail, Globe, ArrowLeft,
   Clock, DollarSign, GraduationCap, Award, CheckCircle2, Users,
-  Laptop, Share2
+  Laptop, Share2, ExternalLink, Link2
 } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -17,6 +17,59 @@ import { formatJobDescription, formatCompanyName, extractPlainText } from '@/lib
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+// Job source configuration with colors and display names
+const SOURCE_CONFIG: Record<string, { bg: string; text: string; border: string; label: string; icon?: string }> = {
+  linkedin: { 
+    bg: 'bg-[#0A66C2]/10', 
+    text: 'text-[#0A66C2]', 
+    border: 'border-[#0A66C2]/30',
+    label: 'LinkedIn',
+  },
+  indeed: { 
+    bg: 'bg-[#2164F3]/10', 
+    text: 'text-[#2164F3]', 
+    border: 'border-[#2164F3]/30',
+    label: 'Indeed',
+  },
+  zip_recruiter: { 
+    bg: 'bg-[#009E62]/10', 
+    text: 'text-[#009E62]', 
+    border: 'border-[#009E62]/30',
+    label: 'ZipRecruiter',
+  },
+  ziprecruiter: { 
+    bg: 'bg-[#009E62]/10', 
+    text: 'text-[#009E62]', 
+    border: 'border-[#009E62]/30',
+    label: 'ZipRecruiter',
+  },
+  a11yjobs: { 
+    bg: 'bg-indigo-50', 
+    text: 'text-indigo-700', 
+    border: 'border-indigo-200',
+    label: 'A11yJobs',
+  },
+  direct: { 
+    bg: 'bg-slate-50', 
+    text: 'text-slate-600', 
+    border: 'border-slate-200',
+    label: 'Direct Posting',
+  },
+  jobspy: { 
+    bg: 'bg-slate-50', 
+    text: 'text-slate-600', 
+    border: 'border-slate-200',
+    label: 'Job Board',
+  },
+};
+
+// Helper to get source config
+function getSourceConfig(source: string | null | undefined) {
+  if (!source) return null;
+  const normalizedSource = source.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return SOURCE_CONFIG[normalizedSource] || SOURCE_CONFIG[source.toLowerCase()] || null;
 }
 
 // Helper to parse JSON safely
@@ -157,6 +210,7 @@ export default async function JobDetailPage({ params }: PageProps) {
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.currency);
   const location = job.specificLocation || job.city || job.location || 'Location not specified';
   const workArrangement = job.workArrangement || job.type || 'full-time';
+  const sourceConfig = getSourceConfig(job.jobSource);
 
   const arrangementColors: Record<string, string> = {
     remote: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -187,14 +241,29 @@ export default async function JobDetailPage({ params }: PageProps) {
       {/* Hero Section */}
       <div className="bg-gradient-to-br from-slate-50 via-white to-blue-50 border-b">
         <div className="container mx-auto px-4 py-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 mb-6 transition-colors group"
-            aria-label="Back to all jobs"
-          >
-            <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" aria-hidden="true" />
-            Back to all jobs
-          </Link>
+          <div className="flex items-center justify-between mb-6">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors group"
+              aria-label="Back to all jobs"
+            >
+              <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" aria-hidden="true" />
+              Back to all jobs
+            </Link>
+
+            {/* Source Badge - Hero */}
+            {sourceConfig && (
+              <div className="flex items-center gap-2">
+                <span 
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border ${sourceConfig.bg} ${sourceConfig.text} ${sourceConfig.border}`}
+                  aria-label={`Job sourced from ${sourceConfig.label}`}
+                >
+                  <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  via {sourceConfig.label}
+                </span>
+              </div>
+            )}
+          </div>
 
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
             <div className="flex-1">
@@ -255,15 +324,29 @@ export default async function JobDetailPage({ params }: PageProps) {
 
             {/* Apply Button - Desktop */}
             <div className="hidden lg:flex flex-col gap-3">
-              <Button size="lg" className="px-8 shadow-lg shadow-blue-500/20" asChild>
-                <a
-                  href={`mailto:${job.contactEmail}?subject=Application for ${job.title}`}
-                  aria-label={`Apply for ${job.title} via email`}
-                >
-                  <Mail className="h-4 w-4 mr-2" aria-hidden="true" />
-                  Apply Now
-                </a>
-              </Button>
+              {job.sourceUrl ? (
+                <Button size="lg" className="px-8 shadow-lg shadow-blue-500/20" asChild>
+                  <a
+                    href={job.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Apply for ${job.title} on original posting`}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" aria-hidden="true" />
+                    View Original Posting
+                  </a>
+                </Button>
+              ) : (
+                <Button size="lg" className="px-8 shadow-lg shadow-blue-500/20" asChild>
+                  <a
+                    href={`mailto:${job.contactEmail}?subject=Application for ${job.title}`}
+                    aria-label={`Apply for ${job.title} via email`}
+                  >
+                    <Mail className="h-4 w-4 mr-2" aria-hidden="true" />
+                    Apply Now
+                  </a>
+                </Button>
+              )}
               <Button variant="outline" size="sm" className="text-slate-600">
                 <Share2 className="h-4 w-4 mr-2" aria-hidden="true" />
                 Share Job
@@ -383,8 +466,25 @@ export default async function JobDetailPage({ params }: PageProps) {
                   Ready to take the next step in your accessibility career? Apply now!
                 </p>
 
-                {/* Show appropriate apply button based on available contact info */}
-                {isRealContactEmail(job.contactEmail) ? (
+                {/* Primary CTA - Source URL or Email */}
+                {job.sourceUrl ? (
+                  <>
+                    <Button className="w-full shadow-md" size="lg" asChild>
+                      <a
+                        href={job.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Apply for ${job.title} on ${sourceConfig?.label || 'original posting'}`}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" aria-hidden="true" />
+                        View Original Posting
+                      </a>
+                    </Button>
+                    <p className="text-xs text-slate-500 text-center">
+                      You&apos;ll be redirected to {sourceConfig?.label || 'the original job posting'}
+                    </p>
+                  </>
+                ) : isRealContactEmail(job.contactEmail) ? (
                   <>
                     <Button className="w-full shadow-md" size="lg" asChild>
                       <a
@@ -443,7 +543,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                     </Button>
 
                     <p className="text-xs text-slate-500 text-center">
-                      You'll be redirected to the company's careers page
+                      You&apos;ll be redirected to the company&apos;s careers page
                     </p>
 
                     <div className="pt-4 border-t">
@@ -468,7 +568,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                       <p className="text-sm text-amber-800">
                         <strong>Contact information pending.</strong><br />
-                        We're working on getting the application details for this role.
+                        We&apos;re working on getting the application details for this role.
                         Try searching for the company directly.
                       </p>
                     </div>
@@ -487,6 +587,45 @@ export default async function JobDetailPage({ params }: PageProps) {
                 )}
               </CardContent>
             </Card>
+
+            {/* Job Source Card */}
+            {(sourceConfig || job.sourceUrl) && (
+              <Card className="border shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Link2 className="h-5 w-5 text-slate-400" aria-hidden="true" />
+                    Job Source
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {sourceConfig && (
+                    <div className="flex items-center gap-3">
+                      <span 
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border ${sourceConfig.bg} ${sourceConfig.text} ${sourceConfig.border}`}
+                      >
+                        {sourceConfig.label}
+                      </span>
+                    </div>
+                  )}
+                  {job.sourceUrl && (
+                    <a
+                      href={job.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                      aria-label="View original job posting"
+                    >
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                      View original posting
+                    </a>
+                  )}
+                  <p className="text-xs text-slate-500">
+                    This job was sourced from {sourceConfig?.label || 'an external job board'}. 
+                    Click the link above to view the original posting.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Job Details Card */}
             <Card className="border shadow-sm">
@@ -573,7 +712,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                   <CardTitle className="text-lg">Benefits</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-2">
+                  <ul className="space-y-2" role="list">
                     {job.healthInsurance && (
                       <li className="flex items-center gap-2 text-sm text-slate-700">
                         <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" aria-hidden="true" />

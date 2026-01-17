@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Job } from '@/lib/db/schema';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  MapPin, Building2, DollarSign, Clock, Laptop, Users, Calendar, ArrowRight
+  MapPin, Building2, DollarSign, Clock, Laptop, Users, Calendar, ArrowRight, ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCompanyName, extractPlainText } from '@/lib/job-formatter';
@@ -10,6 +10,52 @@ import { formatCompanyName, extractPlainText } from '@/lib/job-formatter';
 interface JobListItemProps {
   job: Job;
 }
+
+// Job source configuration with colors and display names
+const SOURCE_CONFIG: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  linkedin: { 
+    bg: 'bg-[#0A66C2]/10', 
+    text: 'text-[#0A66C2]', 
+    border: 'border-[#0A66C2]/20',
+    label: 'LinkedIn' 
+  },
+  indeed: { 
+    bg: 'bg-[#2164F3]/10', 
+    text: 'text-[#2164F3]', 
+    border: 'border-[#2164F3]/20',
+    label: 'Indeed' 
+  },
+  zip_recruiter: { 
+    bg: 'bg-[#009E62]/10', 
+    text: 'text-[#009E62]', 
+    border: 'border-[#009E62]/20',
+    label: 'ZipRecruiter' 
+  },
+  ziprecruiter: { 
+    bg: 'bg-[#009E62]/10', 
+    text: 'text-[#009E62]', 
+    border: 'border-[#009E62]/20',
+    label: 'ZipRecruiter' 
+  },
+  a11yjobs: { 
+    bg: 'bg-indigo-50', 
+    text: 'text-indigo-700', 
+    border: 'border-indigo-200',
+    label: 'A11yJobs' 
+  },
+  direct: { 
+    bg: 'bg-slate-50', 
+    text: 'text-slate-600', 
+    border: 'border-slate-200',
+    label: 'Direct' 
+  },
+  jobspy: { 
+    bg: 'bg-slate-50', 
+    text: 'text-slate-600', 
+    border: 'border-slate-200',
+    label: 'Job Board' 
+  },
+};
 
 // Helper to format salary display
 function formatSalaryRange(job: Job): string | null {
@@ -41,11 +87,19 @@ function getDisplayLocation(job: Job): string {
   return job.location || 'Location not specified';
 }
 
+// Helper to get source config
+function getSourceConfig(source: string | null | undefined) {
+  if (!source) return null;
+  const normalizedSource = source.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return SOURCE_CONFIG[normalizedSource] || SOURCE_CONFIG[source.toLowerCase()] || null;
+}
+
 export function JobListItem({ job }: JobListItemProps) {
   const workArrangement = job.workArrangement || job.type || 'onsite';
   const companyName = formatCompanyName(job.company);
   const salary = formatSalaryRange(job);
   const location = getDisplayLocation(job);
+  const sourceConfig = getSourceConfig(job.jobSource);
 
   const arrangementConfig: Record<string, { bg: string; text: string; border: string }> = {
     remote: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
@@ -66,19 +120,31 @@ export function JobListItem({ job }: JobListItemProps) {
 
         {/* Middle: Job Info */}
         <div className="flex-1 min-w-0">
-          {/* Title & Company */}
+          {/* Title & Company Row with Source Badge */}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
             <div className="flex-1 min-w-0">
-              <Link
-                href={`/jobs/${job.id}`}
-                className="block group-hover:text-blue-600 transition-colors"
-                aria-label={`View details for ${job.title} at ${companyName}`}
-              >
-                <h3 className="text-lg font-semibold text-slate-900 truncate">
-                  {job.title}
-                </h3>
-              </Link>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mb-1">
+                <Link
+                  href={`/jobs/${job.id}`}
+                  className="block group-hover:text-blue-600 transition-colors flex-1 min-w-0"
+                  aria-label={`View details for ${job.title} at ${companyName}`}
+                >
+                  <h3 className="text-lg font-semibold text-slate-900 truncate">
+                    {job.title}
+                  </h3>
+                </Link>
+                {/* Source Badge - Inline with title */}
+                {sourceConfig && (
+                  <span 
+                    className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border flex-shrink-0 ${sourceConfig.bg} ${sourceConfig.text} ${sourceConfig.border}`}
+                    aria-label={`Job sourced from ${sourceConfig.label}`}
+                  >
+                    {job.sourceUrl && <ExternalLink className="h-3 w-3" aria-hidden="true" />}
+                    {sourceConfig.label}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-slate-400" aria-hidden="true" />
                 <span className="text-sm font-medium text-slate-600 truncate">{companyName}</span>
                 {job.industry && (
@@ -113,8 +179,16 @@ export function JobListItem({ job }: JobListItemProps) {
             </div>
           </div>
 
-          {/* Mobile Tags */}
+          {/* Mobile Tags + Source */}
           <div className="flex flex-wrap gap-2 mb-3 md:hidden">
+            {sourceConfig && (
+              <span 
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border ${sourceConfig.bg} ${sourceConfig.text} ${sourceConfig.border}`}
+                aria-label={`Job sourced from ${sourceConfig.label}`}
+              >
+                {sourceConfig.label}
+              </span>
+            )}
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${arrangement.bg} ${arrangement.text}`}>
               {workArrangement.charAt(0).toUpperCase() + workArrangement.slice(1)}
             </span>

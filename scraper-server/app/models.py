@@ -80,6 +80,10 @@ class JobBase(BaseModel):
     type: Optional[str] = Field(None, max_length=50)
     salary_range: Optional[str] = Field(None, max_length=100)
     
+    # Job Source Tracking
+    job_source: Optional[str] = Field(None, max_length=50)  # linkedin, indeed, a11yjobs, ziprecruiter, direct
+    source_url: Optional[str] = Field(None, max_length=500)  # Original job posting URL
+    
     # Meta
     status: str = "approved"
 
