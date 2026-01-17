@@ -204,3 +204,85 @@ textarea:focus-visible {
 .ProseMirror a:hover {
   color: #1D4ED8;
 }
+
+/* Job Description Formatting Styles */
+.job-description {
+  line-height: 1.7;
+}
+
+.job-description p {
+  margin-bottom: 1rem;
+}
+
+.job-description ul,
+.job-description ol {
+  padding-left: 1.5rem;
+  margin: 1rem 0;
+}
+
+.job-description ul {
+  list-style-type: disc;
+}
+
+.job-description ol {
+  list-style-type: decimal;
+}
+
+.job-description li {
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+
+.job-description h3,
+.job-description h4,
+.job-description h5 {
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--foreground);
+}
+
+.job-description h3 {
+  font-size: 1.25rem;
+}
+
+.job-description h4 {
+  font-size: 1.125rem;
+}
+
+.job-description h5 {
+  font-size: 1rem;
+}
+
+.job-description strong {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.job-description em {
+  font-style: italic;
+}
+
+/* Ensure proper spacing for first/last elements */
+.job-description > *:first-child {
+  margin-top: 0;
+}
+
+.job-description > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Handle raw text without paragraph tags */
+.job-description {
+  white-space: pre-wrap;
+}
+
+.job-description p,
+.job-description ul,
+.job-description ol,
+.job-description h3,
+.job-description h4,
+.job-description h5 {
+  white-space: normal;
+}
+

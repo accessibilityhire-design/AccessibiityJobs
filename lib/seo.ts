@@ -6,8 +6,8 @@ export function generateJobStructuredData(job: Job, url: string) {
   let preferredSkills: string[] = [];
   try {
     if (job.requiredSkills) {
-      requiredSkills = typeof job.requiredSkills === 'string' 
-        ? JSON.parse(job.requiredSkills) 
+      requiredSkills = typeof job.requiredSkills === 'string'
+        ? JSON.parse(job.requiredSkills)
         : job.requiredSkills;
     }
     if (job.preferredSkills) {
@@ -29,10 +29,10 @@ export function generateJobStructuredData(job: Job, url: string) {
 
   // Calculate validThrough (90 days from posting date)
   // Ensure createdAt is a Date object
-  const createdAtDate = job.createdAt instanceof Date 
-    ? job.createdAt 
+  const createdAtDate = job.createdAt instanceof Date
+    ? job.createdAt
     : new Date(job.createdAt);
-  
+
   // Validate date - fallback to current date if invalid
   const validCreatedAt = isNaN(createdAtDate.getTime()) ? new Date() : createdAtDate;
   const validThrough = new Date(validCreatedAt);
@@ -73,8 +73,8 @@ export function generateJobStructuredData(job: Job, url: string) {
         } : {
           value: job.salaryMax,
         }),
-        unitText: job.salaryType === 'Hourly' ? 'HOUR' : 
-                 job.salaryType === 'Monthly' ? 'MONTH' : 'YEAR',
+        unitText: job.salaryType === 'Hourly' ? 'HOUR' :
+          job.salaryType === 'Monthly' ? 'MONTH' : 'YEAR',
       },
     };
   } else if (job.salaryRange) {
@@ -105,15 +105,28 @@ export function generateJobStructuredData(job: Job, url: string) {
     hiringOrganization: {
       '@type': 'Organization',
       name: job.company,
-      ...(job.companyWebsite && { sameAs: job.companyWebsite }),
+      ...(job.companyWebsite && {
+        sameAs: job.companyWebsite,
+        url: job.companyWebsite,
+      }),
+      // Placeholder for company logo - improves Google Jobs visibility
+      logo: 'https://accessibilityjobs.net/logo.png',
     },
     jobLocation,
     employmentType: mapEmploymentType((job.employmentType || job.type || 'full-time') as string),
     ...(baseSalary && { baseSalary }),
-    ...(job.jobLevel && { 
+    // Experience requirements
+    ...(job.yearsExperience && {
       experienceRequirements: {
         '@type': 'OccupationalExperienceRequirements',
         monthsOfExperience: mapExperienceLevel(job.yearsExperience),
+      },
+    }),
+    // Education requirements - Google recommended field
+    ...(job.educationLevel && {
+      educationRequirements: {
+        '@type': 'EducationalOccupationalCredential',
+        credentialCategory: mapEducationLevel(job.educationLevel),
       },
     }),
     ...(occupationalCategory && { occupationalCategory }),
@@ -133,6 +146,8 @@ export function generateJobStructuredData(job: Job, url: string) {
     ...(job.workArrangement === 'hybrid' && {
       workHours: 'Flexible',
     }),
+    // Direct apply indicator - Google recommended field
+    directApply: true,
     url,
   };
 }
@@ -140,7 +155,7 @@ export function generateJobStructuredData(job: Job, url: string) {
 function determineOccupationalCategory(title: string, description: string): string {
   const titleLower = title.toLowerCase();
   const descLower = (description || '').toLowerCase();
-  
+
   if (titleLower.includes('engineer') || titleLower.includes('developer')) {
     return '15-1132.00'; // Software Developers, Applications
   } else if (titleLower.includes('designer') || titleLower.includes('ux') || titleLower.includes('ui')) {
@@ -152,7 +167,7 @@ function determineOccupationalCategory(title: string, description: string): stri
   } else if (titleLower.includes('consultant') || titleLower.includes('specialist')) {
     return '15-1199.00'; // Computer Occupations, All Other
   }
-  
+
   return '15-1199.00'; // Default: Computer Occupations, All Other
 }
 
@@ -167,13 +182,13 @@ function mapEmploymentType(type: string): string {
     'internship': 'INTERN',
     'freelance': 'CONTRACTOR',
   };
-  
+
   return typeMap[type.toLowerCase()] || 'FULL_TIME';
 }
 
 function mapExperienceLevel(yearsExp: string | null): number {
   if (!yearsExp) return 0;
-  
+
   const expMap: Record<string, number> = {
     '0-1': 6,
     '1-3': 18,
@@ -182,8 +197,23 @@ function mapExperienceLevel(yearsExp: string | null): number {
     '7-10': 84,
     '10+': 120,
   };
-  
+
   return expMap[yearsExp] || 0;
+}
+
+function mapEducationLevel(level: string | null): string {
+  if (!level) return 'bachelor';
+
+  const eduMap: Record<string, string> = {
+    'high-school': 'high school',
+    'associate': 'associate degree',
+    'bachelor': 'bachelor degree',
+    'master': 'master degree',
+    'phd': 'doctoral degree',
+    'none-required': 'no requirements',
+  };
+
+  return eduMap[level.toLowerCase()] || level;
 }
 
 export function generateOrganizationStructuredData() {
@@ -217,13 +247,13 @@ export function generateJobPostingCollection(jobs: Job[], baseUrl: string = 'htt
       numberOfItems: jobs.length,
       itemListElement: jobs.map((job, index) => {
         // Ensure createdAt is a Date object
-        const createdAtDate = job.createdAt instanceof Date 
-          ? job.createdAt 
+        const createdAtDate = job.createdAt instanceof Date
+          ? job.createdAt
           : new Date(job.createdAt);
-        
+
         // Validate date - fallback to current date if invalid
         const validCreatedAt = isNaN(createdAtDate.getTime()) ? new Date() : createdAtDate;
-        
+
         return {
           '@type': 'ListItem',
           position: index + 1,
@@ -236,21 +266,21 @@ export function generateJobPostingCollection(jobs: Job[], baseUrl: string = 'htt
               value: job.id,
             },
             datePosted: createdAtDate.toISOString(),
-          hiringOrganization: {
-            '@type': 'Organization',
-            name: job.company,
-          },
-          jobLocation: {
-            '@type': 'Place',
-            address: {
-              '@type': 'PostalAddress',
-              addressLocality: job.location || 'Remote',
+            hiringOrganization: {
+              '@type': 'Organization',
+              name: job.company,
             },
+            jobLocation: {
+              '@type': 'Place',
+              address: {
+                '@type': 'PostalAddress',
+                addressLocality: job.location || 'Remote',
+              },
+            },
+            employmentType: mapEmploymentType((job.employmentType || job.type || 'full-time') as string),
+            url: `${baseUrl}/jobs/${job.id}`,
           },
-          employmentType: mapEmploymentType((job.employmentType || job.type || 'full-time') as string),
-          url: `${baseUrl}/jobs/${job.id}`,
-        },
-      };
+        };
       }),
     },
   };
