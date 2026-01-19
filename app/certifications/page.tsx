@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { ComparisonTable, ComparisonColumn, ComparisonRow } from '@/components/ComparisonTable';
-import { Award, BookOpen, TrendingUp, Users } from 'lucide-react';
-import { generatePageMetadata } from '@/lib/seo-config';
+import { Award, BookOpen, TrendingUp, Users, CheckCircle, ArrowRight } from 'lucide-react';
+import { generatePageMetadata, generateFAQStructuredData } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Certifications 2025 - Complete Guide | AccessibilityJobs',
@@ -24,6 +24,34 @@ export const metadata: Metadata = generatePageMetadata({
     'best accessibility certifications',
   ],
 });
+
+// FAQ data for schema and display
+const certificationFAQs = [
+  {
+    question: 'What is the best accessibility certification to start with?',
+    answer: 'CPACC (Certified Professional in Accessibility Core Competencies) is the best starting point for most professionals. It covers foundational concepts without requiring technical experience and is recognized globally by employers.',
+  },
+  {
+    question: 'How much do accessibility certifications cost?',
+    answer: 'Costs range from free to $500. IAAP certifications (CPACC, WAS) cost around $450. Government certifications like DHS Trusted Tester and Section 508 Trusted Tester are completely free.',
+  },
+  {
+    question: 'Do accessibility certifications expire?',
+    answer: 'Yes, most accessibility certifications require renewal every 3 years. CPACC and WAS require continuing education credits for renewal. Some government certifications may have different renewal requirements.',
+  },
+  {
+    question: 'What certification do I need for accessibility testing?',
+    answer: 'For technical accessibility testing, WAS (Web Accessibility Specialist) or DHS Trusted Tester are excellent choices. WAS is ideal for the private sector, while Trusted Tester is essential for government contract work.',
+  },
+  {
+    question: 'How much more do certified accessibility professionals earn?',
+    answer: 'On average, certified accessibility professionals earn 15-30% more than non-certified peers. CPACC and WAS certifications are particularly valued by employers and can significantly boost job prospects and salary negotiations.',
+  },
+  {
+    question: 'Can I take accessibility certification exams online?',
+    answer: 'Yes, most accessibility certifications offer remote proctored exams. IAAP certifications (CPACC, WAS) can be taken online from home. DHS Trusted Tester offers both online training and testing options.',
+  },
+];
 
 const certifications = [
   {
@@ -133,86 +161,105 @@ const comparisonRows: ComparisonRow[] = [
 ];
 
 export default function CertificationsPage() {
+  // Generate FAQ schema
+  const faqSchema = generateFAQStructuredData(certificationFAQs);
+
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="container mx-auto px-4 py-8">
       <Breadcrumbs
         items={[{ label: 'Certifications', href: '/certifications' }]}
       />
 
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            Accessibility Certifications 2025
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Advance your career with industry-recognized accessibility certifications. Compare options, learn requirements, and choose the right certification path for your goals.
+        {/* Page Header */}
+        <header className="page-header">
+          <h1>Accessibility Certifications 2025</h1>
+          <p>
+            Advance your career with industry-recognized accessibility certifications.
+            Compare options, learn requirements, and choose the right path for your goals.
           </p>
-        </div>
+        </header>
+
+        {/* Quick Answer Box */}
+        <section className="info-box mb-8">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-lg font-semibold mb-2">Quick Answer</h2>
+              <p className="mb-0">
+                <strong>Start with CPACC</strong> if you're new to accessibility - it's the most recognized foundational certification.
+                For technical roles, add <strong>WAS</strong>. For government work, get <strong>DHS Trusted Tester</strong> (it's free!).
+                Certified professionals earn <strong>15-30% more</strong> on average.
+              </p>
+            </div>
+          </div>
+        </section>
 
         {/* Key Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <Award className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-gray-900">7+</div>
-              <div className="text-sm text-gray-600">Certifications</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <TrendingUp className="h-8 w-8 text-green-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-gray-900">25%</div>
-              <div className="text-sm text-gray-600">Avg Salary Increase</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <Users className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-gray-900">50K+</div>
-              <div className="text-sm text-gray-600">Certified Professionals</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <BookOpen className="h-8 w-8 text-orange-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-gray-900">Free</div>
-              <div className="text-sm text-gray-600">Gov Certifications</div>
-            </CardContent>
-          </Card>
+        <div className="stats-grid mb-12">
+          <div className="stat-card">
+            <Award className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+            <div className="stat-value">7+</div>
+            <div className="stat-label">Certifications</div>
+          </div>
+          <div className="stat-card">
+            <TrendingUp className="h-8 w-8 text-green-600 mx-auto mb-2" />
+            <div className="stat-value">25%</div>
+            <div className="stat-label">Avg Salary Increase</div>
+          </div>
+          <div className="stat-card">
+            <Users className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+            <div className="stat-value">50K+</div>
+            <div className="stat-label">Certified Professionals</div>
+          </div>
+          <div className="stat-card">
+            <BookOpen className="h-8 w-8 text-orange-600 mx-auto mb-2" />
+            <div className="stat-value">Free</div>
+            <div className="stat-label">Gov Certifications</div>
+          </div>
         </div>
 
         {/* Why Get Certified */}
-        <Card className="mb-12">
-          <CardHeader>
-            <CardTitle className="text-2xl">Why Get Accessibility Certified?</CardTitle>
-          </CardHeader>
-          <CardContent className="prose max-w-none">
-            <p className="text-gray-700 leading-relaxed mb-4">
-              Accessibility certifications validate your expertise in creating inclusive digital experiences and demonstrate your commitment to web accessibility. With the growing demand for accessibility professionals and increasing legal requirements, certifications can significantly boost your career prospects.
-            </p>
-            <ul className="space-y-2 text-gray-700">
-              <li><strong>Higher Salaries:</strong> Certified professionals earn 15-30% more on average</li>
-              <li><strong>Job Security:</strong> Stand out in a competitive market with verified credentials</li>
-              <li><strong>Legal Compliance:</strong> Help organizations meet ADA, Section 508, and WCAG requirements</li>
-              <li><strong>Career Advancement:</strong> Open doors to senior and leadership positions</li>
-              <li><strong>Professional Recognition:</strong> Join a global community of accessibility experts</li>
-            </ul>
-          </CardContent>
-        </Card>
+        <section className="content-card mb-12">
+          <h2>Why Get Accessibility Certified?</h2>
+          <p>
+            Accessibility certifications validate your expertise in creating inclusive digital experiences
+            and demonstrate your commitment to web accessibility. With the growing demand for accessibility
+            professionals and increasing legal requirements, certifications can significantly boost your career.
+          </p>
+          <ul className="space-y-2 mt-4">
+            <li className="flex items-start gap-2">
+              <ArrowRight className="w-4 h-4 text-blue-500 flex-shrink-0 mt-1" />
+              <span><strong>Higher Salaries:</strong> Certified professionals earn 15-30% more on average</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <ArrowRight className="w-4 h-4 text-blue-500 flex-shrink-0 mt-1" />
+              <span><strong>Job Security:</strong> Stand out in a competitive market with verified credentials</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <ArrowRight className="w-4 h-4 text-blue-500 flex-shrink-0 mt-1" />
+              <span><strong>Legal Compliance:</strong> Help organizations meet <Link href="/ada" className="text-blue-600 hover:underline">ADA</Link>, <Link href="/section-508" className="text-blue-600 hover:underline">Section 508</Link>, and <Link href="/wcag" className="text-blue-600 hover:underline">WCAG</Link> requirements</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <ArrowRight className="w-4 h-4 text-blue-500 flex-shrink-0 mt-1" />
+              <span><strong>Career Advancement:</strong> Open doors to senior and leadership positions</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <ArrowRight className="w-4 h-4 text-blue-500 flex-shrink-0 mt-1" />
+              <span><strong>Professional Recognition:</strong> Join a global community of accessibility experts</span>
+            </li>
+          </ul>
+        </section>
 
         {/* Comparison Table */}
-        <div className="mb-12">
-          <h2 className="text-3xl font-bold mb-6" id="comparison">
-            Certification Comparison
-          </h2>
+        <section className="mb-12">
+          <h2 className="section-title" id="comparison">Certification Comparison</h2>
           <ComparisonTable columns={comparisonColumns} rows={comparisonRows} />
-        </div>
+        </section>
 
         {/* All Certifications */}
-        <div className="mb-12">
-          <h2 className="text-3xl font-bold mb-6" id="all-certifications">
-            All Accessibility Certifications
-          </h2>
+        <section className="mb-12">
+          <h2 className="section-title" id="all-certifications">All Accessibility Certifications</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {certifications.map((cert) => (
               <Card key={cert.slug} className="hover:shadow-lg transition-shadow">
@@ -252,59 +299,118 @@ export default function CertificationsPage() {
               </Card>
             ))}
           </div>
-        </div>
+        </section>
 
         {/* Choosing Guide */}
-        <Card className="mb-12">
-          <CardHeader>
-            <CardTitle className="text-2xl">Which Certification is Right for You?</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="border-l-4 border-blue-500 pl-4 py-2">
+        <section className="content-card mb-12">
+          <h2>Which Certification is Right for You?</h2>
+          <div className="space-y-4 mt-4">
+            <div className="comparison-item primary">
               <h3 className="font-semibold text-lg mb-2">New to Accessibility?</h3>
-              <p className="text-gray-700">Start with <strong>CPACC</strong> - It covers foundational concepts and doesn't require technical experience.</p>
+              <p className="text-gray-700 mb-0">
+                Start with <Link href="/certifications/cpacc" className="text-blue-600 hover:underline font-semibold">CPACC</Link> -
+                It covers foundational concepts and doesn't require technical experience.
+              </p>
             </div>
-            <div className="border-l-4 border-green-500 pl-4 py-2">
+            <div className="comparison-item secondary">
               <h3 className="font-semibold text-lg mb-2">Web Developer or Designer?</h3>
-              <p className="text-gray-700">Go for <strong>WAS</strong> - Perfect for technical professionals who implement accessibility in code.</p>
+              <p className="text-gray-700 mb-0">
+                Go for <Link href="/certifications/was" className="text-blue-600 hover:underline font-semibold">WAS</Link> -
+                Perfect for technical professionals who implement accessibility in code.
+              </p>
             </div>
-            <div className="border-l-4 border-purple-500 pl-4 py-2">
+            <div className="comparison-item tertiary">
               <h3 className="font-semibold text-lg mb-2">Working with Government Contracts?</h3>
-              <p className="text-gray-700">Get <strong>DHS Trusted Tester</strong> or <strong>Section 508</strong> - Required for federal accessibility testing.</p>
+              <p className="text-gray-700 mb-0">
+                Get <Link href="/certifications/dhs-trusted-tester" className="text-blue-600 hover:underline font-semibold">DHS Trusted Tester</Link> or
+                <Link href="/certifications/section-508-trusted-tester" className="text-blue-600 hover:underline font-semibold ml-1">Section 508</Link> -
+                Required for federal accessibility testing.
+              </p>
             </div>
-            <div className="border-l-4 border-orange-500 pl-4 py-2">
+            <div className="border-l-4 border-orange-500 bg-orange-50/50 pl-4 py-3">
               <h3 className="font-semibold text-lg mb-2">Looking for Comprehensive Coverage?</h3>
-              <p className="text-gray-700">Consider <strong>CPWA</strong> or <strong>ACTCP</strong> - Advanced certifications covering multiple aspects.</p>
+              <p className="text-gray-700 mb-0">
+                Consider <Link href="/certifications/cpwa" className="text-blue-600 hover:underline font-semibold">CPWA</Link> or
+                <Link href="/certifications/actcp" className="text-blue-600 hover:underline font-semibold ml-1">ACTCP</Link> -
+                Advanced certifications covering multiple aspects.
+              </p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section className="mb-12">
+          <h2 className="section-title">Frequently Asked Questions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {certificationFAQs.map((faq, index) => (
+              <div key={index} className="content-card">
+                <h3 className="text-base font-semibold mb-2 text-slate-800">{faq.question}</h3>
+                <p className="text-slate-600 text-sm mb-0">{faq.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Related Resources */}
+        <section className="content-card mb-12">
+          <h2>Related Resources</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <Link href="/wcag" className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium">
+              <ArrowRight className="w-4 h-4" />
+              WCAG Guidelines
+            </Link>
+            <Link href="/section-508" className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium">
+              <ArrowRight className="w-4 h-4" />
+              Section 508 Guide
+            </Link>
+            <Link href="/ada" className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium">
+              <ArrowRight className="w-4 h-4" />
+              ADA Accessibility
+            </Link>
+            <Link href="/tools" className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium">
+              <ArrowRight className="w-4 h-4" />
+              Testing Tools
+            </Link>
+            <Link href="/skills" className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium">
+              <ArrowRight className="w-4 h-4" />
+              Required Skills
+            </Link>
+            <Link href="/accessibility-career-guide" className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium">
+              <ArrowRight className="w-4 h-4" />
+              Career Guide
+            </Link>
+          </div>
+        </section>
 
         {/* CTA */}
-        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-          <CardContent className="pt-6 text-center">
-            <h3 className="text-2xl font-bold mb-4">Ready to Get Certified?</h3>
-            <p className="text-gray-700 mb-6 max-w-2xl mx-auto">
-              Explore detailed guides for each certification, including study resources, exam tips, and career insights.
-            </p>
+        <section className="cta-section">
+          <h2>Ready to Get Certified?</h2>
+          <p>
+            Explore detailed guides for each certification, including study resources, exam tips, and career insights.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/">
-              <Button size="lg" className="mr-4">
+              <Button size="lg" variant="secondary">
                 Browse Accessibility Jobs
               </Button>
             </Link>
             <Link href="/skills">
-              <Button size="lg" variant="outline">
+              <Button size="lg" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20">
                 Learn Required Skills
               </Button>
             </Link>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
         {/* Last Updated */}
-        <p className="text-sm text-gray-500 text-center mt-8">
-          Last Updated: January 2025
-        </p>
+        <p className="page-meta">Last Updated: January 2025</p>
       </div>
+
+      {/* FAQ Schema */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
     </div>
   );
 }
-

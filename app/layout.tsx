@@ -17,14 +17,27 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://accessibilityjobs.net'),
   title: {
     default: "AccessibilityJobs - Find Accessibility-Focused Job Opportunities",
     template: "%s | AccessibilityJobs",
   },
-  description: "Discover meaningful career opportunities in accessibility. Connect with companies committed to creating inclusive digital experiences.",
-  keywords: ["accessibility jobs", "a11y jobs", "inclusive design", "WCAG", "accessibility careers"],
+  description: "Discover meaningful career opportunities in accessibility. Connect with companies committed to creating inclusive digital experiences. Browse 500+ accessibility jobs including WCAG specialists, a11y engineers, and accessibility consultants.",
+  keywords: [
+    "accessibility jobs",
+    "a11y jobs",
+    "inclusive design",
+    "WCAG",
+    "accessibility careers",
+    "accessibility engineer jobs",
+    "digital accessibility",
+    "Section 508 jobs",
+    "accessibility specialist",
+    "CPACC jobs"
+  ],
   authors: [{ name: "AccessibilityJobs" }],
   creator: "AccessibilityJobs",
+  publisher: "AccessibilityJobs",
   icons: {
     icon: '/favicon.ico',
     shortcut: '/favicon.ico',
@@ -38,12 +51,36 @@ export const metadata: Metadata = {
     siteName: "AccessibilityJobs",
     title: "AccessibilityJobs - Find Accessibility-Focused Job Opportunities",
     description: "Discover meaningful career opportunities in accessibility. Connect with companies committed to creating inclusive digital experiences.",
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'AccessibilityJobs - Digital Accessibility Job Board',
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "AccessibilityJobs - Find Accessibility-Focused Job Opportunities",
     description: "Discover meaningful career opportunities in accessibility.",
+    images: ['/og-image.png'],
   },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  alternates: {
+    canonical: 'https://accessibilityjobs.net',
+  },
+  category: 'careers',
 };
 
 export default function RootLayout({
@@ -71,9 +108,9 @@ export default function RootLayout({
             `,
           }}
         />
-        
-        <a 
-          href="#main-content" 
+
+        <a
+          href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-md focus:shadow-lg"
         >
           Skip to main content
@@ -86,7 +123,7 @@ export default function RootLayout({
           <Footer />
         </Suspense>
         <DeferredAnalytics />
-        
+
         {/* Google AdSense */}
         <Script
           async

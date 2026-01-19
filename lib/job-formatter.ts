@@ -139,23 +139,48 @@ export function extractPlainText(text: string | null | undefined, maxLength: num
 }
 
 /**
+ * List of invalid company name patterns
+ */
+const INVALID_COMPANY_PATTERNS = [
+    'nan', 'null', 'undefined', 'n/a', 'none', 'tbd',
+    'unknown', 'pending', 'to be determined', 'not specified',
+    'company information pending', 'company not available'
+];
+
+/**
+ * Check if a company name is valid (should be displayed)
+ * Returns true if the company name is valid and should be shown
+ */
+export function isValidCompanyName(company: string | null | undefined): boolean {
+    if (!company) return false;
+
+    const normalized = company.toLowerCase().trim();
+
+    // Check against invalid patterns
+    for (const pattern of INVALID_COMPANY_PATTERNS) {
+        if (normalized === pattern || normalized.includes(pattern)) {
+            return false;
+        }
+    }
+
+    // Must have at least 2 characters and contain letters
+    if (company.trim().length < 2 || !/[a-zA-Z]/.test(company)) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
  * Format company name - handle edge cases like NaN, Unknown, etc.
  */
 export function formatCompanyName(company: string | null | undefined): string {
-    if (!company) return 'Company Not Available';
-
-    // Handle JavaScript NaN as string
-    if (company === 'NaN' || company === 'nan' || company === 'null' || company === 'undefined') {
-        return 'Company Not Available';
-    }
-
-    // Handle explicit unknown values
-    if (company.toLowerCase().includes('unknown')) {
+    if (!isValidCompanyName(company)) {
         return 'Company Not Available';
     }
 
     // Clean up whitespace
-    return company.trim();
+    return company!.trim();
 }
 
 /**

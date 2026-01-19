@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { isValidCompanyName } from '@/lib/job-formatter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,6 +19,10 @@ export async function GET(request: NextRequest) {
     // Execute query
     let allJobs = await query;
 
+    // Filter out jobs without valid company names
+    // These won't be shown to users as per business requirement
+    allJobs = allJobs.filter(job => isValidCompanyName(job.company));
+
     // Filter by type if specified (client-side filter for simplicity)
     if (type && type !== 'all') {
       allJobs = allJobs.filter(job => job.type === type);
@@ -32,4 +37,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

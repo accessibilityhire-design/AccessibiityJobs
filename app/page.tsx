@@ -6,6 +6,7 @@ import { eq, desc } from 'drizzle-orm';
 import { generateOrganizationStructuredData, generateJobPostingCollection } from '@/lib/seo';
 import { JobFilters } from '@/components/JobFilters';
 import { JobsView } from '@/components/JobsView';
+import { isValidCompanyName } from '@/lib/job-formatter';
 
 import { generatePageMetadata } from '@/lib/seo-config';
 
@@ -67,9 +68,12 @@ async function fetchJobs() {
       .where(eq(jobs.status, 'approved'))
       .orderBy(desc(jobs.createdAt))
       .limit(50); // Increased limit for more jobs
-    
-    console.log(`Successfully fetched ${result.length} jobs`);
-    return result;
+
+    // Filter out jobs without valid company names - they shouldn't be displayed
+    const validJobs = result.filter(job => isValidCompanyName(job.company));
+
+    console.log(`Successfully fetched ${validJobs.length} valid jobs (${result.length - validJobs.length} filtered out for missing company)`);
+    return validJobs;
   } catch (error) {
     console.error('Failed to fetch jobs:', error);
     // Return empty array instead of throwing to prevent page crash
@@ -87,19 +91,19 @@ export default async function HomePage({
 
   // Fetch jobs with robust error handling
   let allJobs: Array<Pick<Job, 'id' | 'title' | 'company' | 'location' | 'type' | 'workArrangement' | 'salaryRange' | 'salaryMin' | 'salaryMax' | 'currency' | 'salaryType' | 'description' | 'createdAt' | 'status' | 'employmentType' | 'jobLevel' | 'industry' | 'specificLocation' | 'city' | 'country' | 'jobSource' | 'sourceUrl'>> = [];
-  
+
   try {
     // Direct fetch without aggressive caching to prevent stale/blank data
     allJobs = await fetchJobs();
 
     // Filter by type if specified
     if (selectedType && selectedType !== 'all') {
-      allJobs = allJobs.filter(job => 
-        (job.type && job.type === selectedType) || 
+      allJobs = allJobs.filter(job =>
+        (job.type && job.type === selectedType) ||
         (job.workArrangement && job.workArrangement === selectedType)
       );
     }
-    
+
     console.log(`Rendering ${allJobs.length} jobs (filtered by: ${selectedType})`);
   } catch (error) {
     console.error('Error fetching or filtering jobs:', error);

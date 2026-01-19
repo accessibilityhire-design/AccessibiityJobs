@@ -4,7 +4,7 @@ JobSpy scraper for LinkedIn, Indeed, and ZipRecruiter
 
 import logging
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from app.scrapers.base import BaseScraper
@@ -153,8 +153,8 @@ class JobSpyScraper(BaseScraper):
             'salary_type': interval_map.get(interval)
         }
     
-    def map_to_schema(self, raw_job: Dict[str, Any]) -> Dict[str, Any]:
-        """Map JobSpy job data to our database schema"""
+    def map_to_schema(self, raw_job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Map JobSpy job data to our database schema. Returns None if essential data can't be extracted."""
         description = raw_job.get('description', '') or ''
         if not isinstance(description, str):
             description = ''
@@ -170,9 +170,15 @@ class JobSpyScraper(BaseScraper):
         # Validate and fix company name - try to extract from description if invalid
         company = self.validate_and_fix_company(raw_company, description)
         
+        # If we couldn't find a valid company name, skip this job
+        if company is None:
+            logger.warning(f"Skipping job '{title}' - could not extract company name")
+            return None
+        
         # Extract info
         location_info = self._extract_location_info(raw_job)
         salary_info = self._extract_salary_info(raw_job)
+
         is_remote = raw_job.get('is_remote', False)
         work_arrangement = self.determine_work_arrangement(description, is_remote)
         

@@ -2,6 +2,7 @@ import { MetadataRoute } from 'next';
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { isValidCompanyName } from '@/lib/job-formatter';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // Revalidate every hour
@@ -11,14 +12,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Get all approved jobs for dynamic URLs
   let jobUrls: MetadataRoute.Sitemap = [];
-  
+
   try {
     const approvedJobs = await db
       .select()
       .from(jobs)
       .where(eq(jobs.status, 'approved'));
 
-    jobUrls = approvedJobs.map((job) => ({
+    // Filter out jobs with invalid company names - don't include in sitemap
+    const validJobs = approvedJobs.filter(job => isValidCompanyName(job.company));
+
+    jobUrls = validJobs.map((job) => ({
       url: `${baseUrl}/jobs/${job.id}`,
       lastModified: job.updatedAt,
       changeFrequency: 'weekly' as const,
@@ -54,7 +58,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.5,
     },
-    
+
     // Certification pages
     {
       url: `${baseUrl}/certifications`,
@@ -104,7 +108,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.7,
     },
-    
+
     // Tools pages
     {
       url: `${baseUrl}/tools`,
@@ -160,7 +164,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.6,
     },
-    
+
     // Skills pages
     {
       url: `${baseUrl}/skills`,
@@ -204,7 +208,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.7,
     },
-    
+
     // Guidelines pages
     {
       url: `${baseUrl}/wcag`,
@@ -242,7 +246,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.8,
     },
-    
+
     // Legal pages
     {
       url: `${baseUrl}/privacy-policy`,

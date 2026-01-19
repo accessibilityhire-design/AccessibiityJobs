@@ -196,31 +196,86 @@ class BaseScraper(ABC):
         if not description:
             return None
         
-        # Common patterns for company mentions
+        # Clean up the description first
+        clean_desc = description.replace('\\n', '\n').replace('\\-', '-')
+        
+        # Common patterns for company mentions - ordered by reliability
         patterns = [
-            # "Company Name is seeking..." or "Company Name is looking..."
-            r'^([A-Z][A-Za-z0-9\s&.,\'\-]+?)\s+is\s+(?:seeking|looking|hiring)',
+            # "Company Name is seeking/looking/hiring..." - very reliable
+            r'^([A-Z][A-Za-z0-9\s&.,\'\-]+?)\s+is\s+(?:seeking|looking|hiring|searching|recruiting)',
             # "At Company Name, we..."
-            r'^At\s+([A-Z][A-Za-z0-9\s&.,\'\-]+?),\s+',
-            # "Join Company Name"
-            r'^Join\s+([A-Z][A-Za-z0-9\s&.,\'\-]+?)\s+',
-            # "Company Name - Title" at start
+            r'^At\s+([A-Z][A-Za-z0-9\s&.,\'\-]+?),\s+(?:we|our)',
+            # "Join Company Name" or "Join the Company Name team"
+            r'^Join\s+(?:the\s+)?([A-Z][A-Za-z0-9\s&.,\'\-]+?)(?:\s+team)?\s+',
+            # "About Company Name:" at start
+            r'^About\s+([A-Z][A-Za-z0-9\s&.,\'\-]+?):',
+            # "Company Name - Job Title" at start
             r'^\*?\*?([A-Z][A-Za-z0-9\s&.,\'\-]+?)\*?\*?\s*[\-–—]\s*',
-            # University/College patterns
-            r'((?:University|College|Institute)\s+(?:of\s+)?[A-Za-z\s]+)',
+            # "Company Name is a..." or "Company Name is an..."
+            r'^([A-Z][A-Za-z0-9\s&.,\'\-]+?)\s+is\s+(?:a|an)\s+',
+            # "Work at Company Name" or "Working at Company Name"
+            r'^Work(?:ing)?\s+(?:at|for|with)\s+([A-Z][A-Za-z0-9\s&.,\'\-]+)',
+            # University/College patterns - very specific
+            r'((?:University|College|Institute)\s+(?:of\s+)?[A-Za-z\s]+?)(?:\s+is|\s+-|,)',
             # "Company Name\n Location" pattern common in JobSpy
             r'^\*?\*?([A-Z][A-Za-z0-9\s&.,\'\-]+?)\*?\*?\n[A-Z][a-z]+,\s*[A-Z]{2}',
+            # "Posted by Company Name"
+            r'Posted\s+by\s+([A-Z][A-Za-z0-9\s&.,\'\-]+)',
+            # "Company Name offers/provides..."
+            r'^([A-Z][A-Za-z0-9\s&.,\'\-]+?)\s+(?:offers|provides|has|needs)',
+            # Bold company name: "**Company Name**"
+            r'^\*\*([A-Z][A-Za-z0-9\s&.,\'\-]+?)\*\*',
+            # Company name followed by industries
+            r'^([A-Z][A-Za-z0-9\s&.,\'\-]+?),?\s+(?:a\s+)?(?:leading|global|innovative|premier)',
+            # "Welcome to Company Name"
+            r'Welcome\s+to\s+([A-Z][A-Za-z0-9\s&.,\'\-]+)',
+            # Email domain extraction: careers@companyname.com -> Company Name
+            r'(?:careers?|jobs?|hr|recruiting|employment)@([a-z0-9]+)\.(?:com|org|net|io)',
         ]
         
         for pattern in patterns:
-            match = re.search(pattern, description[:500], re.MULTILINE)
+            match = re.search(pattern, clean_desc[:800], re.MULTILINE | re.IGNORECASE)
             if match:
                 company = match.group(1).strip()
+                # Clean up the extracted name
+                company = self._clean_company_name(company)
                 # Validate it looks like a company name
                 if self.is_valid_company_name(company):
+                    logger.debug(f"Extracted company '{company}' using pattern")
                     return company
         
         return None
+    
+    def _clean_company_name(self, name: str) -> str:
+        """Clean up extracted company name"""
+        if not name:
+            return name
+        
+        result = name.strip()
+        
+        # Remove common prefixes
+        prefixes_to_remove = ['the ', 'a ', 'an ']
+        for prefix in prefixes_to_remove:
+            if result.lower().startswith(prefix):
+                result = result[len(prefix):]
+        
+        # Remove common suffixes that aren't part of company name
+        suffixes_to_remove = [' is', ' has', ' are', ' team', ' company', ' corporation']
+        for suffix in suffixes_to_remove:
+            if result.lower().endswith(suffix):
+                result = result[:-len(suffix)]
+        
+        # Remove markdown symbols
+        result = result.replace('**', '').replace('*', '').strip()
+        
+        # Remove trailing punctuation
+        result = result.rstrip('.,;:-')
+        
+        # Capitalize properly if all lowercase or all uppercase
+        if result.islower() or result.isupper():
+            result = result.title()
+        
+        return result.strip()
     
     def is_valid_company_name(self, name: str) -> bool:
         """Validate if a string looks like a valid company name"""
@@ -231,28 +286,41 @@ class BaseScraper(ABC):
         invalid_values = [
             'unknown', 'nan', 'null', 'undefined', 'n/a', 'none',
             'job', 'position', 'title', 'description', 'requirements',
-            'experience', 'remote', 'hybrid', 'onsite', 'full-time', 'part-time'
+            'experience', 'remote', 'hybrid', 'onsite', 'full-time', 'part-time',
+            'pending', 'tbd', 'not specified', 'confidential', 'company',
+            'we', 'our', 'the', 'this', 'that', 'here', 'there'
         ]
         if name.lower().strip() in invalid_values:
+            return False
+        
+        # Check for invalid patterns
+        if 'pending' in name.lower() or 'unknown' in name.lower():
             return False
         
         # Should start with a letter
         if not name[0].isalpha():
             return False
         
+        # Should have at least one vowel (catches random strings)
+        if not any(c in name.lower() for c in 'aeiou'):
+            return False
+        
         return True
     
-    def validate_and_fix_company(self, company: str, description: str = '') -> str:
-        """Validate company name and try to fix if invalid"""
+    def validate_and_fix_company(self, company: str, description: str = '') -> Optional[str]:
+        """Validate company name and try to fix if invalid. Returns None if can't be fixed."""
         # Check for invalid values
         if not company or not self.is_valid_company_name(company):
             # Try to extract from description
             extracted = self.extract_company_from_description(description)
             if extracted:
+                logger.info(f"Fixed company name: extracted '{extracted}' from description")
                 return extracted[:255]
-            return "Company Information Pending"
+            # Return None instead of "Pending" - let the frontend filter these out
+            return None
         
         return company[:255]
+
     
     def get_smart_contact_info(self, company: str, company_website: Optional[str] = None, 
                                 description: str = '') -> Dict[str, Optional[str]]:

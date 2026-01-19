@@ -3,11 +3,42 @@
 export const seoConfig = {
   siteName: 'AccessibilityJobs',
   siteUrl: 'https://accessibilityjobs.net',
-  description: 'Find accessibility-focused job opportunities. Connect with companies committed to creating inclusive digital experiences.',
-  ogImage: '/og-image.png', // Default OG image
-  twitterHandle: '@AccessibilityJobs', // Update with actual handle if available
+  description: 'The leading job board for digital accessibility professionals. Find accessibility engineer jobs, WCAG specialist positions, a11y roles, and inclusive design careers.',
+  ogImage: '/og-image.png',
+  twitterHandle: '@AccessibilityJobs',
   locale: 'en_US',
+  email: 'info@accessibilityjobs.net',
+  foundingDate: '2024',
 };
+
+// WebSite structured data with SearchAction for sitelinks search box
+export function generateWebSiteStructuredData() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: seoConfig.siteName,
+    alternateName: ['Accessibility Jobs', 'A11y Jobs', 'AccessibilityJobs.net'],
+    url: seoConfig.siteUrl,
+    description: seoConfig.description,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `${seoConfig.siteUrl}/?search={search_term_string}`,
+      },
+      'query-input': 'required name=search_term_string',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: seoConfig.siteName,
+      url: seoConfig.siteUrl,
+      logo: {
+        '@type': 'ImageObject',
+        url: `${seoConfig.siteUrl}/logo.svg`,
+      },
+    },
+  };
+}
 
 // Generate comprehensive metadata for pages
 export function generatePageMetadata({
@@ -27,7 +58,7 @@ export function generatePageMetadata({
 }) {
   const url = `${seoConfig.siteUrl}${path}`;
   const fullTitle = `${title} | ${seoConfig.siteName}`;
-  
+
   return {
     title,
     description,
@@ -67,20 +98,20 @@ export function generatePageMetadata({
     },
     robots: noIndex
       ? {
-          index: false,
-          follow: false,
-        }
+        index: false,
+        follow: false,
+      }
       : {
+        index: true,
+        follow: true,
+        googleBot: {
           index: true,
           follow: true,
-          googleBot: {
-            index: true,
-            follow: true,
-            'max-video-preview': -1,
-            'max-image-preview': 'large' as const,
-            'max-snippet': -1,
-          },
+          'max-video-preview': -1,
+          'max-image-preview': 'large' as const,
+          'max-snippet': -1,
         },
+      },
   };
 }
 
@@ -110,6 +141,39 @@ export function generateFAQStructuredData(faqs: Array<{ question: string; answer
         '@type': 'Answer',
         text: faq.answer,
       },
+    })),
+  };
+}
+
+// HowTo structured data for step-by-step guides
+export function generateHowToStructuredData({
+  name,
+  description,
+  steps,
+  totalTime,
+}: {
+  name: string;
+  description: string;
+  steps: Array<{ name: string; text: string; image?: string }>;
+  totalTime?: string;
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name,
+    description,
+    ...(totalTime && { totalTime }),
+    step: steps.map((step, index) => ({
+      '@type': 'HowToStep',
+      position: index + 1,
+      name: step.name,
+      text: step.text,
+      ...(step.image && {
+        image: {
+          '@type': 'ImageObject',
+          url: step.image,
+        },
+      }),
     })),
   };
 }
@@ -150,6 +214,34 @@ export function generateArticleStructuredData({
         url: `${seoConfig.siteUrl}/logo.svg`,
       },
     },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `${seoConfig.siteUrl}${url}`,
+    },
   };
 }
 
+// Course/Educational content structured data (for certification pages)
+export function generateCourseStructuredData({
+  name,
+  description,
+  provider,
+  url,
+}: {
+  name: string;
+  description: string;
+  provider: string;
+  url: string;
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Course',
+    name,
+    description,
+    provider: {
+      '@type': 'Organization',
+      name: provider,
+    },
+    url: `${seoConfig.siteUrl}${url}`,
+  };
+}

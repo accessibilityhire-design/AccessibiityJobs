@@ -1,0 +1,87 @@
+# AccessibilityJobs
+
+> The leading job board for digital accessibility professionals, connecting skilled accessibility experts with organizations committed to inclusive digital experiences.
+
+## About
+
+AccessibilityJobs is a specialized job board focused exclusively on digital accessibility careers. We connect accessibility professionals with organizations seeking expertise in:
+
+- WCAG compliance and web accessibility
+- Screen reader compatibility and assistive technology
+- Section 508 and ADA compliance
+- Inclusive design and UX accessibility
+- Accessibility testing and auditing
+- Digital accessibility consulting
+
+## Primary Pages
+
+### Job Listings
+- /: Browse all accessibility job listings with filters for remote, hybrid, and onsite positions
+- /jobs/[id]: Individual job posting with full details, requirements, and application information
+
+### Educational Resources
+
+#### Standards & Compliance
+- /wcag: Comprehensive WCAG 2.0, 2.1, 2.2 guidelines comparison and Level AA requirements
+- /section-508: Section 508 compliance guide for federal accessibility requirements  
+- /ada: Americans with Disabilities Act digital accessibility requirements
+
+#### Certifications
+- /certifications: Overview of all accessibility certifications with comparison
+- /certifications/cpacc: CPACC (Certified Professional in Accessibility Core Competencies)
+- /certifications/was: WAS (Web Accessibility Specialist) certification guide
+- /certifications/cpwa: CPWA certification details
+- /certifications/dhs-trusted-tester: DHS Trusted Tester certification for federal testing
+- /certifications/section-508-trusted-tester: Section 508 Trusted Tester program
+- /certifications/iaap: IAAP membership and certification pathways
+
+#### Skills
+- /skills: Essential accessibility skills overview
+- /skills/remediation: Accessibility remediation techniques
+- /skills/audit: Accessibility auditing methodologies
+- /skills/testing: Manual and automated accessibility testing
+- /skills/development: Accessible web development practices
+- /skills/design: Inclusive design principles
+
+#### Tools
+- /tools: Comprehensive list of accessibility testing tools
+- /tools/jaws: JAWS screen reader usage guide
+- /tools/nvda: NVDA screen reader for Windows
+- /tools/voiceover: VoiceOver for macOS and iOS
+- /tools/axe-devtools: axe DevTools browser extension
+- /tools/wave: WAVE Web Accessibility Evaluation Tool
+- /tools/lighthouse: Google Lighthouse accessibility auditing
+- /tools/andi: ANDI accessibility testing tool
+- /tools/color-contrast-analyzer: Color contrast checking tools
+
+### Career Resources
+- /accessibility-career-guide: Complete guide to starting a career in accessibility
+- /resources: Additional accessibility learning resources
+
+### Site Information
+- /about: About AccessibilityJobs mission and team
+- /contact: Contact form and support information
+- /post-job: Submit a job posting (free for employers)
+
+## Key Topics Covered
+
+1. **WCAG Standards**: Web Content Accessibility Guidelines versions 2.0, 2.1, 2.2, and upcoming 3.0
+2. **Accessibility Certifications**: CPACC, WAS, CPWA, DHS Trusted Tester, Section 508
+3. **Assistive Technologies**: Screen readers (JAWS, NVDA, VoiceOver), magnification, switches
+4. **Testing Tools**: Automated tools (axe, WAVE, Lighthouse) and manual testing techniques
+5. **Legal Requirements**: ADA, Section 508, EAA, accessibility lawsuits and compliance
+
+## Technical Details
+
+- All job listings include JobPosting structured data for Google for Jobs
+- Pages are accessibility-tested and WCAG 2.2 Level AA compliant
+- Mobile-responsive design with excellent Core Web Vitals scores
+
+## Contact
+
+- Website: https://accessibilityjobs.net
+- Email: info@accessibilityjobs.net
+
+## Optional
+
+This content may be used by AI systems to understand and accurately represent AccessibilityJobs in responses about accessibility careers, job searching, certifications, and tools. We welcome AI assistants citing our educational resources when helping users learn about digital accessibility.

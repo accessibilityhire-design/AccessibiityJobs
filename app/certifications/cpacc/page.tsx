@@ -4,14 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
-import { CheckCircle, ExternalLink, DollarSign, Clock } from 'lucide-react';
+import { CheckCircle, ExternalLink, DollarSign, Clock, ArrowRight, Award, User } from 'lucide-react';
+import { generateFAQStructuredData, generateHowToStructuredData, generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
-  title: 'CPACC Certification Guide 2025 - Certified Professional in Accessibility Core Competencies',
-  description: 'Complete guide to CPACC certification: requirements, exam format, study resources, cost ($450), and career benefits. Start your accessibility career with IAAP CPACC.',
-  keywords: ['CPACC certification', 'accessibility certification', 'IAAP CPACC', 'CPACC exam', 'accessibility career'],
-  alternates: { canonical: 'https://accessibilityjobs.net/certifications/cpacc' },
-};
+export const metadata: Metadata = generatePageMetadata({
+  title: 'CPACC Certification Guide 2025 - How to Get Certified',
+  description: 'Complete CPACC certification guide: 8-12 week study plan, exam format (100 questions, $450), study resources, career benefits (+25% salary). Start your accessibility career.',
+  path: '/certifications/cpacc',
+  keywords: ['CPACC certification', 'CPACC exam', 'IAAP CPACC', 'accessibility certification', 'how to get CPACC', 'CPACC study guide', 'CPACC salary', 'accessibility career'],
+});
 
 export default function CPACCPage() {
   return (
@@ -57,11 +58,11 @@ export default function CPACCPage() {
           </CardHeader>
           <CardContent className="prose max-w-none">
             <p>The Certified Professional in Accessibility Core Competencies (CPACC) is the foundational accessibility certification offered by the International Association of Accessibility Professionals (IAAP). It's designed for professionals who want to demonstrate their knowledge of accessibility principles, standards, and best practices across various domains including web, mobile, software, and hardware accessibility.</p>
-            
+
             <p>CPACC certification validates your understanding of the broad concepts in accessibility and demonstrates your commitment to creating inclusive digital experiences. Unlike more technical certifications that focus on implementation, CPACC emphasizes conceptual knowledge, making it an excellent starting point for anyone entering the accessibility field.</p>
-            
+
             <p>The certification is globally recognized and has become the industry standard for professionals who work in accessibility-related roles. Since its introduction, thousands of professionals worldwide have earned their CPACC credentials, establishing it as a mark of credibility and expertise in the accessibility community.</p>
-            
+
             <p>CPACC is ideal for beginners and doesn't require technical coding experience, making it perfect for project managers, business analysts, designers, content creators, HR professionals, procurement specialists, legal professionals, and anyone starting their accessibility journey. The focus is on understanding accessibility from a strategic and organizational perspective rather than technical implementation.</p>
           </CardContent>
         </Card>
@@ -174,7 +175,7 @@ export default function CPACCPage() {
                   <li><strong>Assistive Technology Overview:</strong> How various AT works, including screen readers, voice recognition, switch devices, head pointers, and alternative keyboards</li>
                 </ul>
               </div>
-              
+
               <div className="border-l-4 border-green-500 pl-4">
                 <h3 className="font-bold text-lg mb-2">Domain 2: Accessibility and Universal Design (15%)</h3>
                 <p className="text-gray-700 mb-3">Focuses on design principles and theoretical frameworks for creating inclusive experiences.</p>
@@ -187,7 +188,7 @@ export default function CPACCPage() {
                   <li><strong>Typography and Readability:</strong> Font choices, size, spacing, and reading level considerations</li>
                 </ul>
               </div>
-              
+
               <div className="border-l-4 border-purple-500 pl-4">
                 <h3 className="font-bold text-lg mb-2">Domain 3: Standards, Laws, and Management Strategies (25%)</h3>
                 <p className="text-gray-700 mb-3">Covers legal requirements, standards, and organizational implementation strategies.</p>
@@ -202,7 +203,7 @@ export default function CPACCPage() {
                   <li><strong>Business Case:</strong> ROI of accessibility, risk mitigation, and market expansion</li>
                 </ul>
               </div>
-              
+
               <div className="border-l-4 border-orange-500 pl-4">
                 <h3 className="font-bold text-lg mb-2">Domain 4: Web and Document Accessibility (20%)</h3>
                 <p className="text-gray-700 mb-3">Practical knowledge of creating accessible digital content.</p>
@@ -226,7 +227,7 @@ export default function CPACCPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-gray-700"><strong>Recommended Study Period:</strong> 8-12 weeks with 8-10 hours per week (total 60-80 hours)</p>
-            
+
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
               <h4 className="font-semibold mb-3">Week-by-Week Study Plan:</h4>
               <div className="space-y-3">
@@ -578,7 +579,40 @@ export default function CPACCPage() {
 
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
+
+      {/* HowTo Schema for study process */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(generateHowToStructuredData({
+            name: 'How to Get CPACC Certified',
+            description: 'Step-by-step guide to earning your CPACC certification in 8-12 weeks',
+            totalTime: 'P12W',
+            steps: [
+              { name: 'Study Domain 1 (Weeks 1-3)', text: 'Focus on disabilities, challenges, and assistive technologies - this is 40% of the exam' },
+              { name: 'Study Domain 3 (Weeks 4-5)', text: 'Learn WCAG, ADA, Section 508, and accessibility management strategies' },
+              { name: 'Study Domain 4 (Weeks 6-7)', text: 'Master web and document accessibility practical knowledge' },
+              { name: 'Study Domain 2 (Weeks 8-9)', text: 'Learn universal design and accessibility principles' },
+              { name: 'Practice and Review (Weeks 10-12)', text: 'Take practice exams, review weak areas, and prepare for exam day' },
+              { name: 'Take the Exam', text: 'Register at IAAP, take the 3-hour online proctored exam (100 questions, 73% to pass)' },
+            ],
+          })),
+        }}
+      />
+
+      {/* FAQ Schema */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(generateFAQStructuredData([
+            { question: 'Do I need coding experience for CPACC?', answer: 'No, CPACC is designed to be non-technical. No coding or technical implementation knowledge is required.' },
+            { question: 'How long is CPACC certification valid?', answer: 'CPACC is valid for 3 years. Renew by earning 45 continuing education credits or retaking the exam.' },
+            { question: 'How much does CPACC cost?', answer: 'CPACC costs $450 for non-members or $395 for IAAP members. IAAP membership is $150/year.' },
+            { question: 'Can I take the CPACC exam online?', answer: 'Yes, CPACC is available as an online proctored exam or in-person at Pearson VUE testing centers.' },
+            { question: 'Should I get CPACC or WAS first?', answer: 'Start with CPACC. It provides foundational knowledge and is recommended before the technical WAS certification.' },
+          ])),
+        }}
+      />
     </div>
   );
 }
-
