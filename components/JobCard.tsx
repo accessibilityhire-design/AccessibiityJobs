@@ -1,238 +1,111 @@
-'use client';
-
 import Link from 'next/link';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Job } from '@/lib/db/schema';
 import { formatDistanceToNow } from 'date-fns';
-import { formatCompanyName, extractPlainText } from '@/lib/job-formatter';
-import {
-  MapPin, DollarSign, Clock, Laptop, Users, Calendar, ArrowRight, ExternalLink
-} from 'lucide-react';
+import { MapPin, Building2, Clock, DollarSign, Calendar, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface JobCardProps {
-  job: Job;
-}
-
-// Job source configuration with colors and display names
-const SOURCE_CONFIG: Record<string, { bg: string; text: string; border: string; label: string }> = {
-  linkedin: { 
-    bg: 'bg-[#0A66C2]/10', 
-    text: 'text-[#0A66C2]', 
-    border: 'border-[#0A66C2]/20',
-    label: 'LinkedIn' 
-  },
-  indeed: { 
-    bg: 'bg-[#2164F3]/10', 
-    text: 'text-[#2164F3]', 
-    border: 'border-[#2164F3]/20',
-    label: 'Indeed' 
-  },
-  zip_recruiter: { 
-    bg: 'bg-[#009E62]/10', 
-    text: 'text-[#009E62]', 
-    border: 'border-[#009E62]/20',
-    label: 'ZipRecruiter' 
-  },
-  ziprecruiter: { 
-    bg: 'bg-[#009E62]/10', 
-    text: 'text-[#009E62]', 
-    border: 'border-[#009E62]/20',
-    label: 'ZipRecruiter' 
-  },
-  a11yjobs: { 
-    bg: 'bg-indigo-50', 
-    text: 'text-indigo-700', 
-    border: 'border-indigo-200',
-    label: 'A11yJobs' 
-  },
-  direct: { 
-    bg: 'bg-slate-50', 
-    text: 'text-slate-600', 
-    border: 'border-slate-200',
-    label: 'Direct' 
-  },
-  jobspy: { 
-    bg: 'bg-slate-50', 
-    text: 'text-slate-600', 
-    border: 'border-slate-200',
-    label: 'Job Board' 
-  },
-};
-
-// Helper to format salary display
-function formatSalaryRange(job: Job): string | null {
-  // Use new salary fields first
-  if (job.salaryMin || job.salaryMax) {
-    const currency = job.currency || 'USD';
-    const formatter = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 0
-    });
-
-    if (job.salaryMin && job.salaryMax) {
-      return `${formatter.format(job.salaryMin)} - ${formatter.format(job.salaryMax)}`;
-    } else if (job.salaryMin) {
-      return `From ${formatter.format(job.salaryMin)}`;
-    } else if (job.salaryMax) {
-      return `Up to ${formatter.format(job.salaryMax)}`;
-    }
-  }
-
-  // Fall back to legacy salaryRange
-  return job.salaryRange || null;
-}
-
-// Helper to get display location
-function getDisplayLocation(job: Job): string {
-  if (job.specificLocation) return job.specificLocation;
-  if (job.city && job.country) return `${job.city}, ${job.country}`;
-  if (job.city) return job.city;
-  if (job.country) return job.country;
-  return job.location || 'Location not specified';
-}
-
-// Helper to get source config
-function getSourceConfig(source: string | null | undefined) {
-  if (!source) return null;
-  const normalizedSource = source.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return SOURCE_CONFIG[normalizedSource] || SOURCE_CONFIG[source.toLowerCase()] || null;
+    job: Job;
 }
 
 export function JobCard({ job }: JobCardProps) {
-  const workArrangement = job.workArrangement || job.type || 'onsite';
-  const companyName = formatCompanyName(job.company);
-  const salary = formatSalaryRange(job);
-  const location = getDisplayLocation(job);
-  const sourceConfig = getSourceConfig(job.jobSource);
+    // Format salary
+    const formatSalary = () => {
+        if (job.salaryMin && job.salaryMax) {
+            if (job.salaryMin === job.salaryMax) {
+                return `$${job.salaryMin.toLocaleString()}`;
+            }
+            return `$${job.salaryMin.toLocaleString()} - $${job.salaryMax.toLocaleString()}`;
+        }
+        if (job.salaryRange) return job.salaryRange;
+        return 'Competitive Salary';
+    };
 
-  const arrangementConfig: Record<string, { bg: string; text: string }> = {
-    remote: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
-    hybrid: { bg: 'bg-blue-50', text: 'text-blue-700' },
-    onsite: { bg: 'bg-purple-50', text: 'text-purple-700' },
-  };
+    // Format skills safely
+    const getSkills = () => {
+        try {
+            if (!job.requiredSkills) return [];
+            const skills = JSON.parse(job.requiredSkills);
+            return Array.isArray(skills) ? skills.slice(0, 3) : [];
+        } catch {
+            return [];
+        }
+    };
 
-  const arrangement = arrangementConfig[workArrangement] || arrangementConfig.onsite;
+    const isNew = job.createdAt && (new Date().getTime() - new Date(job.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000;
 
-  const employmentTypeColors: Record<string, string> = {
-    'full-time': 'bg-slate-100 text-slate-700',
-    'part-time': 'bg-amber-50 text-amber-700',
-    'contract': 'bg-orange-50 text-orange-700',
-    'freelance': 'bg-cyan-50 text-cyan-700',
-    'internship': 'bg-pink-50 text-pink-700',
-  };
+    return (
+        <div className="group relative bg-white rounded-xl border border-gray-100 hover:border-blue-100 shadow-sm hover:shadow-lg transition-all duration-300 p-6 flex flex-col h-full overflow-hidden">
+            {/* Top decorative gradient line */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-  const employmentColor = employmentTypeColors[job.employmentType] || 'bg-slate-100 text-slate-700';
+            <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                        {isNew && (
+                            <span className="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-green-200">
+                                New
+                            </span>
+                        )}
+                        <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${job.workArrangement === 'remote' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                            {job.workArrangement === 'remote' ? 'Remote' : job.workArrangement === 'hybrid' ? 'Hybrid' : 'Onsite'}
+                        </span>
+                        <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            {job.employmentType === 'full-time' ? 'Full Time' : job.employmentType}
+                        </span>
+                    </div>
 
-  return (
-    <Card className="group hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 h-full flex flex-col border-slate-200 hover:border-slate-300 bg-white">
-      <CardHeader className="pb-3">
-        {/* Source Badge - Top right */}
-        {sourceConfig && (
-          <div className="flex justify-end mb-2">
-            <span 
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${sourceConfig.bg} ${sourceConfig.text} ${sourceConfig.border}`}
-              aria-label={`Job sourced from ${sourceConfig.label}`}
-            >
-              {job.sourceUrl ? (
-                <ExternalLink className="h-3 w-3" aria-hidden="true" />
-              ) : null}
-              {sourceConfig.label}
-            </span>
-          </div>
-        )}
+                    <Link href={`/jobs/${job.id}`} className="block">
+                        <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 mb-1">
+                            {job.title}
+                        </h3>
+                    </Link>
 
-        {/* Company Logo + Info */}
-        <div className="flex items-start gap-3 mb-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm shadow-md shadow-blue-500/20 flex-shrink-0">
-            {companyName.charAt(0).toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-600 truncate">{companyName}</p>
-            {job.industry && (
-              <p className="text-xs text-slate-400 truncate">{job.industry}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Job Title */}
-        <Link
-          href={`/jobs/${job.id}`}
-          className="block group-hover:text-blue-600 transition-colors"
-          aria-label={`View details for ${job.title} at ${companyName}`}
-        >
-          <h3 className="text-lg font-semibold text-slate-900 line-clamp-2 leading-snug">
-            {job.title}
-          </h3>
-        </Link>
-
-        {/* Tags Row */}
-        <div className="flex flex-wrap gap-2 mt-3">
-          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${arrangement.bg} ${arrangement.text}`}>
-            <Laptop className="h-3 w-3" aria-hidden="true" />
-            {workArrangement.charAt(0).toUpperCase() + workArrangement.slice(1)}
-          </span>
-
-          {job.employmentType && (
-            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${employmentColor}`}>
-              <Clock className="h-3 w-3" aria-hidden="true" />
-              {job.employmentType.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-            </span>
-          )}
-
-          {job.jobLevel && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700">
-              <Users className="h-3 w-3" aria-hidden="true" />
-              {job.jobLevel.charAt(0).toUpperCase() + job.jobLevel.slice(1)}
-            </span>
-          )}
-        </div>
-      </CardHeader>
-
-      <CardContent className="flex-1 pt-0">
-        {/* Location & Salary */}
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <MapPin className="h-4 w-4 text-slate-400 flex-shrink-0" aria-hidden="true" />
-            <span className="truncate">{location}</span>
-          </div>
-
-          {salary && (
-            <div className="flex items-center gap-2 text-sm">
-              <DollarSign className="h-4 w-4 text-emerald-500 flex-shrink-0" aria-hidden="true" />
-              <span className="font-medium text-slate-700">{salary}</span>
-              {job.salaryType && (
-                <span className="text-slate-400 text-xs">/ {job.salaryType}</span>
-              )}
+                    <div className="flex items-center text-gray-600 text-sm mt-1">
+                        <Building2 className="w-4 h-4 mr-1.5 text-gray-400" />
+                        <span className="font-medium mr-3">{job.company}</span>
+                    </div>
+                </div>
             </div>
-          )}
+
+            <div className="grid grid-cols-2 gap-y-2 text-sm text-gray-500 mb-6">
+                <div className="flex items-center">
+                    <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                    <span className="truncate">{job.city && job.country ? `${job.city}, ${job.country}` : job.location}</span>
+                </div>
+                <div className="flex items-center">
+                    <DollarSign className="w-4 h-4 mr-2 text-gray-400" />
+                    <span className="truncate">{formatSalary()}</span>
+                </div>
+                <div className="flex items-center col-span-2">
+                    <Clock className="w-4 h-4 mr-2 text-gray-400" />
+                    <span>Posted {job.createdAt ? formatDistanceToNow(new Date(job.createdAt), { addSuffix: true }) : 'Recently'}</span>
+                </div>
+            </div>
+
+            {/* Skills */}
+            <div className="mb-6 flex flex-wrap gap-2">
+                {getSkills().map((skill: string, index: number) => (
+                    <span
+                        key={index}
+                        className="text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded border border-gray-100"
+                    >
+                        {skill}
+                    </span>
+                ))}
+                {(JSON.parse(job.requiredSkills || '[]').length > 3) && (
+                    <span className="text-xs text-gray-400 px-2 py-1">+{(JSON.parse(job.requiredSkills || '[]').length - 3)} more</span>
+                )}
+            </div>
+
+            <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
+                <Link href={`/jobs/${job.id}`} className="w-full">
+                    <Button className="w-full bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 hover:border-gray-300 shadow-sm transition-all group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-700">
+                        View Details
+                        <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                </Link>
+            </div>
         </div>
-
-        {/* Description Preview */}
-        <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
-          {extractPlainText(job.description, 120)}
-        </p>
-      </CardContent>
-
-      <CardFooter className="pt-0 flex items-center justify-between border-t border-slate-100 mt-auto">
-        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-          <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>{formatDistanceToNow(new Date(job.createdAt), { addSuffix: true })}</span>
-        </div>
-
-        <Link href={`/jobs/${job.id}`}>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 gap-1 group/btn"
-            aria-label={`View full details for ${job.title}`}
-          >
-            View Job
-            <ArrowRight className="h-3.5 w-3.5 group-hover/btn:translate-x-0.5 transition-transform" aria-hidden="true" />
-          </Button>
-        </Link>
-      </CardFooter>
-    </Card>
-  );
+    );
 }

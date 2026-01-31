@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'IAAP Certifications 2025 - International Association of Accessibility Professionals',
   description: 'Complete guide to IAAP certifications: CPACC, WAS, membership benefits, and professional development opportunities for accessibility careers.',
+  path: '/certifications/iaap',
   keywords: ['IAAP certification', 'IAAP membership', 'accessibility professional certification'],
-  alternates: { canonical: 'https://accessibilityjobs.net/certifications/iaap' },
-};
+});
 
 export default function IAAPPage() {
   return (
@@ -19,7 +20,7 @@ export default function IAAPPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold mb-4">IAAP Certifications</h1>
         <p className="text-xl text-gray-600 mb-8">International Association of Accessibility Professionals</p>
-        
+
         <Card className="mb-8">
           <CardHeader><CardTitle>What is IAAP?</CardTitle></CardHeader>
           <CardContent className="prose max-w-none space-y-4">
@@ -212,12 +213,12 @@ export default function IAAPPage() {
         </Card>
 
         <RelatedJobs keyword="IAAP" title="Find Jobs Requiring IAAP Certification" />
-        
+
         <div className="text-center">
           <Link href="https://www.accessibilityassociation.org" target="_blank"><Button size="lg" className="mr-4">Visit IAAP Website</Button></Link>
           <Link href="/certifications"><Button size="lg" variant="outline">View All Certifications</Button></Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

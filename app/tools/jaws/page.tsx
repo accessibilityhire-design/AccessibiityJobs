@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, ExternalLink, DollarSign, Monitor, Volume2 } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'JAWS Screen Reader Guide 2025 - Professional Accessibility Testing',
   description: 'Complete JAWS screen reader guide: features, keyboard shortcuts, testing workflows, pricing, and best practices for accessibility professionals.',
+  path: '/tools/jaws',
   keywords: ['JAWS', 'screen reader', 'accessibility testing', 'JAWS screen reader', 'accessibility tools', 'WCAG testing'],
-  alternates: { canonical: 'https://accessibilityjobs.net/tools/jaws' },
-};
+});
 
 export default function JAWSPage() {
   return (
@@ -281,7 +282,7 @@ export default function JAWSPage() {
         </Card>
 
         <RelatedJobs keyword="JAWS" title="Find Jobs Requiring JAWS Testing" />
-        
+
         <div className="text-center">
           <Link href="https://www.freedomscientific.com/products/software/jaws/" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="mr-4">
@@ -295,7 +296,7 @@ export default function JAWSPage() {
             </Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

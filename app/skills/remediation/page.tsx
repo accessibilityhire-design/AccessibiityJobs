@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Remediation Skills 2025 - Fix & Repair Guide',
   description: 'Master accessibility remediation: HTML/CSS/JavaScript fixes, ARIA implementation, automated testing integration, and WCAG compliance techniques.',
+  path: '/skills/remediation',
   keywords: ['accessibility remediation', 'fix accessibility issues', 'ARIA remediation', 'WCAG compliance fixes'],
-  alternates: { canonical: 'https://accessibilityjobs.net/skills/remediation' },
-};
+});
 
 export default function RemediationSkillsPage() {
   return (
@@ -19,7 +20,7 @@ export default function RemediationSkillsPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold mb-4">Accessibility Remediation Skills</h1>
         <p className="text-xl text-gray-600 mb-8">Master fixing accessibility issues and ensuring WCAG compliance</p>
-        
+
         <Card className="mb-8">
           <CardHeader><CardTitle>What is Accessibility Remediation?</CardTitle></CardHeader>
           <CardContent className="prose max-w-none space-y-4">
@@ -231,11 +232,11 @@ export default function RemediationSkillsPage() {
         </Card>
 
         <RelatedJobs keyword="accessibility remediation" title="Find Remediation Jobs" />
-        
+
         <div className="text-center">
           <Link href="/skills"><Button size="lg">View All Skills</Button></Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

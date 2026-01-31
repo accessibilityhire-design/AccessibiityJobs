@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, Search, FileText, Zap, Users, DollarSign } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Audit Skills 2025 - WCAG Compliance Evaluation',
   description: 'Master accessibility auditing: manual testing, automated tools, WCAG evaluation, report writing, and compliance documentation.',
+  path: '/skills/audit',
   keywords: ['accessibility audit', 'WCAG audit', 'accessibility evaluation', 'compliance testing', 'accessibility auditor skills'],
-  alternates: { canonical: 'https://accessibilityjobs.net/skills/audit' },
-};
+});
 
 export default function AuditSkillsPage() {
   return (
@@ -254,13 +255,13 @@ export default function AuditSkillsPage() {
         </Card>
 
         <RelatedJobs keyword="accessibility auditor" title="Find Audit Jobs" />
-        
+
         <div className="text-center">
           <Link href="/skills">
             <Button size="lg">View All Skills</Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

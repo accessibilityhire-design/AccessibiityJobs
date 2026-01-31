@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, Palette, Users, DollarSign, Figma } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessible Design Skills 2025 - Inclusive UX/UI Design',
   description: 'Master accessible design: inclusive design principles, color contrast, typography, Figma/Sketch accessibility plugins, and user research with PWD.',
+  path: '/skills/design',
   keywords: ['accessible design', 'inclusive design', 'accessibility UX', 'WCAG design', 'color contrast design', 'accessibility designer skills'],
-  alternates: { canonical: 'https://accessibilityjobs.net/skills/design' },
-};
+});
 
 export default function DesignSkillsPage() {
   return (
@@ -240,13 +241,13 @@ export default function DesignSkillsPage() {
         </Card>
 
         <RelatedJobs keyword="accessibility designer" title="Find Design Jobs" />
-        
+
         <div className="text-center">
           <Link href="/skills">
             <Button size="lg">View All Skills</Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

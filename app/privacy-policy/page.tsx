@@ -1,9 +1,11 @@
 import { Metadata } from 'next';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Privacy Policy',
   description: 'AccessibilityJobs privacy policy and data handling practices.',
-};
+  path: '/privacy-policy',
+});
 
 export default function PrivacyPolicyPage() {
   return (

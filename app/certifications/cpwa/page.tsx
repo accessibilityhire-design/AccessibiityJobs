@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'CPWA Certification 2025 - Certified Professional in Web Accessibility',
   description: 'CPWA certification guide: advanced web accessibility credential, requirements, study resources, and career advancement for experienced professionals.',
+  path: '/certifications/cpwa',
   keywords: ['CPWA certification', 'Certified Professional Web Accessibility', 'advanced accessibility certification'],
-  alternates: { canonical: 'https://accessibilityjobs.net/certifications/cpwa' },
-};
+});
 
 export default function CPWAPage() {
   return (
@@ -19,7 +20,7 @@ export default function CPWAPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold mb-4">CPWA Certification</h1>
         <p className="text-xl text-gray-600 mb-8">Certified Professional in Web Accessibility</p>
-        
+
         <Card className="mb-8">
           <CardHeader><CardTitle>What is CPWA?</CardTitle></CardHeader>
           <CardContent className="prose max-w-none space-y-4">
@@ -174,12 +175,12 @@ export default function CPWAPage() {
         </Card>
 
         <RelatedJobs keyword="CPWA" title="Find CPWA Jobs" />
-        
+
         <div className="text-center">
           <Link href="https://www.accessibilityassociation.org/s/cpwa"><Button size="lg" className="mr-4">Learn More About CPWA</Button></Link>
           <Link href="/certifications"><Button size="lg" variant="outline">Compare All Certifications</Button></Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, ExternalLink, Building2, Calendar, DollarSign } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Section 508 Trusted Tester Certification 2025 - Federal Accessibility Testing',
   description: 'Section 508 Trusted Tester certification: free federal training, compliance testing methodology, and career opportunities in government accessibility.',
+  path: '/certifications/section-508-trusted-tester',
   keywords: ['Section 508 certification', 'Trusted Tester', 'federal accessibility', 'government compliance testing'],
-  alternates: { canonical: 'https://accessibilityjobs.net/certifications/section-508-trusted-tester' },
-};
+});
 
 export default function Section508Page() {
   return (
@@ -238,7 +239,7 @@ export default function Section508Page() {
         </Card>
 
         <RelatedJobs keyword="Section 508" title="Find Federal Accessibility Jobs" />
-        
+
         <div className="text-center">
           <Link href="https://www.section508.gov/tools/testing" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="mr-4">
@@ -257,7 +258,7 @@ export default function Section508Page() {
             </Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

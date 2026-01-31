@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, ExternalLink, Gift, Eye, AlertTriangle, Info } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'WAVE Accessibility Tool Guide 2025 - Web Accessibility Evaluation',
   description: 'Complete WAVE guide: free browser extension for visual accessibility feedback, WCAG testing, issue identification, and best practices for accessibility professionals.',
+  path: '/tools/wave',
   keywords: ['WAVE', 'WAVE accessibility', 'WebAIM WAVE', 'accessibility evaluation tool', 'WCAG testing', 'visual accessibility feedback'],
-  alternates: { canonical: 'https://accessibilityjobs.net/tools/wave' },
-};
+});
 
 export default function WAVEPage() {
   return (
@@ -242,7 +243,7 @@ export default function WAVEPage() {
         </Card>
 
         <RelatedJobs keyword="WAVE" title="Find Jobs Using WAVE" />
-        
+
         <div className="text-center">
           <Link href="https://wave.webaim.org/extension/" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="mr-4">
@@ -256,7 +257,7 @@ export default function WAVEPage() {
             </Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, Briefcase, Users, DollarSign, Target } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Program Management Skills 2025 - Lead A11y Teams',
   description: 'Master accessibility management: policy development, training programs, vendor management, compliance tracking, and accessibility strategy.',
+  path: '/skills/management',
   keywords: ['accessibility management', 'accessibility program manager', 'accessibility strategy', 'compliance management', 'accessibility leadership'],
-  alternates: { canonical: 'https://accessibilityjobs.net/skills/management' },
-};
+});
 
 export default function ManagementSkillsPage() {
   return (
@@ -199,13 +200,13 @@ export default function ManagementSkillsPage() {
         </Card>
 
         <RelatedJobs keyword="accessibility program manager" title="Find Management Jobs" />
-        
+
         <div className="text-center">
           <Link href="/skills">
             <Button size="lg">View All Skills</Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

@@ -1,157 +1,81 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Job } from '@/lib/db/schema';
 import { JobCard } from '@/components/JobCard';
-import { JobListItem } from '@/components/JobListItem';
 import { Button } from '@/components/ui/button';
-import { LayoutGrid, List } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface JobsViewProps {
-  jobs: Job[];
-  itemsPerPage?: number;
+    jobs: Job[];
+    itemsPerPage?: number;
 }
-
-type ViewMode = 'card' | 'list';
 
 export function JobsView({ jobs, itemsPerPage = 12 }: JobsViewProps) {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [viewMode, setViewMode] = useState<ViewMode>('card');
+    const [currentPage, setCurrentPage] = useState(1);
 
-  // Calculate pagination
-  const totalPages = Math.ceil(jobs.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentJobs = useMemo(() => jobs.slice(startIndex, endIndex), [jobs, startIndex, endIndex]);
+    // Reset page when jobs change (e.g. filtering)
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [jobs]);
 
-  // Reset to page 1 when jobs change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [jobs.length]);
+    const totalPages = Math.ceil(jobs.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedJobs = jobs.slice(startIndex, startIndex + itemsPerPage);
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
-  return (
-    <div className="space-y-6">
-      {/* View Toggle and Results Count */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600">
-          Showing <span className="font-semibold">{startIndex + 1}</span> - <span className="font-semibold">{Math.min(endIndex, jobs.length)}</span> of <span className="font-semibold">{jobs.length}</span> {jobs.length === 1 ? 'job' : 'jobs'}
-        </p>
-        
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600 mr-2">View:</span>
-          <div className="flex border rounded-md overflow-hidden">
-            <button
-              onClick={() => setViewMode('card')}
-              className={cn(
-                'p-2 transition-colors',
-                viewMode === 'card'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-50'
-              )}
-              aria-label="Card view"
-              aria-pressed={viewMode === 'card'}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                'p-2 transition-colors',
-                viewMode === 'list'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-50'
-              )}
-              aria-label="List view"
-              aria-pressed={viewMode === 'list'}
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
+    if (jobs.length === 0) {
+        return (
+            <div className="text-center py-20 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                <h3 className="text-lg font-medium text-gray-900">No jobs found</h3>
+                <p className="text-gray-500 mt-1">Try adjusting your filters or check back later.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {paginatedJobs.map((job) => (
+                    <JobCard key={job.id} job={job} />
+                ))}
+            </div>
+
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-12 pb-8">
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="w-10 h-10 rounded-full border-gray-300 hover:border-blue-500 hover:text-blue-600"
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span className="sr-only">Previous page</span>
+                    </Button>
+
+                    <div className="flex items-center gap-2 px-4">
+                        <span className="text-sm font-medium text-gray-600">
+                            Page {currentPage} of {totalPages}
+                        </span>
+                    </div>
+
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="w-10 h-10 rounded-full border-gray-300 hover:border-blue-500 hover:text-blue-600"
+                    >
+                        <ChevronRight className="h-4 w-4" />
+                        <span className="sr-only">Next page</span>
+                    </Button>
+                </div>
+            )}
         </div>
-      </div>
-
-      {/* Jobs Display */}
-      {currentJobs.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-600 text-lg">No jobs found on this page.</p>
-        </div>
-      ) : viewMode === 'card' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {currentJobs.map((job) => (
-            <JobCard key={job.id} job={job} />
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {currentJobs.map((job) => (
-            <JobListItem key={job.id} job={job} />
-          ))}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-6">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            aria-label="Previous page"
-          >
-            Previous
-          </Button>
-
-          <div className="flex items-center gap-1">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-              // Show first page, last page, current page, and pages around current
-              if (
-                page === 1 ||
-                page === totalPages ||
-                (page >= currentPage - 1 && page <= currentPage + 1)
-              ) {
-                return (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => handlePageChange(page)}
-                    aria-label={`Go to page ${page}`}
-                    aria-current={currentPage === page ? 'page' : undefined}
-                    className="min-w-[40px]"
-                  >
-                    {page}
-                  </Button>
-                );
-              } else if (page === currentPage - 2 || page === currentPage + 2) {
-                return (
-                  <span key={page} className="px-2 text-gray-400">
-                    ...
-                  </span>
-                );
-              }
-              return null;
-            })}
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            aria-label="Next page"
-          >
-            Next
-          </Button>
-        </div>
-      )}
-    </div>
-  );
+    );
 }
-

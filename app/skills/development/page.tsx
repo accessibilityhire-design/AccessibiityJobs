@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, Code, Users, DollarSign, Zap } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessible Development Skills 2025 - Build Inclusive Apps',
   description: 'Master accessible development: semantic HTML, ARIA patterns, focus management, React/Angular/Vue accessibility, and WCAG implementation.',
+  path: '/skills/development',
   keywords: ['accessible development', 'accessibility developer', 'ARIA development', 'semantic HTML', 'React accessibility', 'accessibility coding'],
-  alternates: { canonical: 'https://accessibilityjobs.net/skills/development' },
-};
+});
 
 export default function DevelopmentSkillsPage() {
   return (
@@ -189,13 +190,13 @@ export default function DevelopmentSkillsPage() {
         </Card>
 
         <RelatedJobs keyword="accessibility developer" title="Find Development Jobs" />
-        
+
         <div className="text-center">
           <Link href="/skills">
             <Button size="lg">View All Skills</Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

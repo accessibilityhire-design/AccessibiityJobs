@@ -1,10 +1,12 @@
 import { Metadata } from 'next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Statement - AccessibilityJobs',
   description: 'Our commitment to digital accessibility, WCAG 2.1 Level AA conformance, and inclusive design practices.',
-};
+  path: '/accessibility-statement',
+});
 
 export default function AccessibilityStatementPage() {
   return (

@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, ExternalLink, Gift, Palette, Eye, Target } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Color Contrast Analyzer Guide 2025 - WCAG Color Contrast Testing',
   description: 'Complete Color Contrast Analyzer guide: free desktop tool for WCAG color contrast testing, ratio calculation, color blindness simulation, and accessibility compliance.',
+  path: '/tools/color-contrast-analyzer',
   keywords: ['Color Contrast Analyzer', 'color contrast checker', 'WCAG contrast', 'accessibility color testing', 'contrast ratio calculator'],
-  alternates: { canonical: 'https://accessibilityjobs.net/tools/color-contrast-analyzer' },
-};
+});
 
 export default function Color_Contrast_AnalyzerPage() {
   return (
@@ -206,7 +207,7 @@ export default function Color_Contrast_AnalyzerPage() {
         </Card>
 
         <RelatedJobs keyword="color contrast" title="Find Jobs Requiring Color Contrast Testing" />
-        
+
         <div className="text-center">
           <Link href="https://www.tpgi.com/color-contrast-checker/" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="mr-4">
@@ -220,7 +221,7 @@ export default function Color_Contrast_AnalyzerPage() {
             </Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

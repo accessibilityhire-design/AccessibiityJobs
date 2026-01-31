@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, ExternalLink, Gift, Building2, Eye, FileText } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'ANDI Accessibility Tool Guide 2025 - Section 508 Testing Bookmarklet',
   description: 'Complete ANDI guide: free Section 508 accessibility testing bookmarklet, features, usage, federal compliance testing, and best practices.',
+  path: '/tools/andi',
   keywords: ['ANDI', 'ANDI accessibility', 'Section 508 testing', 'federal accessibility', 'accessibility bookmarklet', 'SSA ANDI'],
-  alternates: { canonical: 'https://accessibilityjobs.net/tools/andi' },
-};
+});
 
 export default function ANDIPage() {
   return (
@@ -242,7 +243,7 @@ export default function ANDIPage() {
         </Card>
 
         <RelatedJobs keyword="ANDI" title="Find Jobs Using ANDI" />
-        
+
         <div className="text-center">
           <Link href="https://www.ssa.gov/accessibility/andi/help/install.html" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="mr-4">
@@ -256,7 +257,7 @@ export default function ANDIPage() {
             </Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

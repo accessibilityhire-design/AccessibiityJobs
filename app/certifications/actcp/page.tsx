@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, ExternalLink, DollarSign, Monitor, Smartphone, FileText } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'ACTCP Certification 2025 - Accessible Technology Certified Professional',
   description: 'ACTCP certification guide: comprehensive accessible technology credential covering web, mobile, documents, and multimedia accessibility.',
+  path: '/certifications/actcp',
   keywords: ['ACTCP certification', 'Accessible Technology Certified Professional', 'comprehensive accessibility certification'],
-  alternates: { canonical: 'https://accessibilityjobs.net/certifications/actcp' },
-};
+});
 
 export default function ACTCPPage() {
   return (
@@ -219,13 +220,13 @@ export default function ACTCPPage() {
         </Card>
 
         <RelatedJobs keyword="ACTCP" title="Find Multi-Platform Accessibility Jobs" />
-        
+
         <div className="text-center">
           <Link href="/certifications">
             <Button size="lg">Compare All Certifications</Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

@@ -1,9 +1,11 @@
 import { Metadata } from 'next';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Terms of Service',
   description: 'Terms and conditions for using AccessibilityJobs platform.',
-};
+  path: '/terms-of-service',
+});
 
 export default function TermsOfServicePage() {
   return (

@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, ExternalLink, Gift, Zap, BarChart3, Chrome } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'Lighthouse Accessibility Guide 2025 - Chrome DevTools Performance & A11y',
   description: 'Complete Lighthouse guide: Chrome DevTools accessibility auditing, performance testing, WCAG compliance, scoring, and best practices.',
+  path: '/tools/lighthouse',
   keywords: ['Lighthouse', 'Chrome Lighthouse', 'accessibility audit', 'performance testing', 'Lighthouse accessibility', 'Chrome DevTools'],
-  alternates: { canonical: 'https://accessibilityjobs.net/tools/lighthouse' },
-};
+});
 
 export default function LighthousePage() {
   return (
@@ -246,7 +247,7 @@ export default function LighthousePage() {
         </Card>
 
         <RelatedJobs keyword="Lighthouse" title="Find Jobs Using Lighthouse" />
-        
+
         <div className="text-center">
           <Link href="https://developer.chrome.com/docs/lighthouse/" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="mr-4">
@@ -260,7 +261,7 @@ export default function LighthousePage() {
             </Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

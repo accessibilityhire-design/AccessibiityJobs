@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, ExternalLink, Gift, Zap, Shield, Code } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'axe DevTools Guide 2025 - Automated Accessibility Testing Browser Extension',
   description: 'Complete axe DevTools guide: browser extension for automated WCAG testing, features, usage, CI/CD integration, and best practices for developers.',
+  path: '/tools/axe-devtools',
   keywords: ['axe DevTools', 'axe accessibility', 'automated accessibility testing', 'WCAG testing', 'browser extension', 'accessibility automation'],
-  alternates: { canonical: 'https://accessibilityjobs.net/tools/axe-devtools' },
-};
+});
 
 export default function axe_DevToolsPage() {
   return (
@@ -247,7 +248,7 @@ export default function axe_DevToolsPage() {
         </Card>
 
         <RelatedJobs keyword="axe DevTools" title="Find Jobs Using axe DevTools" />
-        
+
         <div className="text-center">
           <Link href="https://www.deque.com/axe/devtools/" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="mr-4">
@@ -261,7 +262,7 @@ export default function axe_DevToolsPage() {
             </Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

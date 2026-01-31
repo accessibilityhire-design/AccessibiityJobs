@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, ExternalLink, Gift, Smartphone, Monitor, Volume2 } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'VoiceOver Screen Reader Guide 2025 - macOS/iOS Accessibility Testing',
   description: 'Complete VoiceOver guide: built-in macOS/iOS screen reader, features, keyboard shortcuts, testing workflows, and best practices for accessibility professionals.',
+  path: '/tools/voiceover',
   keywords: ['VoiceOver', 'screen reader', 'macOS accessibility', 'iOS accessibility', 'Apple accessibility testing', 'VoiceOver testing'],
-  alternates: { canonical: 'https://accessibilityjobs.net/tools/voiceover' },
-};
+});
 
 export default function VoiceOverPage() {
   return (
@@ -287,7 +288,7 @@ export default function VoiceOverPage() {
         </Card>
 
         <RelatedJobs keyword="VoiceOver" title="Find Jobs Requiring VoiceOver Testing" />
-        
+
         <div className="text-center">
           <Link href="https://www.apple.com/accessibility/vision/" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="mr-4">
@@ -301,7 +302,7 @@ export default function VoiceOverPage() {
             </Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>

@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { CheckCircle, ExternalLink, Gift, Monitor, Volume2 } from 'lucide-react';
+import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = generatePageMetadata({
   title: 'NVDA Screen Reader Guide 2025 - Free Accessibility Testing',
   description: 'Complete NVDA screen reader guide: free Windows screen reader, features, keyboard shortcuts, testing workflows, and best practices.',
+  path: '/tools/nvda',
   keywords: ['NVDA', 'screen reader', 'free screen reader', 'accessibility testing', 'NVDA screen reader', 'Windows accessibility'],
-  alternates: { canonical: 'https://accessibilityjobs.net/tools/nvda' },
-};
+});
 
 export default function NVDAPage() {
   return (
@@ -265,7 +266,7 @@ export default function NVDAPage() {
         </Card>
 
         <RelatedJobs keyword="NVDA" title="Find Jobs Requiring NVDA Testing" />
-        
+
         <div className="text-center">
           <Link href="https://www.nvaccess.org/download/" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="mr-4">
@@ -279,7 +280,7 @@ export default function NVDAPage() {
             </Button>
           </Link>
         </div>
-        
+
         <p className="text-sm text-gray-500 text-center mt-8">Last Updated: January 2025</p>
       </div>
     </div>
