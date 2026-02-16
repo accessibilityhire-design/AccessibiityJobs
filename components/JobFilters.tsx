@@ -24,14 +24,23 @@ export function JobFilters({ initialType = 'all' }: JobFiltersProps) {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg border mb-8">
-      <div className="flex flex-col md:flex-row gap-4 items-end">
-        <div className="flex-1 w-full">
-          <Label htmlFor="job-type" className="mb-2 block">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 md:p-6">
+      <div className="flex flex-col md:flex-row gap-4 md:items-end md:justify-between">
+        <div className="max-w-xl">
+          <p className="text-sm font-semibold text-slate-800">Filter by work arrangement</p>
+          <p className="text-sm text-slate-600">Switch between remote, hybrid, and onsite opportunities.</p>
+        </div>
+
+        <div className="w-full md:w-72">
+          <Label htmlFor="job-type" className="mb-2 block text-slate-700 font-medium">
             Job Type
           </Label>
           <Select value={selectedType} onValueChange={handleTypeChange}>
-            <SelectTrigger id="job-type" aria-label="Filter jobs by type">
+            <SelectTrigger
+              id="job-type"
+              aria-label="Filter jobs by type"
+              className="w-full bg-white border-slate-300 text-slate-900"
+            >
               <SelectValue placeholder="All job types" />
             </SelectTrigger>
             <SelectContent>
@@ -46,4 +55,3 @@ export function JobFilters({ initialType = 'all' }: JobFiltersProps) {
     </div>
   );
 }
-

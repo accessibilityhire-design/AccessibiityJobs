@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Job } from '@/lib/db/schema';
 import { formatDistanceToNow } from 'date-fns';
-import { MapPin, Building2, Clock, DollarSign, Calendar, ArrowRight } from 'lucide-react';
+import { MapPin, Building2, Clock, DollarSign, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface JobCardProps {
@@ -100,9 +100,9 @@ export function JobCard({ job }: JobCardProps) {
 
             <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
                 <Link href={`/jobs/${job.id}`} className="w-full">
-                    <Button className="w-full bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 hover:border-gray-300 shadow-sm transition-all group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-700">
+                    <Button className="group/button w-full border border-slate-300 bg-white text-slate-900 shadow-sm transition-all hover:border-blue-800 hover:bg-blue-800 hover:text-white focus-visible:ring-blue-700 focus-visible:ring-offset-2">
                         View Details
-                        <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                        <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover/button:translate-x-0.5" />
                     </Button>
                 </Link>
             </div>
