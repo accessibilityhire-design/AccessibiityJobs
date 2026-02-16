@@ -26,6 +26,7 @@ export function Footer() {
         { label: 'Certifications', href: '/certifications' },
         { label: 'Tools', href: '/tools' },
         { label: 'Professional Tools', href: '/accessibility-professional-tools' },
+        { label: 'DocAccessible', href: '/docaccessible' },
       ],
     },
     {
