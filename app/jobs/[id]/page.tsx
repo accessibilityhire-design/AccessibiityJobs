@@ -228,6 +228,10 @@ export default async function JobDetailPage({ params }: PageProps) {
 
   const arrangementColor = arrangementColors[workArrangement] || 'bg-gray-50 text-gray-700 border-gray-200';
   const employmentColor = employmentColors[job.employmentType] || 'bg-gray-50 text-gray-700 border-gray-200';
+  const showYearsSuffix = !!(job.yearsExperience && !/year/i.test(job.yearsExperience));
+  const wcagDisplay = job.wcagLevel
+    ? (/^wcag/i.test(job.wcagLevel) ? job.wcagLevel : `WCAG ${job.wcagLevel}`)
+    : null;
 
   const structuredData = generateJobStructuredData(job, `https://accessibilityjobs.net/jobs/${job.id}`);
 
@@ -637,7 +641,10 @@ export default async function JobDetailPage({ params }: PageProps) {
                   {job.yearsExperience && (
                     <div>
                       <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Experience</p>
-                      <p className="text-sm font-medium text-slate-700">{job.yearsExperience} years</p>
+                      <p className="text-sm font-medium text-slate-700">
+                        {job.yearsExperience}
+                        {showYearsSuffix ? ' years' : ''}
+                      </p>
                     </div>
                   )}
                   {job.educationLevel && (
@@ -646,10 +653,10 @@ export default async function JobDetailPage({ params }: PageProps) {
                       <p className="text-sm font-medium text-slate-700 capitalize">{job.educationLevel}</p>
                     </div>
                   )}
-                  {job.wcagLevel && (
+                  {wcagDisplay && (
                     <div>
                       <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">WCAG Level</p>
-                      <p className="text-sm font-medium text-slate-700">WCAG {job.wcagLevel}</p>
+                      <p className="text-sm font-medium text-slate-700">{wcagDisplay}</p>
                     </div>
                   )}
                   {job.country && (

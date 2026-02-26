@@ -3,14 +3,14 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
-import { CheckCircle, ExternalLink, FileText, ShieldCheck, ListChecks } from 'lucide-react';
+import { ArrowRight, CheckCircle, ExternalLink, FileText, ShieldCheck } from 'lucide-react';
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
   title: 'DocAccessible - Accessibility Documentation and Compliance Support',
-  description: 'Dedicated page for DocAccessible.com with a quick overview, evaluation checklist, and links to related accessibility resources and jobs.',
+  description: 'DocAccessible resource hub with a dedicated document accessibility checklist page plus guides on HTML-first publishing, PDF remediation timing, onboarding, and compliance evidence.',
   path: '/docaccessible',
-  keywords: ['docaccessible', 'accessibility documentation', 'WCAG documentation', 'accessibility compliance support', 'a11y documentation'],
+  keywords: ['docaccessible', 'document accessibility checklist', 'pdf remediation', 'html accessibility', 'wcag evidence', 'a11y documentation'],
 });
 
 const useCases = [
@@ -20,12 +20,32 @@ const useCases = [
   'You want to align documentation with WCAG, ADA, and Section 508 expectations.',
 ];
 
-const evaluationChecklist = [
-  'Can the platform capture evidence for each issue (context, impact, and recommended fix)?',
-  'Does it support collaboration between QA, engineering, design, and compliance teams?',
-  'Can reports be shared with business stakeholders in plain language?',
-  'Does it fit your existing testing workflow and release cadence?',
-  'Can you map findings to WCAG criteria and regulatory requirements?',
+const featuredPages = [
+  {
+    title: 'Document Accessibility Checklist',
+    href: '/docaccessible/document-accessibility-checklist',
+    description: 'A practical release checklist across structure, media, tables, forms, PDF controls, and QA evidence.',
+  },
+  {
+    title: 'Why HTML for Accessible Documents',
+    href: '/docaccessible/why-html-for-accessible-docs',
+    description: 'When an HTML-first publishing model improves usability, maintenance, and accessibility outcomes.',
+  },
+  {
+    title: 'When to Remediate PDFs',
+    href: '/docaccessible/when-to-remediate-pdfs',
+    description: 'A decision framework to determine when PDF is appropriate and when to convert to HTML.',
+  },
+  {
+    title: 'Document Accessibility Onboarding Playbook',
+    href: '/docaccessible/document-accessibility-onboarding-playbook',
+    description: 'A 30-60-90 day plan for launching document accessibility workflows in delivery teams.',
+  },
+  {
+    title: 'Compliance Sources and Evidence Pack',
+    href: '/docaccessible/compliance-sources-and-evidence-pack',
+    description: 'How to map evidence to WCAG 2.2, ADA expectations, and Section 508-style governance.',
+  },
 ];
 
 export default function DocAccessiblePage() {
@@ -44,10 +64,10 @@ export default function DocAccessiblePage() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <ShieldCheck className="h-6 w-6 text-blue-600" />
-                  <h2 className="text-2xl font-bold">Visit DocAccessible</h2>
+                  <h2 className="text-2xl font-bold">DocAccessible Resource Hub</h2>
                 </div>
                 <p className="text-gray-700">
-                  Explore the official website to review current capabilities, plans, and implementation details.
+                  Explore the official checklist and use this hub to move from quick checks to repeatable accessibility operations.
                 </p>
               </div>
               <Link href="https://docaccessible.com" target="_blank" rel="noopener noreferrer">
@@ -82,42 +102,34 @@ export default function DocAccessiblePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ListChecks className="h-5 w-5 text-blue-600" />
-                Evaluation Checklist
-              </CardTitle>
+              <CardTitle>Start With the Dedicated Checklist Page</CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-2 text-sm text-gray-700">
-                {evaluationChecklist.map((item) => (
-                  <li key={item} className="flex items-start">
-                    <CheckCircle className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              <p className="text-sm text-gray-700 mb-4">
+                We created a dedicated route for the checklist so teams can use it as a structured QA gate before publishing documents.
+              </p>
+              <Link href="/docaccessible/document-accessibility-checklist">
+                <Button>
+                  Open Checklist Page
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         </div>
 
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Related Accessibility Resources</CardTitle>
+            <CardTitle>DocAccessible Related Pages</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              <Link href="/accessibility-professional-tools" className="text-blue-600 hover:underline">
-                Professional Accessibility Tools
-              </Link>
-              <Link href="/tools" className="text-blue-600 hover:underline">
-                Accessibility Testing Tools
-              </Link>
-              <Link href="/wcag" className="text-blue-600 hover:underline">
-                WCAG Guidelines
-              </Link>
-              <Link href="/section-508" className="text-blue-600 hover:underline">
-                Section 508 Guide
-              </Link>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {featuredPages.map((page) => (
+                <Link key={page.href} href={page.href} className="rounded-lg border border-gray-200 p-4 hover:border-blue-300 hover:bg-blue-50/40 transition-colors">
+                  <p className="font-semibold text-gray-900 mb-1">{page.title}</p>
+                  <p className="text-sm text-gray-600">{page.description}</p>
+                </Link>
+              ))}
             </div>
           </CardContent>
         </Card>
