@@ -43,33 +43,13 @@ export function Footer() {
   // Add real profile URLs here when the accounts exist — placeholder links
   // to platform homepages erode trust.
   const socialLinks = [
-    { icon: Mail, href: 'mailto:hello@accessibilityjobs.net', label: 'Email AccessibilityJobs' },
-    { icon: Rss, href: '/feed.xml', label: 'RSS feed of new jobs' },
+    { icon: Mail, href: 'mailto:hello@accessibilityjobs.net', label: 'Email AccessibilityJobs', text: 'Email' },
+    { icon: Rss, href: '/feed.xml', label: 'RSS feed of new jobs', text: 'RSS' },
   ];
 
   return (
-    <footer className="relative bg-[var(--ink)] text-[var(--paper)] overflow-hidden">
-      {/* Oversize wordmark */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none select-none absolute -bottom-10 md:-bottom-20 left-0 right-0 text-center whitespace-nowrap opacity-[0.04]"
-      >
-        <span className="font-display font-black tracking-tighter text-[18vw] leading-none">
-          a11y.jobs
-        </span>
-      </div>
-
-      {/* lime glow */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-24 -right-20 h-80 w-80 rounded-full"
-        style={{
-          background:
-            'radial-gradient(circle, color-mix(in oklab, var(--lime) 60%, transparent), transparent 65%)',
-        }}
-      />
-
-      <div className="relative container mx-auto px-6 md:px-8">
+    <footer className="bg-[var(--ink)] text-[var(--paper)]">
+      <div className="container mx-auto px-6 md:px-8">
         {/* CTA band */}
         <div className="border-b border-white/10 py-10 md:py-14">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
@@ -100,7 +80,7 @@ export function Footer() {
               className="inline-flex items-center hover:opacity-90 transition-opacity"
             >
               <Image
-                src="/logo.png"
+                src="/logo-light.svg"
                 alt="AccessibilityJobs Logo"
                 width={180}
                 height={50}
@@ -115,17 +95,16 @@ export function Footer() {
 
             <NewsletterForm />
 
-            <div className="mt-6 flex gap-2">
-              {socialLinks.map(({ icon: Icon, href, label }) => (
+            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
+              {socialLinks.map(({ icon: Icon, href, label, text }) => (
                 <a
                   key={label}
                   href={href}
-                  target={href.startsWith('http') ? '_blank' : undefined}
-                  rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
                   aria-label={label}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 text-white/70 hover:text-[var(--ink)] hover:bg-[var(--lime)] hover:border-[var(--lime)] transition-all"
+                  className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-[var(--lime)] transition-colors"
                 >
                   <Icon className="h-4 w-4" aria-hidden="true" />
+                  {text}
                 </a>
               ))}
             </div>

@@ -1,15 +1,15 @@
 <svg width="200" height="40" viewBox="0 0 200 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Clean Minimalistic Letter-Based Logo with Text -->
-  
+  <!-- Light-on-dark variant for dark surfaces (footer) -->
+
   <!-- Letter A Icon - Scaled for horizontal layout -->
   <g transform="scale(0.12) translate(15, 15)">
-    <path 
-      d="M 100 25 L 45 175 L 65 175 L 82 125 L 118 125 L 135 175 L 155 175 Z M 92 100 L 108 100 L 100 70 Z" 
-      fill="#2563EB" 
+    <path
+      d="M 100 25 L 45 175 L 65 175 L 82 125 L 118 125 L 135 175 L 155 175 Z M 92 100 L 108 100 L 100 70 Z"
+      fill="#C6F24E"
       stroke="none"
     />
   </g>
-  
+
   <!-- Text -->
-  <text x="32" y="26" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" fill="#1F2937" letter-spacing="-0.5">AccessibilityJobs</text>
+  <text x="32" y="26" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" fill="#FAFAF7" letter-spacing="-0.5">AccessibilityJobs</text>
 </svg>
