@@ -1,6 +1,7 @@
 import { Job } from './db/schema';
 import { jobValidThrough } from './constants/jobs';
 import { jobPath } from './slug';
+import { sanitizeJobHtml } from './job-formatter';
 
 /**
  * Serialize structured data for a <script type="application/ld+json"> block.
@@ -33,13 +34,19 @@ export function generateJobStructuredData(job: Job, url: string) {
     // Ignore parsing errors
   }
 
-  // Combine description sections for full description
-  const fullDescription = [
-    job.description,
-    job.keyResponsibilities && `\n\nKey Responsibilities:\n${job.keyResponsibilities}`,
-    job.requirements && `\n\nRequirements:\n${job.requirements}`,
-    job.niceToHave && `\n\nNice to Have:\n${job.niceToHave}`,
-  ].filter(Boolean).join('');
+  // Combine description sections for full description. Sanitize each part —
+  // job content comes from public submissions and scrapes, and Google's
+  // JobPosting.description accepts HTML, so never emit raw untrusted markup.
+  const fullDescription = sanitizeJobHtml(
+    [
+      job.description,
+      job.keyResponsibilities && `\n\nKey Responsibilities:\n${job.keyResponsibilities}`,
+      job.requirements && `\n\nRequirements:\n${job.requirements}`,
+      job.niceToHave && `\n\nNice to Have:\n${job.niceToHave}`,
+    ]
+      .filter(Boolean)
+      .join('')
+  );
 
   // validThrough: applicationDeadline if set, otherwise the shared expiry
   // window. Expired jobs must not emit JobPosting schema at all — callers

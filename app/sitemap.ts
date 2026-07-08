@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next';
-import { recentActiveJobs } from '@/lib/jobs-query';
+import { indexableJobs } from '@/lib/jobs-query';
 import { jobPath } from '@/lib/slug';
 
 export const revalidate = 3600; // Revalidate every hour
@@ -7,11 +7,11 @@ export const revalidate = 3600; // Revalidate every hour
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://accessibilityjobs.net';
 
-  // Only live (approved, unexpired, valid-company) jobs belong in the sitemap
+  // Only Google-indexable jobs belong in the sitemap; stale jobs are noindex
   let jobUrls: MetadataRoute.Sitemap = [];
 
   try {
-    const activeJobs = await recentActiveJobs(2000);
+    const activeJobs = await indexableJobs(2000);
 
     jobUrls = activeJobs.map((job) => ({
       url: `${baseUrl}${jobPath(job)}`,

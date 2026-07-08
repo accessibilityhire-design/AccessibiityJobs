@@ -6,9 +6,9 @@
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { and, or, eq, gte, isNull, ilike, desc, sql, count, countDistinct, SQL } from 'drizzle-orm';
-import { JOB_EXPIRY_DAYS } from '@/lib/constants/jobs';
+import { JOB_DISPLAY_DAYS, JOB_GOOGLE_VALID_DAYS } from '@/lib/constants/jobs';
 
-export { JOB_EXPIRY_DAYS };
+export { JOB_DISPLAY_DAYS, JOB_GOOGLE_VALID_DAYS };
 
 export const JOBS_PER_PAGE = 12;
 
@@ -43,20 +43,41 @@ export function parseJobsSearchParams(params: {
   };
 }
 
-export function expiryCutoff(): Date {
-  return new Date(Date.now() - JOB_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+function cutoffDaysAgo(days: number): Date {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
 
-/** A job is live while its deadline (if any) and the freshness window allow. */
+/** Excludes scraped rows whose company name is junk (masked at read time). */
+function validCompanyConditions(): SQL[] {
+  return [
+    sql`lower(trim(${jobs.company})) NOT IN ('nan', 'null', 'undefined', 'n/a', 'none', 'tbd', 'unknown', 'pending', 'not specified')`,
+    sql`length(trim(${jobs.company})) >= 2`,
+  ];
+}
+
+/**
+ * Shown-on-site window: approved, within the (generous) display window, and
+ * before any application deadline. Drives the board, search, related, feed.
+ */
 export function activeJobsWhere(): SQL {
   return and(
     eq(jobs.status, 'approved'),
-    gte(jobs.createdAt, expiryCutoff()),
+    gte(jobs.createdAt, cutoffDaysAgo(JOB_DISPLAY_DAYS)),
     or(isNull(jobs.applicationDeadline), gte(jobs.applicationDeadline, new Date())),
-    // Exclude rows whose scraped company name is junk (masked at read time
-    // until the pipeline stops inserting them).
-    sql`lower(trim(${jobs.company})) NOT IN ('nan', 'null', 'undefined', 'n/a', 'none', 'tbd', 'unknown', 'pending', 'not specified')`,
-    sql`length(trim(${jobs.company})) >= 2`
+    ...validCompanyConditions()
+  )!;
+}
+
+/**
+ * Google-indexable window: fresh enough to still carry JobPosting schema and
+ * belong in the sitemap. Tighter than the display window.
+ */
+export function indexableJobsWhere(): SQL {
+  return and(
+    eq(jobs.status, 'approved'),
+    gte(jobs.createdAt, cutoffDaysAgo(JOB_GOOGLE_VALID_DAYS)),
+    or(isNull(jobs.applicationDeadline), gte(jobs.applicationDeadline, new Date())),
+    ...validCompanyConditions()
   )!;
 }
 
@@ -115,12 +136,25 @@ export async function jobBoardStats() {
   return row;
 }
 
-/** Recent live jobs — used by sitemap, RSS feed, and related-jobs lookups. */
+/** Recent live jobs — used by the RSS feed and related-jobs lookups. */
 export async function recentActiveJobs(limit = 500) {
   return db
     .select()
     .from(jobs)
     .where(activeJobsWhere())
+    .orderBy(desc(jobs.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Google-indexable jobs for the sitemap — only those still carrying
+ * JobPosting schema (stale jobs are noindex, so they don't belong here).
+ */
+export async function indexableJobs(limit = 2000) {
+  return db
+    .select()
+    .from(jobs)
+    .where(indexableJobsWhere())
     .orderBy(desc(jobs.createdAt))
     .limit(limit);
 }
