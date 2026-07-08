@@ -82,37 +82,6 @@ export default async function HomePage({
     <>
       {/* ========================= HERO (light) ========================= */}
       <section className="relative bg-[var(--paper)] text-[var(--ink)] overflow-hidden">
-        {/* Soft ambient lime */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-40 -right-40 h-[36rem] w-[36rem] rounded-full"
-          style={{
-            background:
-              'radial-gradient(circle, color-mix(in oklab, var(--lime) 55%, transparent), transparent 65%)',
-            opacity: 0.55,
-          }}
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-60 -left-40 h-[32rem] w-[32rem] rounded-full"
-          style={{
-            background:
-              'radial-gradient(circle, color-mix(in oklab, var(--saffron) 45%, transparent), transparent 65%)',
-            opacity: 0.45,
-          }}
-        />
-        {/* subtle dot grid */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-0"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--ink) 9%, transparent) 1px, transparent 0)',
-            backgroundSize: '28px 28px',
-            opacity: 0.6,
-          }}
-        />
-
         <div className="relative container mx-auto px-4 pt-14 md:pt-20 pb-20 md:pb-28">
           <div className="max-w-5xl">
             <span className="eyebrow inline-flex items-center gap-2 text-[var(--ink-soft)]">
