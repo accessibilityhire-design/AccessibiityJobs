@@ -2,9 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { jobSubmissionSchema } from '@/lib/validations/job';
+import { rateLimit, clientIp } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = clientIp(request);
+    const limited = rateLimit(`submit:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: 'Too many submissions. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } }
+      );
+    }
+
     const body = await request.json();
 
     // Validate the request body

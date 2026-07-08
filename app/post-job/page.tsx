@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { useForm, FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { jobSubmissionSchema, JobSubmissionData } from '@/lib/validations/job';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useRouter } from 'next/navigation';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Step1BasicInfo } from '@/components/post-job/Step1BasicInfo';
 import { Step2Location } from '@/components/post-job/Step2Location';
 import { Step3Compensation } from '@/components/post-job/Step3Compensation';
@@ -14,7 +14,6 @@ import { Step4Requirements } from '@/components/post-job/Step4Requirements';
 import { Step5Skills } from '@/components/post-job/Step5Skills';
 import { Step6Description } from '@/components/post-job/Step6Description';
 
-// Auto-detection utilities
 const detectTimezone = () => {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -23,45 +22,50 @@ const detectTimezone = () => {
   }
 };
 
-const detectCountry = async () => {
-  try {
-    const response = await fetch('https://ipapi.co/json/');
-    const data = await response.json();
-    return data.country_name || '';
-  } catch {
-    return '';
-  }
-};
+const DRAFT_KEY = 'post-job-draft';
 
-const detectCurrency = (country: string) => {
-  const currencyMap: Record<string, string> = {
-    'United States': 'USD',
-    'United Kingdom': 'GBP',
-    'Canada': 'CAD',
-    'Australia': 'AUD',
-    'Germany': 'EUR',
-    'France': 'EUR',
-    'Spain': 'EUR',
-    'Italy': 'EUR',
-    'Netherlands': 'EUR',
-    'India': 'INR',
-    'Japan': 'JPY',
-    'China': 'CNY',
-    'Brazil': 'BRL',
-    'Mexico': 'MXN',
-  };
-  return currencyMap[country] || 'USD';
-};
-
+// Which fields belong to which step — used to validate before advancing
+// and to route the user back to the step containing an error.
+const STEPS: Array<{ title: string; fields: (keyof JobSubmissionData)[] }> = [
+  {
+    title: 'Basic Information',
+    fields: ['title', 'company', 'companyWebsite', 'companySize', 'industry', 'jobLevel', 'employmentType', 'department'],
+  },
+  {
+    title: 'Location & Remote Work',
+    fields: ['workArrangement', 'timezone', 'country', 'city', 'specificLocation', 'relocationAssistance'],
+  },
+  {
+    title: 'Compensation',
+    fields: ['salaryMin', 'salaryMax', 'currency', 'salaryType', 'equityOffered', 'bonusStructure'],
+  },
+  {
+    title: 'Experience & Education',
+    fields: ['yearsExperience', 'educationLevel', 'requiredCertifications', 'preferredCertifications'],
+  },
+  {
+    title: 'Skills & Accessibility Focus',
+    fields: ['requiredSkills', 'preferredSkills', 'wcagLevel', 'accessibilityFocus', 'assistiveTechExperience'],
+  },
+  {
+    title: 'Job Description & Application Details',
+    fields: [
+      'description', 'keyResponsibilities', 'requirements', 'niceToHave',
+      'contactEmail', 'applicationDeadline', 'expectedStartDate', 'travelRequired',
+      'visaSponsorship', 'securityClearance', 'additionalNotes',
+      'benefits', 'professionalDevelopment', 'healthInsurance', 'retirement', 'ptoDetails',
+    ],
+  },
+];
 
 export default function PostJobPage() {
-  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [detectedCountry, setDetectedCountry] = useState('');
   const [detectedTimezone, setDetectedTimezone] = useState('');
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const restoredRef = useRef(false);
 
   const {
     register,
@@ -70,6 +74,9 @@ export default function PostJobPage() {
     setValue,
     watch,
     control,
+    trigger,
+    reset,
+    getValues,
   } = useForm<JobSubmissionData>({
     resolver: zodResolver(jobSubmissionSchema),
     defaultValues: {
@@ -102,22 +109,74 @@ export default function PostJobPage() {
     },
   });
 
-
-  // Auto-detect timezone and country on mount
+  // Restore a saved draft, then auto-detect timezone (no third-party
+  // geo-IP calls — that was a silent privacy leak).
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const draft = JSON.parse(saved);
+        if (draft?.values) reset({ ...getValues(), ...draft.values });
+        if (typeof draft?.step === 'number' && draft.step >= 1 && draft.step <= STEPS.length) {
+          setCurrentStep(draft.step);
+        }
+      }
+    } catch {
+      // corrupted draft — ignore
+    }
+    restoredRef.current = true;
+
     const timezone = detectTimezone();
     setDetectedTimezone(timezone);
-    setValue('timezone', timezone);
+    if (!getValues('timezone')) setValue('timezone', timezone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    detectCountry().then((country) => {
-      if (country) {
-        setDetectedCountry(country);
-        setValue('country', country);
-        const currency = detectCurrency(country);
-        setValue('currency', currency);
+  // Persist the draft as the user types (debounced)
+  useEffect(() => {
+    const subscription = watch((values) => {
+      if (!restoredRef.current) return;
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ values, step: currentStep }));
+      } catch {
+        // storage full/unavailable — drafts are best-effort
       }
     });
-  }, [setValue]);
+    return () => subscription.unsubscribe();
+  }, [watch, currentStep]);
+
+  const focusStepHeading = () => {
+    // After React swaps the step, move focus to the step heading so
+    // keyboard and screen reader users land at the start of the new step.
+    requestAnimationFrame(() => stepHeadingRef.current?.focus());
+  };
+
+  const goToStep = (step: number) => {
+    setCurrentStep(step);
+    focusStepHeading();
+  };
+
+  const handleNext = async () => {
+    const valid = await trigger(STEPS[currentStep - 1].fields);
+    if (valid) {
+      goToStep(currentStep + 1);
+    }
+    // invalid: field-level role="alert" messages announce themselves
+  };
+
+  // If submit-time validation fails on a hidden step, send the user there
+  const onInvalid = (formErrors: FieldErrors<JobSubmissionData>) => {
+    const errorFields = Object.keys(formErrors) as (keyof JobSubmissionData)[];
+    const stepWithError = STEPS.findIndex((step) =>
+      step.fields.some((field) => errorFields.includes(field))
+    );
+    if (stepWithError !== -1) {
+      setSubmitError(
+        `Please fix the highlighted fields on step ${stepWithError + 1} (${STEPS[stepWithError].title}).`
+      );
+      goToStep(stepWithError + 1);
+    }
+  };
 
   const onSubmit = async (data: JobSubmissionData) => {
     try {
@@ -127,12 +186,12 @@ export default function PostJobPage() {
       // Build legacy fields for backward compatibility
       const legacyData = {
         ...data,
-        location: data.workArrangement === 'remote' 
-          ? 'Remote' 
+        location: data.workArrangement === 'remote'
+          ? 'Remote'
           : `${data.city || ''}${data.city && data.country ? ', ' : ''}${data.country || ''}`.trim() || 'Not specified',
         type: data.workArrangement,
-        salaryRange: data.salaryMin && data.salaryMax 
-          ? `${data.currency} ${data.salaryMin.toLocaleString()} - ${data.salaryMax.toLocaleString()} (${data.salaryType})` 
+        salaryRange: data.salaryMin && data.salaryMax
+          ? `${data.currency} ${data.salaryMin.toLocaleString()} - ${data.salaryMax.toLocaleString()} (${data.salaryType})`
           : '',
       };
 
@@ -149,12 +208,8 @@ export default function PostJobPage() {
         throw new Error(errorData.error || 'Failed to submit job');
       }
 
+      localStorage.removeItem(DRAFT_KEY);
       setSubmitSuccess(true);
-      
-      // Redirect to home page after 3 seconds
-      setTimeout(() => {
-        router.push('/');
-      }, 3000);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'An error occurred');
     } finally {
@@ -162,67 +217,94 @@ export default function PostJobPage() {
     }
   };
 
-
   if (submitSuccess) {
     return (
       <div className="container mx-auto px-4 py-12">
-        <Card className="max-w-2xl mx-auto">
+        <Card className="max-w-2xl mx-auto" role="status">
           <CardHeader>
-            <CardTitle className="text-2xl text-green-600">Accessibility Job Submitted Successfully!</CardTitle>
+            <CardTitle className="text-2xl text-green-700">
+              <h1>Accessibility job submitted successfully</h1>
+            </CardTitle>
             <CardDescription>
-              Thank you for submitting your accessibility job posting. Our team will review it to ensure it focuses on accessibility roles, and it will be published once approved.
-              You will be redirected to the home page shortly.
+              Thank you for submitting your accessibility job posting. Our team will
+              review it to ensure it focuses on accessibility roles, and it will be
+              published once approved. Reviews typically complete within 1–2 business days.
             </CardDescription>
           </CardHeader>
+          <div className="px-6 pb-6 flex flex-wrap gap-3">
+            <Button asChild>
+              <Link href="/">Browse jobs</Link>
+            </Button>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Post another job
+            </Button>
+          </div>
         </Card>
       </div>
     );
   }
 
-  const totalSteps = 6;
+  const totalSteps = STEPS.length;
 
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-4">Post an Accessibility Job</h1>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-2">
             Submit your accessibility-focused job posting. All submissions are reviewed to ensure they focus on digital accessibility, WCAG compliance, inclusive design, or related roles.
+          </p>
+          <p className="text-sm text-gray-600 mb-6">
+            Fields marked with an asterisk (*) are required. Your progress is saved
+            automatically in this browser.
           </p>
 
           {/* Progress Indicator */}
-          <div className="flex items-center justify-between mb-8">
-            {[1, 2, 3, 4, 5, 6].map((step) => (
-              <div key={step} className="flex items-center flex-1">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                    step <= currentStep
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 text-gray-600'
-                  }`}
-                >
-                  {step}
-              </div>
-                {step < totalSteps && (
+          <div aria-hidden="true" className="flex items-center justify-between mb-4">
+            {STEPS.map((_, index) => {
+              const step = index + 1;
+              return (
+                <div key={step} className="flex items-center flex-1">
                   <div
-                    className={`flex-1 h-1 mx-2 ${
-                      step < currentStep ? 'bg-blue-600' : 'bg-gray-200'
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                      step <= currentStep
+                        ? 'bg-blue-700 text-white'
+                        : 'bg-gray-200 text-gray-700'
                     }`}
-                  />
-                )}
-              </div>
-            ))}
+                  >
+                    {step}
+                  </div>
+                  {step < totalSteps && (
+                    <div
+                      className={`flex-1 h-1 mx-2 ${
+                        step < currentStep ? 'bg-blue-700' : 'bg-gray-200'
+                      }`}
+                    />
+                  )}
                 </div>
-              </div>
+              );
+            })}
+          </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Accessible step announcement + focus target on step change */}
+          <h2
+            ref={stepHeadingRef}
+            tabIndex={-1}
+            aria-live="polite"
+            className="text-lg font-semibold text-gray-900 focus:outline-none"
+          >
+            Step {currentStep} of {totalSteps}: {STEPS[currentStep - 1].title}
+          </h2>
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6" noValidate>
           {/* Step Components - Properly Isolated */}
           {currentStep === 1 && (
             <Step1BasicInfo
               register={register}
               control={control}
               errors={errors}
-                />
+            />
           )}
 
           {currentStep === 2 && (
@@ -232,17 +314,17 @@ export default function PostJobPage() {
               watch={watch}
               setValue={setValue}
               errors={errors}
-              detectedCountry={detectedCountry}
+              detectedCountry=""
               detectedTimezone={detectedTimezone}
             />
-                )}
+          )}
 
           {currentStep === 3 && (
             <Step3Compensation
               register={register}
               control={control}
               errors={errors}
-                  />
+            />
           )}
 
           {currentStep === 4 && (
@@ -252,7 +334,7 @@ export default function PostJobPage() {
               watch={watch}
               setValue={setValue}
               errors={errors}
-                  />
+            />
           )}
 
           {currentStep === 5 && (
@@ -262,7 +344,7 @@ export default function PostJobPage() {
               watch={watch}
               setValue={setValue}
               errors={errors}
-                />
+            />
           )}
 
           {currentStep === 6 && (
@@ -274,11 +356,11 @@ export default function PostJobPage() {
             />
           )}
 
-              {submitError && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-md" role="alert">
-                  <p className="text-sm text-red-600">{submitError}</p>
-                </div>
-              )}
+          {submitError && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md" role="alert">
+              <p className="text-sm text-red-700">{submitError}</p>
+            </div>
+          )}
 
           {/* Navigation Buttons */}
           <div className="flex gap-4 sticky bottom-0 bg-white p-4 border-t">
@@ -286,7 +368,7 @@ export default function PostJobPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setCurrentStep(currentStep - 1)}
+                onClick={() => goToStep(currentStep - 1)}
                 disabled={isSubmitting}
               >
                 Previous
@@ -296,23 +378,22 @@ export default function PostJobPage() {
             {currentStep < totalSteps ? (
               <Button
                 type="button"
-                onClick={() => setCurrentStep(currentStep + 1)}
+                onClick={handleNext}
                 className="flex-1"
               >
                 Next Step
               </Button>
             ) : (
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1"
-                  aria-label={isSubmitting ? 'Submitting job...' : 'Submit job for review'}
-                >
-                {isSubmitting ? 'Submitting...' : 'Submit Job for Review'}
-                </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1"
+              >
+                {isSubmitting ? 'Submitting…' : 'Submit Job for Review'}
+              </Button>
             )}
-              </div>
-            </form>
+          </div>
+        </form>
       </div>
     </div>
   );

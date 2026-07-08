@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { Suspense } from "react";
@@ -9,11 +9,20 @@ import { DeferredAnalytics } from "@/components/DeferredAnalytics";
 
 const inter = Inter({
   subsets: ["latin"],
-  display: "optional",
+  display: "swap",
   variable: "--font-inter",
   preload: true,
-  fallback: ['system-ui', 'arial'],
+  fallback: ["system-ui", "arial"],
   adjustFontFallback: true,
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-space-grotesk",
+  weight: ["500", "600", "700"],
+  preload: true,
+  fallback: ["system-ui", "arial"],
 });
 
 export const metadata: Metadata = {
@@ -22,7 +31,7 @@ export const metadata: Metadata = {
     default: "AccessibilityJobs - Find Accessibility-Focused Job Opportunities",
     template: "%s | AccessibilityJobs",
   },
-  description: "Discover meaningful career opportunities in accessibility. Connect with companies committed to creating inclusive digital experiences. Browse 500+ accessibility jobs including WCAG specialists, a11y engineers, and accessibility consultants.",
+  description: "Discover meaningful career opportunities in accessibility. Connect with companies committed to creating inclusive digital experiences. Browse live accessibility jobs including WCAG specialists, a11y engineers, and accessibility consultants.",
   keywords: [
     "accessibility jobs",
     "a11y jobs",
@@ -62,6 +71,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
+    site: "@AccessibilityJobs",
     title: "AccessibilityJobs - Find Accessibility-Focused Job Opportunities",
     description: "Discover meaningful career opportunities in accessibility.",
     images: ['/og-image.png'],
@@ -79,6 +89,9 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: 'https://accessibilityjobs.net',
+    types: {
+      'application/rss+xml': [{ url: '/feed.xml', title: 'AccessibilityJobs — New Jobs' }],
+    },
   },
   category: 'careers',
 };
@@ -89,8 +102,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="flex flex-col min-h-screen antialiased">
+    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+      <body className="flex flex-col min-h-screen antialiased bg-background text-foreground">
         {/* Preload and critical CSS injected via Script for proper optimization */}
         <Script
           id="critical-css"
@@ -98,7 +111,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               const style=document.createElement('style');
-              style.textContent='.container{max-width:1280px;margin:0 auto}header{border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0;z-index:50}nav{display:flex;align-items:center;justify-content:space-between}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}';
+              style.textContent='.container{max-width:1280px;margin:0 auto}nav{display:flex;align-items:center;justify-content:space-between}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}';
               document.head.appendChild(style);
               const link2=document.createElement('link');link2.rel='preconnect';link2.href='https://fonts.googleapis.com';
               const link3=document.createElement('link');link3.rel='preconnect';link3.href='https://fonts.gstatic.com';link3.crossOrigin='anonymous';
@@ -111,7 +124,7 @@ export default function RootLayout({
 
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-md focus:shadow-lg"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[60] focus:px-4 focus:py-2 focus:bg-[var(--ink)] focus:text-[var(--paper)] focus:rounded-md focus:shadow-lg"
         >
           Skip to main content
         </a>

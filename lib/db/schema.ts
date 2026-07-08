@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, varchar, integer, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, varchar, integer, boolean, index } from 'drizzle-orm/pg-core';
 
 // Jobs table - comprehensive accessibility job postings
 export const jobs = pgTable('jobs', {
@@ -82,8 +82,22 @@ export const jobs = pgTable('jobs', {
   status: varchar('status', { length: 20 }).notNull().default('pending'), // pending, approved, rejected
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  // Every public query filters on status + orders by created_at
+  index('jobs_status_created_at_idx').on(table.status, table.createdAt),
+  index('jobs_work_arrangement_idx').on(table.workArrangement),
+  index('jobs_employment_type_idx').on(table.employmentType),
+  index('jobs_source_url_idx').on(table.sourceUrl),
+]);
+
+// Newsletter / job-alert subscribers
+export const subscribers = pgTable('subscribers', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 // Type exports
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
+export type Subscriber = typeof subscribers.$inferSelect;

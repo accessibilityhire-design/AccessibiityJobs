@@ -2,6 +2,30 @@
  * Job Description Formatter
  * Converts raw markdown/text job descriptions to clean HTML for display
  */
+import sanitize from 'sanitize-html';
+
+/**
+ * Sanitize HTML to a strict allowlist. Job descriptions come from public
+ * submissions and third-party scrapes — never trust their markup.
+ */
+export function sanitizeJobHtml(html: string): string {
+    return sanitize(html, {
+        allowedTags: [
+            'p', 'br', 'strong', 'em', 'b', 'i', 'u', 's',
+            'ul', 'ol', 'li', 'h3', 'h4', 'h5', 'h6', 'a', 'blockquote',
+        ],
+        allowedAttributes: {
+            a: ['href'],
+        },
+        allowedSchemes: ['http', 'https', 'mailto'],
+        transformTags: {
+            a: sanitize.simpleTransform('a', { rel: 'nofollow noopener noreferrer', target: '_blank' }),
+            h1: 'h3',
+            h2: 'h3',
+        },
+        disallowedTagsMode: 'discard',
+    });
+}
 
 /**
  * Convert markdown-formatted job description to clean HTML
@@ -96,7 +120,7 @@ export function formatJobDescription(text: string | null | undefined): string {
     // Clean up excessive whitespace
     html = html.replace(/\n{3,}/g, '\n\n');
 
-    return html;
+    return sanitizeJobHtml(html);
 }
 
 /**

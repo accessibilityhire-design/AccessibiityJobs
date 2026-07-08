@@ -1,80 +1,134 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Job } from '@/lib/db/schema';
 import { JobCard } from '@/components/JobCard';
-import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface JobsViewProps {
     jobs: Job[];
-    itemsPerPage?: number;
+    page: number;
+    totalPages: number;
+    /** Current filter params, preserved in pagination links */
+    searchParams?: Record<string, string>;
+    /** Route the pagination links point at (defaults to the homepage board) */
+    basePath?: string;
+    /** Fragment appended to pagination links so focus lands on the results */
+    anchor?: string;
 }
 
-export function JobsView({ jobs, itemsPerPage = 12 }: JobsViewProps) {
-    const [currentPage, setCurrentPage] = useState(1);
-
-    // Reset page when jobs change (e.g. filtering)
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [jobs]);
-
-    const totalPages = Math.ceil(jobs.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const paginatedJobs = jobs.slice(startIndex, startIndex + itemsPerPage);
-
-    const handlePageChange = (page: number) => {
-        setCurrentPage(page);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+/**
+ * Server-rendered job grid with real, crawlable ?page= pagination links.
+ */
+export function JobsView({
+    jobs,
+    page,
+    totalPages,
+    searchParams = {},
+    basePath = '/',
+    anchor = '#roles',
+}: JobsViewProps) {
+    const pageHref = (p: number) => {
+        const params = new URLSearchParams(searchParams);
+        if (p <= 1) {
+            params.delete('page');
+        } else {
+            params.set('page', String(p));
+        }
+        const query = params.toString();
+        return query ? `${basePath}?${query}${anchor}` : `${basePath}${anchor}`;
     };
 
     if (jobs.length === 0) {
         return (
-            <div className="text-center py-20 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                <h3 className="text-lg font-medium text-gray-900">No jobs found</h3>
-                <p className="text-gray-500 mt-1">Try adjusting your filters or check back later.</p>
+            <div className="text-center py-16 rounded-2xl border border-dashed border-[var(--border)] bg-[color-mix(in_oklab,var(--ink)_3%,transparent)]">
+                <h3 className="font-display text-xl font-semibold text-[var(--ink)]">
+                    No roles match this view
+                </h3>
+                <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                    Try another filter — new listings drop throughout the week.
+                </p>
             </div>
         );
     }
 
+    // Build compact page list (1 … n-1 n n+1 … last)
+    const pageList: Array<number | 'ellipsis'> = [];
+    if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pageList.push(i);
+    } else {
+        pageList.push(1);
+        if (page > 3) pageList.push('ellipsis');
+        const from = Math.max(2, page - 1);
+        const to = Math.min(totalPages - 1, page + 1);
+        for (let i = from; i <= to; i++) pageList.push(i);
+        if (page < totalPages - 2) pageList.push('ellipsis');
+        pageList.push(totalPages);
+    }
+
+    const navButtonClass =
+        'inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] text-[var(--ink)] hover:border-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)] transition-all';
+    const disabledClass =
+        'inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] text-[var(--ink)] opacity-40';
+
     return (
-        <div className="space-y-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {paginatedJobs.map((job) => (
+        <div className="space-y-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6">
+                {jobs.map((job) => (
                     <JobCard key={job.id} job={job} />
                 ))}
             </div>
 
             {totalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 mt-12 pb-8">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handlePageChange(currentPage - 1)}
-                        disabled={currentPage === 1}
-                        className="w-10 h-10 rounded-full border-gray-300 hover:border-blue-500 hover:text-blue-600"
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                        <span className="sr-only">Previous page</span>
-                    </Button>
-
-                    <div className="flex items-center gap-2 px-4">
-                        <span className="text-sm font-medium text-gray-600">
-                            Page {currentPage} of {totalPages}
+                <nav
+                    className="flex justify-center items-center gap-2 pt-6"
+                    aria-label="Pagination"
+                >
+                    {page === 1 ? (
+                        <span className={disabledClass} aria-hidden="true">
+                            <ChevronLeft className="h-4 w-4" />
                         </span>
-                    </div>
+                    ) : (
+                        <Link href={pageHref(page - 1)} className={navButtonClass} aria-label="Previous page">
+                            <ChevronLeft className="h-4 w-4" />
+                        </Link>
+                    )}
 
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handlePageChange(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                        className="w-10 h-10 rounded-full border-gray-300 hover:border-blue-500 hover:text-blue-600"
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                        <span className="sr-only">Next page</span>
-                    </Button>
-                </div>
+                    {pageList.map((p, i) =>
+                        p === 'ellipsis' ? (
+                            <span
+                                key={`e${i}`}
+                                className="px-2 text-[var(--muted-foreground)]"
+                                aria-hidden="true"
+                            >
+                                …
+                            </span>
+                        ) : (
+                            <Link
+                                key={p}
+                                href={pageHref(p)}
+                                aria-current={p === page ? 'page' : undefined}
+                                aria-label={p === page ? `Page ${p}, current page` : `Page ${p}`}
+                                className={[
+                                    'inline-flex h-10 min-w-10 items-center justify-center rounded-full text-sm font-medium transition-all px-3',
+                                    p === page
+                                        ? 'bg-[var(--ink)] text-[var(--paper)]'
+                                        : 'text-[var(--muted-foreground)] hover:text-[var(--ink)] hover:bg-[color-mix(in_oklab,var(--ink)_6%,transparent)]',
+                                ].join(' ')}
+                            >
+                                {p}
+                            </Link>
+                        )
+                    )}
+
+                    {page === totalPages ? (
+                        <span className={disabledClass} aria-hidden="true">
+                            <ChevronRight className="h-4 w-4" />
+                        </span>
+                    ) : (
+                        <Link href={pageHref(page + 1)} className={navButtonClass} aria-label="Next page">
+                            <ChevronRight className="h-4 w-4" />
+                        </Link>
+                    )}
+                </nav>
             )}
         </div>
     );

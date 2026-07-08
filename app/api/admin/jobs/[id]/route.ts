@@ -3,11 +3,11 @@ import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
+import { verifySessionToken, SESSION_COOKIE } from '@/lib/auth';
 
 async function checkAuth() {
   const cookieStore = await cookies();
-  const session = cookieStore.get('admin_session');
-  return !!session;
+  return verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value) !== null;
 }
 
 export async function PATCH(

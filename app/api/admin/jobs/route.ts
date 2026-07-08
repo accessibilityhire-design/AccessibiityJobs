@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
+import { verifySessionToken, SESSION_COOKIE } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication
     const cookieStore = await cookies();
-    const session = cookieStore.get('admin_session');
+    const session = verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
 
     if (!session) {
       return NextResponse.json(
@@ -19,15 +19,15 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status') || 'pending';
+    if (!['pending', 'approved', 'rejected'].includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    }
 
-    // Fetch jobs based on status
-    const allJobs = await db
+    const filteredJobs = await db
       .select()
       .from(jobs)
+      .where(eq(jobs.status, status))
       .orderBy(desc(jobs.createdAt));
-
-    // Filter by status
-    const filteredJobs = allJobs.filter(job => job.status === status);
 
     return NextResponse.json({ jobs: filteredJobs }, { status: 200 });
   } catch (error) {
@@ -38,4 +38,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

@@ -3,21 +3,53 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Menu, X } from 'lucide-react';
+import { ChevronDown, Menu, X, Sparkles } from 'lucide-react';
+
+const resourceLinks = [
+  { label: 'Certifications', href: '/certifications' },
+  { label: 'Tools', href: '/tools' },
+  { label: 'Skills', href: '/skills' },
+  { label: 'WCAG Guidelines', href: '/wcag', divider: true },
+  { label: 'Section 508', href: '/section-508' },
+  { label: 'ADA Compliance', href: '/ada' },
+  { label: 'Learning Resources', href: '/resources', divider: true },
+  { label: 'Career Guide', href: '/accessibility-career-guide' },
+];
 
 export function Header() {
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileResourcesOpen, setMobileResourcesOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const resourcesMenuRef = useRef<HTMLLIElement>(null);
   const resourcesButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileButtonRef = useRef<HTMLButtonElement>(null);
 
   const closeMobileMenu = () => {
     setMobileMenuOpen(false);
     setMobileResourcesOpen(false);
   };
 
-  // Close dropdown when clicking outside
+  // Escape closes the mobile panel and returns focus to its toggle
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeMobileMenu();
+        mobileButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -29,12 +61,10 @@ export function Header() {
         setResourcesOpen(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Keyboard navigation for dropdown
   const handleResourcesKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       setResourcesOpen(false);
@@ -43,366 +73,217 @@ export function Header() {
   };
 
   return (
-    <header className="border-b bg-white sticky top-0 z-50">
-      <div className="w-full px-4 md:px-6 py-3 md:py-4">
+    <header
+      className={[
+        'sticky top-0 z-50 transition-all duration-300',
+        scrolled
+          ? 'bg-white/85 backdrop-blur-xl border-b border-[var(--border)] shadow-[0_10px_30px_-22px_rgba(16,16,32,0.18)]'
+          : 'bg-white border-b border-[var(--border)]',
+      ].join(' ')}
+    >
+      <div className="w-full px-4 md:px-6">
         <div className="max-w-7xl mx-auto">
-          <nav className="flex items-center justify-between" aria-label="Main navigation">
+          <nav
+            className="flex items-center justify-between h-16 md:h-[72px]"
+            aria-label="Main navigation"
+          >
             {/* Logo */}
-            <Link 
-              href="/" 
-              className="flex items-center hover:opacity-90 transition-opacity"
-              aria-label="AccessibilityJobs Home"
+            <Link
+              href="/"
               onClick={closeMobileMenu}
+              aria-label="AccessibilityJobs Home"
+              className="flex items-center hover:opacity-90 transition-opacity"
             >
-              <Image 
-                src="/logo.png" 
-                alt="AccessibilityJobs Logo" 
-                width={220} 
+              <Image
+                src="/logo.png"
+                alt="AccessibilityJobs Logo"
+                width={220}
                 height={60}
                 className="h-9 md:h-10 w-auto"
                 priority
                 fetchPriority="high"
               />
             </Link>
-            
-            {/* Desktop Navigation */}
-            <ul className="hidden lg:flex items-center gap-8">
-            <li>
-              <Link 
-                href="/" 
-                className="text-base font-medium hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded px-2 py-1 transition-colors"
-                aria-label="Browse jobs"
-              >
-                Jobs
-              </Link>
-            </li>
-            
-            {/* Resources Dropdown */}
-            <li className="relative" ref={resourcesMenuRef}>
-              <button
-                ref={resourcesButtonRef}
-                className="text-base font-medium hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded px-2 py-1 transition-colors flex items-center gap-2"
-                aria-expanded={resourcesOpen}
-                aria-haspopup="true"
-                onClick={() => setResourcesOpen(!resourcesOpen)}
-                onKeyDown={handleResourcesKeyDown}
-              >
-                Resources
-                <ChevronDown 
-                  className={`h-4 w-4 transition-transform flex-shrink-0 ${resourcesOpen ? 'rotate-180' : ''}`}
-                  aria-hidden="true"
-                />
-              </button>
-              
-              {resourcesOpen && (
-                <div 
-                  className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50"
-                  role="menu"
-                  aria-orientation="vertical"
+
+            {/* Desktop nav */}
+            <ul className="hidden lg:flex items-center gap-1">
+              <NavLink href="/">Jobs</NavLink>
+
+              <li className="relative" ref={resourcesMenuRef}>
+                <button
+                  ref={resourcesButtonRef}
+                  className="px-3 py-2 text-sm font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] rounded-md transition-colors flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/40"
+                  aria-expanded={resourcesOpen}
+                  aria-controls="resources-menu"
+                  onClick={() => setResourcesOpen(!resourcesOpen)}
                   onKeyDown={handleResourcesKeyDown}
                 >
-                  <Link 
-                    href="/certifications"
-                    className="block px-4 py-3 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset transition-colors"
-                    role="menuitem"
-                    onClick={() => setResourcesOpen(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setResourcesOpen(false);
-                        resourcesButtonRef.current?.focus();
-                      }
-                    }}
-                  >
-                    Certifications
-                  </Link>
-                  <Link 
-                    href="/tools"
-                    className="block px-4 py-3 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset transition-colors"
-                    role="menuitem"
-                    onClick={() => setResourcesOpen(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setResourcesOpen(false);
-                        resourcesButtonRef.current?.focus();
-                      }
-                    }}
-                  >
-                    Tools
-                  </Link>
-                  <Link 
-                    href="/skills"
-                    className="block px-4 py-3 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset transition-colors"
-                    role="menuitem"
-                    onClick={() => setResourcesOpen(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setResourcesOpen(false);
-                        resourcesButtonRef.current?.focus();
-                      }
-                    }}
-                  >
-                    Skills
-                  </Link>
-                  <div className="border-t border-gray-200 my-2"></div>
-                  <Link 
-                    href="/wcag"
-                    className="block px-4 py-3 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset transition-colors"
-                    role="menuitem"
-                    onClick={() => setResourcesOpen(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setResourcesOpen(false);
-                        resourcesButtonRef.current?.focus();
-                      }
-                    }}
-                  >
-                    WCAG Guidelines
-                  </Link>
-                  <Link 
-                    href="/section-508"
-                    className="block px-4 py-3 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset transition-colors"
-                    role="menuitem"
-                    onClick={() => setResourcesOpen(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setResourcesOpen(false);
-                        resourcesButtonRef.current?.focus();
-                      }
-                    }}
-                  >
-                    Section 508
-                  </Link>
-                  <Link 
-                    href="/ada"
-                    className="block px-4 py-3 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset transition-colors"
-                    role="menuitem"
-                    onClick={() => setResourcesOpen(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setResourcesOpen(false);
-                        resourcesButtonRef.current?.focus();
-                      }
-                    }}
-                  >
-                    ADA Compliance
-                  </Link>
-                  <div className="border-t border-gray-200 my-2"></div>
-                  <Link 
-                    href="/resources"
-                    className="block px-4 py-3 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset transition-colors"
-                    role="menuitem"
-                    onClick={() => setResourcesOpen(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setResourcesOpen(false);
-                        resourcesButtonRef.current?.focus();
-                      }
-                    }}
-                  >
-                    Learning Resources
-                  </Link>
-                  <Link 
-                    href="/accessibility-career-guide"
-                    className="block px-4 py-3 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset transition-colors"
-                    role="menuitem"
-                    onClick={() => setResourcesOpen(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setResourcesOpen(false);
-                        resourcesButtonRef.current?.focus();
-                      }
-                    }}
-                  >
-                    Accessibility Career Guide
-                  </Link>
-                </div>
-              )}
-            </li>
-
-            <li>
-              <Link 
-                href="/about" 
-                className="text-base font-medium hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded px-2 py-1 transition-colors"
-                aria-label="About us"
-              >
-                About
-              </Link>
-            </li>
-            <li>
-              <Link 
-                href="/contact" 
-                className="text-base font-medium hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded px-2 py-1 transition-colors"
-                aria-label="Contact us"
-              >
-                Contact
-              </Link>
-            </li>
-            <li>
-              <Link 
-                href="/post-job"
-                className="inline-flex items-center justify-center rounded-md text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 bg-blue-600 text-white hover:bg-blue-700 py-2 px-4"
-                aria-label="Post a job"
-              >
-                Post a Job
-              </Link>
-            </li>
-          </ul>
-
-          {/* Mobile Menu Button */}
-          <button
-            className="lg:hidden p-2 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-md transition-colors"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={mobileMenuOpen}
-            aria-controls="mobile-menu"
-          >
-            {mobileMenuOpen ? (
-              <X className="h-6 w-6" aria-hidden="true" />
-            ) : (
-              <Menu className="h-6 w-6" aria-hidden="true" />
-            )}
-          </button>
-        </nav>
-
-        {/* Mobile Navigation */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden mt-4 pb-4 border-t pt-4" id="mobile-menu">
-            <ul className="space-y-1">
-              <li>
-                <Link 
-                  href="/" 
-                  className="block py-2 px-3 text-base font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                  onClick={closeMobileMenu}
-                >
-                  Jobs
-                </Link>
-              </li>
-              
-              {/* Mobile Resources Section */}
-              <li>
-                <button
-                  className="w-full flex items-center justify-between py-2 px-3 text-base font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                  onClick={() => setMobileResourcesOpen(!mobileResourcesOpen)}
-                  aria-expanded={mobileResourcesOpen}
-                  aria-controls="mobile-resources-menu"
-                >
                   Resources
-                  <ChevronDown 
-                    className={`h-4 w-4 transition-transform flex-shrink-0 ${mobileResourcesOpen ? 'rotate-180' : ''}`}
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform ${resourcesOpen ? 'rotate-180' : ''}`}
                     aria-hidden="true"
                   />
                 </button>
-                
-                {mobileResourcesOpen && (
-                  <ul className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200 pl-4" id="mobile-resources-menu">
-                    <li>
-                      <Link 
-                        href="/certifications"
-                        className="block py-2 px-3 text-sm font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                        onClick={closeMobileMenu}
-                      >
-                        Certifications
-                      </Link>
-                    </li>
-                    <li>
-                      <Link 
-                        href="/tools"
-                        className="block py-2 px-3 text-sm font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                        onClick={closeMobileMenu}
-                      >
-                        Tools
-                      </Link>
-                    </li>
-                    <li>
-                      <Link 
-                        href="/skills"
-                        className="block py-2 px-3 text-sm font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                        onClick={closeMobileMenu}
-                      >
-                        Skills
-                      </Link>
-                    </li>
-                    <li className="border-t border-gray-200 pt-1 mt-1">
-                      <Link 
-                        href="/wcag"
-                        className="block py-2 px-3 text-sm font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                        onClick={closeMobileMenu}
-                      >
-                        WCAG Guidelines
-                      </Link>
-                    </li>
-                    <li>
-                      <Link 
-                        href="/section-508"
-                        className="block py-2 px-3 text-sm font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                        onClick={closeMobileMenu}
-                      >
-                        Section 508
-                      </Link>
-                    </li>
-                    <li>
-                      <Link 
-                        href="/ada"
-                        className="block py-2 px-3 text-sm font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                        onClick={closeMobileMenu}
-                      >
-                        ADA Compliance
-                      </Link>
-                    </li>
-                    <li className="border-t border-gray-200 pt-1 mt-1">
-                      <Link 
-                        href="/resources"
-                        className="block py-2 px-3 text-sm font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                        onClick={closeMobileMenu}
-                      >
-                        Learning Resources
-                      </Link>
-                    </li>
-                    <li>
-                      <Link 
-                        href="/accessibility-career-guide"
-                        className="block py-2 px-3 text-sm font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                        onClick={closeMobileMenu}
-                      >
-                        Accessibility Career Guide
-                      </Link>
-                    </li>
+
+                {/* Disclosure of links — not an ARIA menu, so no roving focus needed */}
+                {resourcesOpen && (
+                  <ul
+                    id="resources-menu"
+                    className="absolute top-full right-0 mt-2 w-64 bg-white border border-[var(--border)] rounded-xl shadow-[0_22px_60px_-20px_rgba(16,16,32,0.25)] py-2 overflow-hidden"
+                    onKeyDown={handleResourcesKeyDown}
+                  >
+                    {resourceLinks.map((l) => (
+                      <li key={l.href}>
+                        {l.divider && <div className="h-px bg-[var(--border)] my-2" />}
+                        <Link
+                          href={l.href}
+                          className="block px-4 py-2.5 text-sm text-[var(--ink-soft)] hover:bg-[color-mix(in_oklab,var(--ink)_5%,transparent)] hover:text-[var(--ink)] transition-colors"
+                          onClick={() => setResourcesOpen(false)}
+                        >
+                          {l.label}
+                        </Link>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </li>
 
-              <li>
-                <Link 
-                  href="/about" 
-                  className="block py-2 px-3 text-base font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                  onClick={closeMobileMenu}
-                >
-                  About
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  href="/contact" 
-                  className="block py-2 px-3 text-base font-medium hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded transition-colors"
-                  onClick={closeMobileMenu}
-                >
-                  Contact
-                </Link>
-              </li>
-              <li className="pt-2 mt-2 border-t">
-                <Link 
+              <NavLink href="/about">About</NavLink>
+              <NavLink href="/contact">Contact</NavLink>
+
+              <li className="ml-2">
+                <Link
                   href="/post-job"
-                  className="block w-full text-center py-2 px-4 rounded-md text-base font-medium bg-blue-600 text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors"
-                  onClick={closeMobileMenu}
+                  className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] text-[var(--paper)] px-5 py-2 text-sm font-semibold transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                 >
+                  <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                   Post a Job
                 </Link>
               </li>
             </ul>
-          </div>
-        )}
+
+            {/* Mobile button */}
+            <button
+              ref={mobileButtonRef}
+              className="lg:hidden inline-flex items-center justify-center h-10 w-10 rounded-full text-[var(--ink)] hover:bg-[color-mix(in_oklab,var(--ink)_6%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/40 transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-menu"
+            >
+              {mobileMenuOpen ? (
+                <X className="h-5 w-5" aria-hidden="true" />
+              ) : (
+                <Menu className="h-5 w-5" aria-hidden="true" />
+              )}
+            </button>
+          </nav>
+
+          {/* Mobile panel */}
+          {mobileMenuOpen && (
+            <div
+              className="lg:hidden pb-6 border-t border-[var(--border)] pt-4"
+              id="mobile-menu"
+            >
+              <ul className="space-y-1">
+                <MobileLink href="/" onClick={closeMobileMenu}>Jobs</MobileLink>
+
+                <li>
+                  <button
+                    className="w-full flex items-center justify-between py-3 px-3 text-base font-medium text-[var(--ink)] hover:bg-[color-mix(in_oklab,var(--ink)_5%,transparent)] rounded-lg transition-colors"
+                    onClick={() => setMobileResourcesOpen(!mobileResourcesOpen)}
+                    aria-expanded={mobileResourcesOpen}
+                    aria-controls="mobile-resources-menu"
+                  >
+                    Resources
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${mobileResourcesOpen ? 'rotate-180' : ''}`}
+                      aria-hidden="true"
+                    />
+                  </button>
+
+                  {mobileResourcesOpen && (
+                    <ul
+                      className="ml-3 mt-1 space-y-1 border-l border-[var(--border)] pl-4"
+                      id="mobile-resources-menu"
+                    >
+                      {resourceLinks.map((l) => (
+                        <li key={l.href}>
+                          <Link
+                            href={l.href}
+                            className="block py-2 px-3 text-sm text-[var(--ink-soft)] hover:text-[var(--ink)] transition-colors"
+                            onClick={closeMobileMenu}
+                          >
+                            {l.label}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+
+                <MobileLink href="/about" onClick={closeMobileMenu}>About</MobileLink>
+                <MobileLink href="/contact" onClick={closeMobileMenu}>Contact</MobileLink>
+
+                <li className="pt-3">
+                  <Link
+                    href="/post-job"
+                    onClick={closeMobileMenu}
+                    className="flex items-center justify-center gap-2 w-full rounded-full bg-[var(--ink)] text-[var(--paper)] py-3 text-sm font-semibold"
+                  >
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    Post a Job
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </header>
+  );
+}
+
+function NavLink({
+  href,
+  children,
+  onClick,
+}: {
+  href: string;
+  children: React.ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <li>
+      <Link
+        href={href}
+        onClick={onClick}
+        className="px-3 py-2 text-sm font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/40"
+      >
+        {children}
+      </Link>
+    </li>
+  );
+}
+
+function MobileLink({
+  href,
+  children,
+  onClick,
+}: {
+  href: string;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <li>
+      <Link
+        href={href}
+        onClick={onClick}
+        className="block py-3 px-3 text-base font-medium text-[var(--ink)] hover:bg-[color-mix(in_oklab,var(--ink)_5%,transparent)] rounded-lg transition-colors"
+      >
+        {children}
+      </Link>
+    </li>
   );
 }

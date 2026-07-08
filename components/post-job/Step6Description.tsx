@@ -32,8 +32,13 @@ export function Step6Description({ register, control, setValue, errors }: Step6D
             control={control}
             render={({ field }) => (
               <RichTextEditor
+                id="description"
                 content={field.value || ''}
                 onChange={field.onChange}
+                ariaDescribedBy={
+                  errors.description ? 'description-error description-help' : 'description-help'
+                }
+                ariaInvalid={!!errors.description}
                 placeholder="Provide a comprehensive overview of the role, what the team does, and how this position contributes to digital accessibility...
 
 Use bullet points:
@@ -45,8 +50,12 @@ Or numbered lists for priorities"
               />
             )}
           />
-          {errors.description && <p className="text-sm text-red-600">{errors.description.message}</p>}
-          <p className="text-xs text-gray-500">Minimum 100 characters - Use the toolbar for formatting</p>
+          {errors.description && (
+            <p id="description-error" role="alert" className="text-sm text-red-600">
+              {errors.description.message}
+            </p>
+          )}
+          <p id="description-help" className="text-xs text-gray-500">Minimum 100 characters - Use the toolbar for formatting</p>
         </div>
 
         <div className="space-y-2">
@@ -56,8 +65,11 @@ Or numbered lists for priorities"
             control={control}
             render={({ field }) => (
               <RichTextEditor
+                id="keyResponsibilities"
                 content={field.value || ''}
                 onChange={field.onChange}
+                ariaDescribedBy={errors.keyResponsibilities ? 'keyResponsibilities-error' : undefined}
+                ariaInvalid={!!errors.keyResponsibilities}
                 placeholder="List the key responsibilities using bullet points:
 
 • Conduct WCAG 2.2 audits on web applications
@@ -69,7 +81,11 @@ Or numbered lists for priorities"
               />
             )}
           />
-          {errors.keyResponsibilities && <p className="text-sm text-red-600">{errors.keyResponsibilities.message}</p>}
+          {errors.keyResponsibilities && (
+            <p id="keyResponsibilities-error" role="alert" className="text-sm text-red-600">
+              {errors.keyResponsibilities.message}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -79,8 +95,11 @@ Or numbered lists for priorities"
             control={control}
             render={({ field }) => (
               <RichTextEditor
+                id="requirements"
                 content={field.value || ''}
                 onChange={field.onChange}
+                ariaDescribedBy={errors.requirements ? 'requirements-error' : undefined}
+                ariaInvalid={!!errors.requirements}
                 placeholder="List the required qualifications:
 
 • 5+ years of experience in accessibility testing and remediation
@@ -93,7 +112,11 @@ Or numbered lists for priorities"
               />
             )}
           />
-          {errors.requirements && <p className="text-sm text-red-600">{errors.requirements.message}</p>}
+          {errors.requirements && (
+            <p id="requirements-error" role="alert" className="text-sm text-red-600">
+              {errors.requirements.message}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -103,6 +126,7 @@ Or numbered lists for priorities"
             control={control}
             render={({ field }) => (
               <RichTextEditor
+                id="niceToHave"
                 content={field.value || ''}
                 onChange={field.onChange}
                 placeholder="List preferred qualifications that would be a plus:
@@ -128,10 +152,18 @@ Or numbered lists for priorities"
               type="email"
               placeholder="hiring@example.com"
               {...register('contactEmail')}
+              aria-required="true"
               aria-invalid={errors.contactEmail ? 'true' : 'false'}
+              aria-describedby={
+                errors.contactEmail ? 'contactEmail-error contactEmail-help' : 'contactEmail-help'
+              }
             />
-            {errors.contactEmail && <p className="text-sm text-red-600">{errors.contactEmail.message}</p>}
-            <p className="text-sm text-gray-500">This email will be visible to job seekers</p>
+            {errors.contactEmail && (
+              <p id="contactEmail-error" role="alert" className="text-sm text-red-600">
+                {errors.contactEmail.message}
+              </p>
+            )}
+            <p id="contactEmail-help" className="text-sm text-gray-500">This email will be visible to job seekers</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -56,3 +56,6 @@ pip-delete-this-directory.txt
 *.egg-info/
 dist/
 build/
+
+# Generated pipeline artifacts
+scripts/output/

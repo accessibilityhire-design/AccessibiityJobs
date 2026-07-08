@@ -1,4 +1,14 @@
 import { Job } from './db/schema';
+import { jobValidThrough } from './constants/jobs';
+import { jobPath } from './slug';
+
+/**
+ * Serialize structured data for a <script type="application/ld+json"> block.
+ * Escapes `<` so user-sourced strings can never break out of the script tag.
+ */
+export function safeJsonLd(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, '\\u003c');
+}
 
 /**
  * Enhanced JobPosting Schema for 2025
@@ -31,13 +41,14 @@ export function generateJobStructuredData(job: Job, url: string) {
     job.niceToHave && `\n\nNice to Have:\n${job.niceToHave}`,
   ].filter(Boolean).join('');
 
-  // Calculate validThrough (90 days from posting date)
+  // validThrough: applicationDeadline if set, otherwise the shared expiry
+  // window. Expired jobs must not emit JobPosting schema at all — callers
+  // filter them out via the active-jobs query.
   const createdAtDate = job.createdAt instanceof Date
     ? job.createdAt
     : new Date(job.createdAt);
   const validCreatedAt = isNaN(createdAtDate.getTime()) ? new Date() : createdAtDate;
-  const validThrough = new Date(validCreatedAt);
-  validThrough.setDate(validThrough.getDate() + 90);
+  const validThrough = jobValidThrough(job);
 
   // Determine occupational category
   const occupationalCategory = determineOccupationalCategory(job.title, job.description);
@@ -207,8 +218,10 @@ export function generateJobStructuredData(job: Job, url: string) {
       jobBenefits: jobBenefits.join(', '),
     }),
 
-    // Direct apply - Google recommended
-    directApply: true,
+    // Direct apply — true only if the application is completed on our site.
+    // We route applicants to the original posting or an email address, so
+    // claiming true would violate Google Jobs policy.
+    directApply: false,
 
     // Canonical URL
     url,
@@ -472,7 +485,7 @@ export function generateJobPostingCollection(jobs: Job[], baseUrl: string = 'htt
               },
             },
             employmentType: mapEmploymentType((job.employmentType || job.type || 'full-time') as string),
-            url: `${baseUrl}/jobs/${job.id}`,
+            url: `${baseUrl}${jobPath(job)}`,
           },
         };
       }),

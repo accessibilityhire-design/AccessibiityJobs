@@ -1,29 +1,20 @@
 import { MetadataRoute } from 'next';
-import { db } from '@/lib/db';
-import { jobs } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
-import { isValidCompanyName } from '@/lib/job-formatter';
+import { recentActiveJobs } from '@/lib/jobs-query';
+import { jobPath } from '@/lib/slug';
 
-export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // Revalidate every hour
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://accessibilityjobs.net';
 
-  // Get all approved jobs for dynamic URLs
+  // Only live (approved, unexpired, valid-company) jobs belong in the sitemap
   let jobUrls: MetadataRoute.Sitemap = [];
 
   try {
-    const approvedJobs = await db
-      .select()
-      .from(jobs)
-      .where(eq(jobs.status, 'approved'));
+    const activeJobs = await recentActiveJobs(2000);
 
-    // Filter out jobs with invalid company names - don't include in sitemap
-    const validJobs = approvedJobs.filter(job => isValidCompanyName(job.company));
-
-    jobUrls = validJobs.map((job) => ({
-      url: `${baseUrl}/jobs/${job.id}`,
+    jobUrls = activeJobs.map((job) => ({
+      url: `${baseUrl}${jobPath(job)}`,
       lastModified: job.updatedAt,
       changeFrequency: 'weekly' as const,
       priority: 0.8,
@@ -39,6 +30,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 1,
+    },
+    {
+      url: `${baseUrl}/remote-accessibility-jobs`,
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.9,
     },
     {
       url: `${baseUrl}/about`,

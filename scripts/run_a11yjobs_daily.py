@@ -366,6 +366,12 @@ def clean_text(text: str) -> str:
     return text
 
 
+def strip_html(text: str) -> str:
+    if not text:
+        return ""
+    return re.sub(r"<[^>]+>", " ", text)
+
+
 def split_description(description: str, title: str, company: str) -> Tuple[str, str, str]:
     description = clean_text(description)
     if not description:
@@ -399,6 +405,34 @@ def parse_salary(text: Optional[str]) -> Tuple[Optional[int], Optional[int], Opt
         return None, None, None, None
 
     text = text.replace(",", "").strip()
+    lower = text.lower()
+    salary_markers = [
+        "salary",
+        "compensation",
+        "pay",
+        "range",
+        "hourly",
+        "annual",
+        "per hour",
+        "per day",
+        "per year",
+        "/hr",
+        "/day",
+        "/yr",
+        "/year",
+        "usd",
+        "cad",
+        "eur",
+        "gbp",
+        "inr",
+        "$",
+        "£",
+        "€",
+        "₹",
+    ]
+    if not any(marker in lower for marker in salary_markers):
+        return None, None, None, None
+
     currency = None
     if "£" in text:
         currency = "GBP"
@@ -410,17 +444,16 @@ def parse_salary(text: Optional[str]) -> Tuple[Optional[int], Optional[int], Opt
         currency = "USD"
 
     salary_type = None
-    lower = text.lower()
-    if "/hr" in lower or "per hour" in lower or "hour" in lower:
+    if "/hr" in lower or "per hour" in lower or "hourly" in lower:
         salary_type = "hourly"
     elif "per day" in lower or "/day" in lower:
         salary_type = "daily"
-    elif "per month" in lower or "/month" in lower:
-        salary_type = "annual"
-    elif "per year" in lower or "/yr" in lower or "/year" in lower:
+    elif "per year" in lower or "/yr" in lower or "/year" in lower or "annual" in lower:
         salary_type = "annual"
     elif "project" in lower:
         salary_type = "project"
+    elif currency or "salary" in lower or "compensation" in lower:
+        salary_type = "annual"
 
     matches = re.findall(r"\d+(?:\.\d+)?", text)
     numbers = [int(float(m)) for m in matches] if matches else []
@@ -625,6 +658,36 @@ def extract_education(text: str) -> Optional[str]:
     return None
 
 
+def normalize_external_content(text: str) -> str:
+    if not text:
+        return ""
+
+    if re.search(r"<html|<body|<div|<main|<section|<!doctype", text[:2000], re.I):
+        soup = BeautifulSoup(text, "html.parser")
+        for tag in soup(["script", "style", "noscript"]):
+            tag.decompose()
+        visible_text = clean_text(soup.get_text(" ", strip=True))
+        if len(visible_text) >= 200:
+            text = visible_text
+        else:
+            meta_parts: List[str] = []
+            title_tag = soup.find("title")
+            if title_tag:
+                meta_parts.append(clean_text(title_tag.get_text(" ", strip=True)))
+            for attrs in [
+                {"name": "description"},
+                {"property": "og:description"},
+                {"name": "twitter:description"},
+                {"property": "twitter:description"},
+            ]:
+                meta_tag = soup.find("meta", attrs=attrs)
+                if meta_tag and meta_tag.get("content"):
+                    meta_parts.append(clean_text(meta_tag["content"]))
+            text = clean_text(" ".join(part for part in meta_parts if part))
+
+    return clean_text(strip_html(text))
+
+
 def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[str], str]:
     if not url or not url_is_valid(url):
         return None, "invalid"
@@ -642,7 +705,16 @@ def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[s
             return None
 
     text = try_fetch(url)
-    blocked_markers = ["enable javascript", "access denied", "captcha", "forbidden", "cloudflare"]
+    blocked_markers = [
+        "enable javascript",
+        "access denied",
+        "captcha",
+        "forbidden",
+        "cloudflare",
+        "currently unavailable",
+        "service interruption",
+        "check back later",
+    ]
     if text and not any(marker in text.lower() for marker in blocked_markers):
         return text, "direct"
 
@@ -669,6 +741,94 @@ def search_alternate_urls(session: requests.Session, title: str, company: str) -
         return links[:1]
     except Exception:
         return []
+
+
+def extract_apply_url(soup: BeautifulSoup, page_url: str, jsonld: Dict[str, Any]) -> Optional[str]:
+    candidates: List[str] = []
+
+    jsonld_url = jsonld.get("url")
+    if isinstance(jsonld_url, str):
+        candidates.append(jsonld_url)
+
+    for a in soup.find_all("a", href=True):
+        href = urljoin(BASE_URL, a.get("href", ""))
+        link_text = clean_text(a.get_text(" ", strip=True)).lower()
+        if "apply" in link_text:
+            candidates.append(href)
+
+    for candidate in candidates:
+        if not url_is_valid(candidate):
+            continue
+        if candidate.rstrip("/") == page_url.rstrip("/"):
+            continue
+        return candidate
+    return None
+
+
+def extract_company_website(soup: BeautifulSoup, hiring_org: Any) -> Optional[str]:
+    company_website = None
+    if isinstance(hiring_org, dict):
+        company_website = hiring_org.get("sameAs") or hiring_org.get("url")
+    if isinstance(company_website, list):
+        company_website = company_website[0] if company_website else None
+    if company_website and url_is_valid(company_website):
+        return company_website
+
+    for a in soup.find_all("a", href=True):
+        href = urljoin(BASE_URL, a.get("href", ""))
+        link_text = clean_text(a.get_text(" ", strip=True)).lower()
+        if not url_is_valid(href):
+            continue
+        if "apply" in link_text:
+            continue
+        if "website" in link_text or "company" in link_text:
+            return href
+
+    return None
+
+
+def extract_salary_text(soup: BeautifulSoup) -> Optional[str]:
+    main = soup.find("main") or soup.find("article") or soup
+    candidates: List[str] = []
+
+    for line in main.get_text("\n", strip=True).splitlines():
+        cleaned = clean_text(line)
+        if not cleaned:
+            continue
+        if not re.search(r"salary|compensation|pay range", cleaned, re.I):
+            continue
+        if not re.search(r"[$£€₹]|\b(?:USD|CAD|EUR|GBP|INR)\b|\d", cleaned):
+            continue
+        candidates.append(cleaned)
+
+    if candidates:
+        candidates.sort(key=len)
+        return candidates[0]
+
+    return extract_label_value(soup, r"salary")
+
+
+def extract_best_description(soup: BeautifulSoup, jsonld: Dict[str, Any]) -> str:
+    jsonld_description = clean_text(strip_html(str(jsonld.get("description") or "")))
+    page_description = ""
+
+    content_nodes = [
+        soup.find("main"),
+        soup.find("article"),
+        soup.find("div", class_=re.compile(r"description|content|body|job", re.I)),
+    ]
+    for node in content_nodes:
+        if not node:
+            continue
+        candidate = clean_text(node.get_text(" ", strip=True))
+        if len(candidate) > len(page_description):
+            page_description = candidate
+
+    if len(page_description) >= max(300, len(jsonld_description) + 150):
+        return page_description
+    if jsonld_description:
+        return jsonld_description
+    return page_description
 
 
 def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Optional[date] = None) -> Optional[Dict[str, Any]]:
@@ -722,27 +882,10 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     )
     valid_through = parse_date_text(str(valid_through_text)) if valid_through_text else None
 
-    salary_text = extract_label_value(soup, r"salary")
+    salary_text = extract_salary_text(soup)
 
-    apply_url = None
-    if isinstance(jsonld.get("url"), str):
-        apply_url = jsonld.get("url")
-    apply_link = soup.find("a", string=re.compile(r"apply", re.I))
-    if apply_link and apply_link.get("href"):
-        apply_url = urljoin(BASE_URL, apply_link["href"])
-    if apply_url and not url_is_valid(apply_url):
-        apply_url = None
-
-    description = jsonld.get("description") or ""
-    if not description:
-        description_elem = soup.find("div", class_=re.compile(r"description|content|body|job", re.I))
-        if description_elem:
-            description = description_elem.get_text(" ", strip=True)
-        else:
-            main = soup.find("main") or soup.find("article")
-            if main:
-                description = main.get_text(" ", strip=True)
-    description = clean_text(description)
+    apply_url = extract_apply_url(soup, url, jsonld)
+    description = extract_best_description(soup, jsonld)
 
     job_description, key_responsibilities, requirements = split_description(description, title, company)
 
@@ -763,13 +906,7 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
 
     salary_min, salary_max, currency, salary_type = parse_salary(salary_text)
 
-    company_website = None
-    if isinstance(hiring_org, dict):
-        company_website = hiring_org.get("sameAs") or hiring_org.get("url")
-    if isinstance(company_website, list):
-        company_website = company_website[0] if company_website else None
-    if company_website and not url_is_valid(company_website):
-        company_website = None
+    company_website = extract_company_website(soup, hiring_org)
 
     created_at = f"{date_posted.isoformat()}T00:00:00Z" if date_posted else None
     updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -857,6 +994,17 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
                 break
 
     if content:
+        content = normalize_external_content(content)
+        if (
+            not job.get("description")
+            or len(job.get("description") or "") < 100
+            or len(job.get("key_responsibilities") or "") < 50
+            or len(job.get("requirements") or "") < 50
+        ):
+            job_description, key_responsibilities, requirements = split_description(content, job.get("title") or "", job.get("company") or "")
+            job["description"] = job_description
+            job["key_responsibilities"] = key_responsibilities
+            job["requirements"] = requirements
         if not job.get("contact_email"):
             job["contact_email"] = extract_contact_email(content)
         if not job.get("salary_range"):

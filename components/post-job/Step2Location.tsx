@@ -65,7 +65,7 @@ export function Step2Location({
               </Select>
             )}
           />
-          {errors.workArrangement && <p className="text-sm text-red-600">{errors.workArrangement.message}</p>}
+          {errors.workArrangement && <p role="alert" className="text-sm text-red-600">{errors.workArrangement.message}</p>}
         </div>
 
         {workArrangement !== 'remote' && (

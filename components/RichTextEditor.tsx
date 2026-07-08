@@ -23,14 +23,25 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   minHeight?: string;
+  /** Set to the Label's htmlFor target so the editor gets an accessible name */
+  id?: string;
+  /** Explicit accessible name (fallback when no <label> is associated) */
+  ariaLabel?: string;
+  /** id(s) of error/help text associated with the editor */
+  ariaDescribedBy?: string;
+  ariaInvalid?: boolean;
 }
 
-export function RichTextEditor({ 
-  content, 
-  onChange, 
+export function RichTextEditor({
+  content,
+  onChange,
   placeholder = 'Start typing...',
   className,
   minHeight = '200px',
+  id,
+  ariaLabel,
+  ariaDescribedBy,
+  ariaInvalid,
 }: RichTextEditorProps) {
   const editor = useEditor({
     immediatelyRender: false,
@@ -58,6 +69,14 @@ export function RichTextEditor({
     content: content || '',
     editorProps: {
       attributes: {
+        // The contenteditable is the real form control — give it the label
+        // association and validation state (WCAG 1.3.1 / 4.1.2)
+        ...(id && { id }),
+        ...(ariaLabel && { 'aria-label': ariaLabel }),
+        ...(ariaDescribedBy && { 'aria-describedby': ariaDescribedBy }),
+        ...(ariaInvalid && { 'aria-invalid': 'true' }),
+        role: 'textbox',
+        'aria-multiline': 'true',
         class: cn(
           'prose prose-sm max-w-none focus:outline-none p-4',
           'prose-headings:font-bold prose-headings:text-gray-900',
@@ -87,34 +106,14 @@ export function RichTextEditor({
     return null;
   }
 
-  const MenuButton = ({ 
-    onClick, 
-    isActive, 
-    children, 
-    title 
-  }: { 
-    onClick: () => void; 
-    isActive?: boolean; 
-    children: React.ReactNode;
-    title: string;
-  }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'p-2 rounded hover:bg-gray-100 transition-colors',
-        isActive && 'bg-gray-200 text-blue-600'
-      )}
-      title={title}
-    >
-      {children}
-    </button>
-  );
-
   return (
     <div className={cn('border rounded-lg overflow-hidden bg-white', className)}>
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-1 p-2 border-b bg-gray-50">
+      <div
+        className="flex flex-wrap items-center gap-1 p-2 border-b bg-gray-50"
+        role="toolbar"
+        aria-label="Text formatting"
+      >
         <MenuButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive('bold')}
@@ -201,12 +200,40 @@ export function RichTextEditor({
       </div>
 
       {/* Editor Content */}
-      <EditorContent 
-        editor={editor} 
+      <EditorContent
+        editor={editor}
         style={{ minHeight }}
         className="min-h-[200px]"
       />
     </div>
+  );
+}
+
+function MenuButton({
+  onClick,
+  isActive,
+  children,
+  title,
+}: {
+  onClick: () => void;
+  isActive?: boolean;
+  children: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'p-2 rounded hover:bg-gray-100 transition-colors',
+        isActive && 'bg-gray-200 text-blue-600'
+      )}
+      title={title}
+      aria-label={title}
+      aria-pressed={isActive}
+    >
+      {children}
+    </button>
   );
 }
 

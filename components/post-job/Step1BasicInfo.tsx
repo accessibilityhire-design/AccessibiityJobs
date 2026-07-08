@@ -28,9 +28,15 @@ export function Step1BasicInfo({ register, control, errors }: Step1BasicInfoProp
             id="title"
             placeholder="e.g. Senior Accessibility Engineer, WCAG Compliance Specialist"
             {...register('title')}
+            aria-required="true"
             aria-invalid={errors.title ? 'true' : 'false'}
+            aria-describedby={errors.title ? 'title-error' : undefined}
           />
-          {errors.title && <p className="text-sm text-red-600">{errors.title.message}</p>}
+          {errors.title && (
+            <p id="title-error" role="alert" className="text-sm text-red-600">
+              {errors.title.message}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -40,9 +46,15 @@ export function Step1BasicInfo({ register, control, errors }: Step1BasicInfoProp
               id="company"
               placeholder="e.g. Acme Corp"
               {...register('company')}
+              aria-required="true"
               aria-invalid={errors.company ? 'true' : 'false'}
+              aria-describedby={errors.company ? 'company-error' : undefined}
             />
-            {errors.company && <p className="text-sm text-red-600">{errors.company.message}</p>}
+            {errors.company && (
+              <p id="company-error" role="alert" className="text-sm text-red-600">
+                {errors.company.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -52,8 +64,14 @@ export function Step1BasicInfo({ register, control, errors }: Step1BasicInfoProp
               type="url"
               placeholder="https://example.com"
               {...register('companyWebsite')}
+              aria-invalid={errors.companyWebsite ? 'true' : undefined}
+              aria-describedby={errors.companyWebsite ? 'companyWebsite-error' : undefined}
             />
-            {errors.companyWebsite && <p className="text-sm text-red-600">{errors.companyWebsite.message}</p>}
+            {errors.companyWebsite && (
+              <p id="companyWebsite-error" role="alert" className="text-sm text-red-600">
+                {errors.companyWebsite.message}
+              </p>
+            )}
           </div>
         </div>
 
@@ -120,7 +138,12 @@ export function Step1BasicInfo({ register, control, errors }: Step1BasicInfoProp
               control={control}
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id="employmentType" aria-invalid={errors.employmentType ? 'true' : 'false'}>
+                  <SelectTrigger
+                    id="employmentType"
+                    aria-required="true"
+                    aria-invalid={errors.employmentType ? 'true' : 'false'}
+                    aria-describedby={errors.employmentType ? 'employmentType-error' : undefined}
+                  >
                     <SelectValue placeholder="Select employment type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -133,7 +156,11 @@ export function Step1BasicInfo({ register, control, errors }: Step1BasicInfoProp
                 </Select>
               )}
             />
-            {errors.employmentType && <p className="text-sm text-red-600">{errors.employmentType.message}</p>}
+            {errors.employmentType && (
+              <p id="employmentType-error" role="alert" className="text-sm text-red-600">
+                {errors.employmentType.message}
+              </p>
+            )}
           </div>
         </div>
 

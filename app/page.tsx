@@ -1,21 +1,19 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { Job } from '@/lib/db/schema';
-import { db } from '@/lib/db';
-import { jobs } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
-import { generateOrganizationStructuredData, generateJobPostingCollection } from '@/lib/seo';
+import { generateOrganizationStructuredData, generateJobPostingCollection, safeJsonLd } from '@/lib/seo';
+import { generateWebSiteStructuredData } from '@/lib/seo-config';
 import { JobFilters } from '@/components/JobFilters';
 import { JobsView } from '@/components/JobsView';
-import { isValidCompanyName } from '@/lib/job-formatter';
-import { Button } from '@/components/ui/button';
-import { BriefcaseBusiness, ShieldCheck, TrendingUp } from 'lucide-react';
+import { parseJobsSearchParams, queryJobs, jobBoardStats } from '@/lib/jobs-query';
+import { CompanyMarquee } from '@/components/CompanyMarquee';
+import { ArrowUpRight, ShieldCheck, Sparkles, Gauge } from 'lucide-react';
 
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Jobs - Find Digital Accessibility Careers | AccessibilityJobs',
-  description: 'Discover 300+ accessibility jobs including accessibility engineer, WCAG specialist, a11y consultant, digital accessibility roles, and inclusive design positions. Remote, hybrid, and onsite opportunities.',
+  description: 'Search live accessibility jobs including accessibility engineer, WCAG specialist, a11y consultant, digital accessibility roles, and inclusive design positions. Remote, hybrid, and onsite opportunities.',
   path: '/',
   keywords: [
     'accessibility jobs',
@@ -35,166 +33,365 @@ export const metadata: Metadata = generatePageMetadata({
   ],
 });
 
-export const revalidate = 60; // Revalidate every minute for fresh data
-
-type HomePageJob = Pick<Job, 'id' | 'title' | 'company' | 'location' | 'type' | 'workArrangement' | 'salaryRange' | 'salaryMin' | 'salaryMax' | 'currency' | 'salaryType' | 'description' | 'createdAt' | 'status' | 'employmentType' | 'jobLevel' | 'industry' | 'specificLocation' | 'city' | 'country' | 'jobSource' | 'sourceUrl'>;
-
-// Fetch jobs with robust error handling
-// Fetch directly without aggressive caching to prevent blank screens
-async function fetchJobs() {
-  try {
-    console.log('Fetching jobs from database...');
-    const result = await db
-      .select({
-        id: jobs.id,
-        title: jobs.title,
-        company: jobs.company,
-        location: jobs.location,
-        type: jobs.type,
-        workArrangement: jobs.workArrangement,
-        salaryRange: jobs.salaryRange,
-        salaryMin: jobs.salaryMin,
-        salaryMax: jobs.salaryMax,
-        currency: jobs.currency,
-        salaryType: jobs.salaryType,
-        description: jobs.description,
-        createdAt: jobs.createdAt,
-        status: jobs.status,
-        employmentType: jobs.employmentType,
-        jobLevel: jobs.jobLevel,
-        industry: jobs.industry,
-        specificLocation: jobs.specificLocation,
-        city: jobs.city,
-        country: jobs.country,
-        jobSource: jobs.jobSource,
-        sourceUrl: jobs.sourceUrl,
-      })
-      .from(jobs)
-      .where(eq(jobs.status, 'approved'))
-      .orderBy(desc(jobs.createdAt))
-      .limit(50); // Increased limit for more jobs
-
-    // Filter out jobs without valid company names - they shouldn't be displayed
-    const validJobs = result.filter(job => isValidCompanyName(job.company));
-
-    console.log(`Successfully fetched ${validJobs.length} valid jobs (${result.length - validJobs.length} filtered out for missing company)`);
-    return validJobs;
-  } catch (error) {
-    console.error('Failed to fetch jobs:', error);
-    // Return empty array instead of throwing to prevent page crash
-    return [];
-  }
-}
+export const revalidate = 60;
 
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{
+    type?: string;
+    search?: string;
+    employment?: string;
+    level?: string;
+    page?: string;
+  }>;
 }) {
-  const params = await searchParams;
-  const selectedType = params.type || 'all';
-  const selectedTypeLabel = selectedType === 'all'
-    ? 'All roles'
-    : selectedType.charAt(0).toUpperCase() + selectedType.slice(1);
+  const rawParams = await searchParams;
+  const filter = parseJobsSearchParams(rawParams);
 
-  // Fetch jobs with robust error handling
-  let allJobs: HomePageJob[] = [];
-  let filteredJobs: HomePageJob[] = [];
+  let pageJobs: Job[] = [];
+  let totalCount = 0;
+  let currentPage = 1;
+  let totalPages = 1;
+  let stats = { total: 0, remote: 0, companies: 0 };
 
   try {
-    // Direct fetch without aggressive caching to prevent stale/blank data
-    allJobs = await fetchJobs();
-    filteredJobs = allJobs;
-
-    // Filter by type if specified
-    if (selectedType && selectedType !== 'all') {
-      filteredJobs = allJobs.filter(job =>
-        (job.type && job.type === selectedType) ||
-        (job.workArrangement && job.workArrangement === selectedType)
-      );
-    }
-
-    console.log(`Rendering ${filteredJobs.length} jobs (filtered by: ${selectedType})`);
+    const [result, boardStats] = await Promise.all([queryJobs(filter), jobBoardStats()]);
+    pageJobs = result.jobs;
+    totalCount = result.total;
+    currentPage = result.page;
+    totalPages = result.totalPages;
+    stats = boardStats;
   } catch (error) {
-    console.error('Error fetching or filtering jobs:', error);
-    // Ensure we always have an array, even on error
-    allJobs = [];
-    filteredJobs = [];
+    console.error('Error fetching jobs:', error);
   }
 
-  // Defer structured data generation to reduce TTFB
+  // Filter params preserved by pagination links
+  const activeParams: Record<string, string> = {};
+  if (filter.search) activeParams.search = filter.search;
+  if (filter.type !== 'all') activeParams.type = filter.type;
+  if (filter.employment !== 'all') activeParams.employment = filter.employment;
+  if (filter.level !== 'all') activeParams.level = filter.level;
+
   const organizationData = generateOrganizationStructuredData();
-  // Only generate structured data for first 10 jobs for faster processing
-  const jobCollectionData = generateJobPostingCollection(filteredJobs.slice(0, 10) as Job[]);
+  const jobCollectionData = generateJobPostingCollection(pageJobs.slice(0, 10));
+
+  const companyRail = Array.from(new Set(pageJobs.map((j) => j.company))).slice(0, 12);
 
   return (
     <>
-      {/* Critical content first - no lazy loading to prevent flicker */}
-      <div className="container mx-auto px-4 py-12">
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-blue-50 mb-3">
-              <BriefcaseBusiness className="h-5 w-5 text-blue-700" />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Curated Roles</h2>
-            <p className="text-sm text-slate-600">Focused listings for digital accessibility, assistive tech compatibility, and inclusive product delivery.</p>
-          </article>
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-emerald-50 mb-3">
-              <TrendingUp className="h-5 w-5 text-emerald-700" />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Career Growth</h2>
-            <p className="text-sm text-slate-600">Use salary, location, and team context to compare opportunities and advance intentionally.</p>
-          </article>
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-indigo-50 mb-3">
-              <ShieldCheck className="h-5 w-5 text-indigo-700" />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Compliance Impact</h2>
-            <p className="text-sm text-slate-600">Work on products aligned with WCAG, ADA, and Section 508 requirements.</p>
-          </article>
-        </section>
+      {/* ========================= HERO (light) ========================= */}
+      <section className="relative bg-[var(--paper)] text-[var(--ink)] overflow-hidden">
+        {/* Soft ambient lime */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-40 -right-40 h-[36rem] w-[36rem] rounded-full"
+          style={{
+            background:
+              'radial-gradient(circle, color-mix(in oklab, var(--lime) 55%, transparent), transparent 65%)',
+            opacity: 0.55,
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-60 -left-40 h-[32rem] w-[32rem] rounded-full"
+          style={{
+            background:
+              'radial-gradient(circle, color-mix(in oklab, var(--saffron) 45%, transparent), transparent 65%)',
+            opacity: 0.45,
+          }}
+        />
+        {/* subtle dot grid */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--ink) 9%, transparent) 1px, transparent 0)',
+            backgroundSize: '28px 28px',
+            opacity: 0.6,
+          }}
+        />
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 md:p-8 mb-8 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">Browse Open Positions</h2>
-              <p className="text-slate-600">
-                Filter by work arrangement and review opportunities tailored for accessibility professionals.
-              </p>
-            </div>
-            <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-800">
-              Active filter: {selectedTypeLabel}
+        <div className="relative container mx-auto px-4 pt-14 md:pt-20 pb-20 md:pb-28">
+          <div className="max-w-5xl">
+            <span className="eyebrow inline-flex items-center gap-2 text-[var(--ink-soft)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--lime)] lime-pulse" />
+              The accessibility job board
             </span>
+
+            <h1 className="display-xl mt-5 text-[var(--ink)]">
+              Jobs that make the&nbsp;web
+              <br className="hidden md:block" />
+              <span className="relative inline-block">
+                <span
+                  style={{
+                    background: 'linear-gradient(180deg, transparent 62%, color-mix(in oklab, var(--lime) 75%, transparent) 62%, color-mix(in oklab, var(--lime) 75%, transparent) 92%, transparent 92%)',
+                  }}
+                >
+                  work for everyone.
+                </span>
+              </span>
+            </h1>
+
+            <p className="mt-7 max-w-2xl text-lg md:text-xl text-[var(--ink-soft)] leading-relaxed">
+              A focused board for digital accessibility — curated roles across WCAG,
+              ADA, Section 508, assistive technology, and inclusive design. No noise.
+            </p>
+
+            <div className="mt-9 flex flex-wrap items-center gap-3">
+              <Link
+                href="#roles"
+                className="group inline-flex items-center gap-2 h-12 rounded-full bg-[var(--ink)] text-[var(--paper)] px-7 font-semibold transition-transform hover:scale-[1.02]"
+              >
+                Browse {stats.total.toLocaleString()} roles
+                <ArrowUpRight className="h-4 w-4 transition-transform group-hover:rotate-45" />
+              </Link>
+              <Link
+                href="/post-job"
+                className="inline-flex items-center gap-2 h-12 rounded-full border border-[var(--border)] bg-white text-[var(--ink)] px-7 font-medium hover:border-[var(--ink)] transition-colors"
+              >
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                Post a job
+              </Link>
+            </div>
+
+            {/* Stats rail */}
+            <div className="mt-14 grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-6 max-w-3xl">
+              <Stat
+                label="Open roles"
+                value={stats.total.toLocaleString()}
+                sub="live listings"
+              />
+              <Stat
+                label="Remote"
+                value={stats.remote.toLocaleString()}
+                sub={`${
+                  stats.total
+                    ? Math.round((stats.remote / stats.total) * 100)
+                    : 0
+                }% of board`}
+              />
+              <Stat
+                label="Companies"
+                value={stats.companies.toLocaleString()}
+                sub="hiring now"
+              />
+              <Stat label="Focus" value="a11y" sub="WCAG · ADA · 508" />
+            </div>
           </div>
+        </div>
 
-          {/* Render filters immediately without Suspense */}
-          <JobFilters initialType={selectedType} />
-        </section>
+        {/* company marquee */}
+        <CompanyMarquee companies={companyRail} />
+      </section>
 
-        {/* Render jobs immediately without Suspense to prevent flicker */}
-        {filteredJobs.length === 0 ? (
-          <div className="text-center py-12 bg-blue-50 rounded-2xl border border-blue-200 p-8">
-            <p className="text-gray-700 text-lg font-medium mb-2">No roles match this filter yet</p>
-            <p className="text-gray-600 mb-5">Try another filter or check back soon for new openings.</p>
-            <Link href="/post-job">
-              <Button>Post a Job</Button>
+      {/* ========================= VALUE PROPS ========================= */}
+      <section className="container mx-auto px-4 py-16 md:py-20" aria-labelledby="value-props-heading">
+        <h2 id="value-props-heading" className="sr-only">
+          Why AccessibilityJobs
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+          <ValueCard
+            icon={<ShieldCheck className="h-5 w-5" />}
+            label="Compliance-ready"
+            title="Roles aligned with WCAG, ADA & Section 508"
+            body="Every posting signals the standards, tooling, and assistive tech the team actually ships with."
+          />
+          <ValueCard
+            icon={<Gauge className="h-5 w-5" />}
+            label="Curated feed"
+            title="Signal over volume — one category, done well"
+            body="We skip the noise. If it isn't meaningfully about accessibility, it doesn't run."
+            highlight
+          />
+          <ValueCard
+            icon={<Sparkles className="h-5 w-5" />}
+            label="Career fit"
+            title="Salary, level & arrangement, always upfront"
+            body="Compare roles by what actually matters: compensation, seniority, and how the team works."
+          />
+        </div>
+      </section>
+
+      {/* ========================= ROLES ========================= */}
+      <section id="roles" className="container mx-auto px-4 pb-20 md:pb-28 scroll-mt-24">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8 md:mb-10">
+          <div>
+            <span className="eyebrow">Open positions</span>
+            <h2 className="display-lg mt-2 text-[var(--ink)]">
+              Browse the board.
+            </h2>
+            <p className="mt-3 text-[var(--muted-foreground)] max-w-xl">
+              Search by keyword or filter by arrangement, employment type, and
+              seniority. Every listing links to the original posting or direct
+              application.
+            </p>
+          </div>
+        </div>
+
+        <div className="sticky top-[64px] md:top-[72px] z-20 -mx-4 md:mx-0 px-4 md:px-0 py-3 bg-[var(--background)]/85 backdrop-blur border-b border-[var(--border)] mb-8">
+          <JobFilters
+            initialType={filter.type}
+            initialSearch={filter.search}
+            initialEmployment={filter.employment}
+            initialLevel={filter.level}
+            totalCount={totalCount}
+          />
+        </div>
+
+        {pageJobs.length === 0 ? (
+          <div className="text-center py-16 rounded-2xl border border-dashed border-[var(--border)] bg-[color-mix(in_oklab,var(--ink)_3%,transparent)]">
+            <p className="font-display text-xl font-semibold text-[var(--ink)]">
+              {filter.search
+                ? `No roles match “${filter.search}” yet`
+                : 'No roles match this filter yet'}
+            </p>
+            <p className="text-sm text-[var(--muted-foreground)] mt-1 mb-6">
+              Try different keywords or filters — new listings drop throughout the week.
+            </p>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 h-11 rounded-full bg-[var(--ink)] text-[var(--paper)] px-6 font-medium"
+            >
+              Clear filters
+              <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
         ) : (
-          <JobsView jobs={filteredJobs as Job[]} itemsPerPage={12} />
+          <JobsView
+            jobs={pageJobs}
+            page={currentPage}
+            totalPages={totalPages}
+            searchParams={activeParams}
+          />
         )}
-      </div>
+      </section>
 
-      {/* Structured data - moved to bottom to not block FCP */}
+      {/* ========================= CTA (light, bold) ========================= */}
+      <section className="container mx-auto px-4 pb-24">
+        <div
+          className="relative overflow-hidden rounded-3xl border border-[var(--border)] p-10 md:p-16"
+          style={{
+            background:
+              'linear-gradient(135deg, color-mix(in oklab, var(--lime) 25%, white) 0%, var(--paper) 55%, color-mix(in oklab, var(--saffron) 22%, white) 100%)',
+          }}
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-24 -right-10 h-80 w-80 rounded-full"
+            style={{
+              background:
+                'radial-gradient(circle, color-mix(in oklab, var(--lime) 60%, transparent), transparent 65%)',
+              opacity: 0.5,
+            }}
+          />
+          <div className="relative grid md:grid-cols-[1.3fr_1fr] gap-8 items-center">
+            <div>
+              <span className="eyebrow">For employers</span>
+              <h2 className="display-lg mt-3 text-[var(--ink)]">
+                Hire people who build{' '}
+                <span
+                  style={{
+                    background:
+                      'linear-gradient(180deg, transparent 60%, color-mix(in oklab, var(--lime) 75%, transparent) 60%, color-mix(in oklab, var(--lime) 75%, transparent) 92%, transparent 92%)',
+                  }}
+                >
+                  for everyone.
+                </span>
+              </h2>
+              <p className="mt-4 text-[var(--ink-soft)] max-w-xl">
+                Post a role in minutes. Reach accessibility engineers, designers,
+                researchers, and QA specialists who care about shipping inclusive
+                products.
+              </p>
+            </div>
+            <div className="flex md:justify-end">
+              <Link
+                href="/post-job"
+                className="group inline-flex items-center gap-2 h-14 rounded-full bg-[var(--ink)] text-[var(--paper)] px-9 font-semibold transition-transform hover:scale-[1.02]"
+              >
+                Post a Job
+                <ArrowUpRight className="h-5 w-5 transition-transform group-hover:rotate-45" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationData) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(organizationData) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jobCollectionData) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jobCollectionData) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(generateWebSiteStructuredData()) }}
       />
     </>
+  );
+}
+
+function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div>
+      <p className="eyebrow">{label}</p>
+      <p className="font-display font-bold tracking-tight text-[2.25rem] md:text-[2.75rem] leading-none mt-1 text-[var(--ink)]">
+        {value}
+      </p>
+      <p className="mt-1 text-sm text-[var(--muted-foreground)]">{sub}</p>
+    </div>
+  );
+}
+
+function ValueCard({
+  icon,
+  label,
+  title,
+  body,
+  highlight = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  title: string;
+  body: string;
+  highlight?: boolean;
+}) {
+  return (
+    <article
+      className={[
+        'group relative rounded-2xl border p-7 md:p-8 transition-all duration-300 hover:-translate-y-0.5 bg-white text-[var(--ink)]',
+        highlight
+          ? 'border-[var(--ink)] shadow-[0_24px_60px_-30px_rgba(16,16,32,0.3)]'
+          : 'border-[var(--border)] hover:border-[var(--ink)]',
+      ].join(' ')}
+    >
+      {highlight && (
+        <span
+          aria-hidden="true"
+          className="absolute -top-px left-6 right-6 h-0.5 rounded-full bg-[var(--lime)]"
+        />
+      )}
+      <div
+        className={[
+          'inline-flex h-10 w-10 items-center justify-center rounded-xl mb-5',
+          highlight
+            ? 'bg-[var(--lime)] text-[var(--ink)]'
+            : 'bg-[color-mix(in_oklab,var(--lime)_30%,white)] text-[var(--ink)]',
+        ].join(' ')}
+      >
+        {icon}
+      </div>
+      <p className="eyebrow">{label}</p>
+      <h3 className="font-display text-xl md:text-2xl font-semibold leading-tight mt-2 tracking-tight">
+        {title}
+      </h3>
+      <p className="mt-4 text-sm leading-relaxed text-[var(--muted-foreground)]">
+        {body}
+      </p>
+    </article>
   );
 }

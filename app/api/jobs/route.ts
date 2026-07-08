@@ -1,34 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { jobs } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
-import { isValidCompanyName } from '@/lib/job-formatter';
+import { parseJobsSearchParams, queryJobs, JOBS_PER_PAGE } from '@/lib/jobs-query';
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const type = searchParams.get('type');
+    const filter = parseJobsSearchParams({
+      search: searchParams.get('search') || undefined,
+      type: searchParams.get('type') || undefined,
+      employment: searchParams.get('employment') || undefined,
+      level: searchParams.get('level') || undefined,
+      page: searchParams.get('page') || undefined,
+    });
 
-    // Build query
-    let query = db
-      .select()
-      .from(jobs)
-      .where(eq(jobs.status, 'approved'))
-      .orderBy(desc(jobs.createdAt));
+    const perPage = Math.min(
+      50,
+      Math.max(1, parseInt(searchParams.get('perPage') || String(JOBS_PER_PAGE), 10) || JOBS_PER_PAGE)
+    );
 
-    // Execute query
-    let allJobs = await query;
+    const result = await queryJobs(filter, perPage);
 
-    // Filter out jobs without valid company names
-    // These won't be shown to users as per business requirement
-    allJobs = allJobs.filter(job => isValidCompanyName(job.company));
-
-    // Filter by type if specified (client-side filter for simplicity)
-    if (type && type !== 'all') {
-      allJobs = allJobs.filter(job => job.type === type);
-    }
-
-    return NextResponse.json({ jobs: allJobs }, { status: 200 });
+    return NextResponse.json(
+      {
+        jobs: result.jobs,
+        pagination: {
+          page: result.page,
+          perPage: result.perPage,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        },
+      }
+    );
   } catch (error) {
     console.error('Error fetching jobs:', error);
     return NextResponse.json(

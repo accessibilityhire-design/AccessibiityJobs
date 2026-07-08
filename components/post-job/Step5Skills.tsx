@@ -50,7 +50,7 @@ export function Step5Skills({ register, control, watch, setValue, errors }: Step
               </div>
             ))}
           </div>
-          {errors.requiredSkills && <p className="text-sm text-red-600">{errors.requiredSkills.message}</p>}
+          {errors.requiredSkills && <p role="alert" className="text-sm text-red-600">{errors.requiredSkills.message}</p>}
         </div>
 
         <div className="space-y-3">
@@ -99,7 +99,7 @@ export function Step5Skills({ register, control, watch, setValue, errors }: Step
               </div>
             ))}
           </div>
-          {errors.accessibilityFocus && <p className="text-sm text-red-600">{errors.accessibilityFocus.message}</p>}
+          {errors.accessibilityFocus && <p role="alert" className="text-sm text-red-600">{errors.accessibilityFocus.message}</p>}
         </div>
 
         <div className="space-y-3">

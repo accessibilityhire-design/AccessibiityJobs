@@ -2,8 +2,13 @@ import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { jobs } from '../lib/db/schema';
 
-// Database connection
-const connectionString = 'postgresql://postgres.tduemljicugpraxkoxwx:asdfghjkl12qwertyuiop@aws-0-us-west-2.pooler.supabase.com:6543/postgres';
+// Database connection — set DATABASE_URL in .env (never hardcode credentials)
+import 'dotenv/config';
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+    throw new Error('DATABASE_URL environment variable is required');
+}
 
 const client = postgres(connectionString, {
     prepare: false,

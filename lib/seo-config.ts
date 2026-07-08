@@ -89,6 +89,7 @@ export function generatePageMetadata({
     },
     twitter: {
       card: 'summary_large_image',
+      site: seoConfig.twitterHandle,
       title: fullTitle,
       description,
       images: [ogImage || seoConfig.ogImage],

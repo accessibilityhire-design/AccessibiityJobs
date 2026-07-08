@@ -33,7 +33,7 @@ export function Step3Compensation({ register, control, errors }: Step3Compensati
               placeholder="e.g. 80000"
               {...register('salaryMin', { valueAsNumber: true })}
             />
-            {errors.salaryMin && <p className="text-sm text-red-600">{errors.salaryMin.message}</p>}
+            {errors.salaryMin && <p role="alert" className="text-sm text-red-600">{errors.salaryMin.message}</p>}
           </div>
 
           <div className="space-y-2">
@@ -44,7 +44,7 @@ export function Step3Compensation({ register, control, errors }: Step3Compensati
               placeholder="e.g. 120000"
               {...register('salaryMax', { valueAsNumber: true })}
             />
-            {errors.salaryMax && <p className="text-sm text-red-600">{errors.salaryMax.message}</p>}
+            {errors.salaryMax && <p role="alert" className="text-sm text-red-600">{errors.salaryMax.message}</p>}
           </div>
 
           <div className="space-y-2">
