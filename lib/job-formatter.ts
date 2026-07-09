@@ -46,6 +46,20 @@ export function formatJobDescription(text: string | null | undefined): string {
     html = html.replace(/\\\(/g, '(');
     html = html.replace(/\\\)/g, ')');
 
+    // Markdown images: ![alt](url) -> drop entirely. These are almost always
+    // decorative/tracking pixels from a scraped source, and our sanitizer
+    // doesn't render <img> tags anyway, so keeping alt text as a stray
+    // "!" + link would be worse than just removing it.
+    html = html.replace(/!\[[^\]]*\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g, '');
+
+    // Markdown links: [text](url) -> <a href="url">text</a>
+    // Some scraped sources (e.g. LinkedIn-derived listings) leave raw
+    // markdown link syntax in the text instead of real HTML anchors.
+    html = html.replace(
+        /(?<!!)\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g,
+        '<a href="$2">$1</a>'
+    );
+
     // Convert markdown to HTML
 
     // Headers: ## Header -> <h3>Header</h3>

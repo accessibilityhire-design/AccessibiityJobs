@@ -5,6 +5,7 @@ Writes candidate/insert-ready datasets and a detailed insert report.
 """
 
 import csv
+import html
 import json
 import os
 import re
@@ -372,32 +373,62 @@ def strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", " ", text)
 
 
-def split_description(description: str, title: str, company: str) -> Tuple[str, str, str]:
+# Section headers we can reliably split real job text on. Matched at a word
+# boundary followed by optional punctuation/colon, case-insensitive.
+_RESPONSIBILITIES_HEADER = re.compile(
+    r"\b(key responsibilities|responsibilities|duties|what you.ll do|what you will do)\b\s*:?",
+    re.I,
+)
+_REQUIREMENTS_HEADER = re.compile(
+    r"\b(requirements|qualifications|required qualifications|what you.ll need|what you will need|who you are|required skills|minimum qualifications)\b\s*:?",
+    re.I,
+)
+
+_NO_REAL_CONTENT = (None, None, None)
+
+
+def split_description(description: str, title: str, company: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """Split a scraped description into overview/responsibilities/requirements.
+
+    Never slices at a fixed character offset — that cuts words in half and
+    produces nonsense fragments. Only splits at real section headers found
+    in the text; otherwise the whole (cleaned) text becomes the overview and
+    responsibilities/requirements get an honest static pointer back to it.
+    Returns (None, None, None) when there is no real content to publish —
+    callers must skip the job rather than fabricate filler text, since a
+    fabricated listing is worse than no listing on a curated board.
+    """
     description = clean_text(description)
-    if not description:
-        base = f"{title} at {company}."
-        return (
-            base,
-            "Key responsibilities include ensuring digital accessibility standards.",
-            "Experience with accessibility required.",
-        )
+    if len(description) < 40:
+        return _NO_REAL_CONTENT
 
-    desc_length = len(description)
-    overview_end = min(500, desc_length // 3)
-    responsibilities_end = min(1000, 2 * desc_length // 3)
+    resp_match = _RESPONSIBILITIES_HEADER.search(description)
+    req_match = _REQUIREMENTS_HEADER.search(description)
 
-    job_description = description[:overview_end] if desc_length > 0 else ""
-    key_responsibilities = description[overview_end:responsibilities_end] if desc_length > 0 else ""
-    requirements = description[responsibilities_end:] if desc_length > 0 else ""
+    # Only trust the requirements header if it comes after the responsibilities
+    # header (or there's no responsibilities header at all) — otherwise we've
+    # likely matched a stray earlier mention of the word.
+    if resp_match and req_match and req_match.start() <= resp_match.start():
+        req_match = _REQUIREMENTS_HEADER.search(description, resp_match.end())
 
-    if len(job_description) < 50:
-        job_description = f"{title} at {company}. {job_description}".strip()
-    if len(key_responsibilities) < 50:
-        key_responsibilities = f"Key responsibilities include: {key_responsibilities}".strip()
-    if len(requirements) < 50:
-        requirements = f"Required qualifications: {requirements}".strip()
+    def _trim_markdown_edges(value: str) -> str:
+        return re.sub(r"^[\s*_#:\-–—•]+|[\s*_#:\-–—•]+$", "", value).strip()
 
-    return job_description.strip(), key_responsibilities.strip(), requirements.strip()
+    if resp_match and req_match and req_match.start() > resp_match.start():
+        job_description = _trim_markdown_edges(description[: resp_match.start()])
+        key_responsibilities = _trim_markdown_edges(description[resp_match.end(): req_match.start()])
+        requirements = _trim_markdown_edges(description[req_match.end():])
+        if len(job_description) >= 40 and len(key_responsibilities) >= 20 and len(requirements) >= 20:
+            return job_description, key_responsibilities, requirements
+
+    # No reliable section split found — keep the full text intact rather
+    # than guessing at a character offset, and label the other fields
+    # honestly instead of stuffing them with a mid-word fragment.
+    return (
+        description,
+        "See the full role overview above for day-to-day responsibilities.",
+        "See the full role overview above for required qualifications.",
+    )
 
 
 def parse_salary(text: Optional[str]) -> Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]:
@@ -808,10 +839,50 @@ def extract_salary_text(soup: BeautifulSoup) -> Optional[str]:
     return extract_label_value(soup, r"salary")
 
 
+# Boilerplate that shows up around the real description in a11yjobs.com's
+# <main>/<article> containers — breadcrumbs, the duplicate title/company/
+# location/salary header, and the "Other Recent Jobs" sidebar widget. All of
+# this lives in the same container as the real text, so a naive
+# `.get_text()` scoops it up as if it were part of the job description.
+_LEADING_CHROME = re.compile(
+    r"^.*?\bJob Description\b\s*", re.I | re.S
+)
+_LEADING_BACKTO_PHRASE = re.compile(
+    r"^\s*(?:←\s*)?Back to( all)? Jobs\b\s*", re.I
+)
+_TRAILING_CHROME = re.compile(
+    r"\b(Report\s+)?Other Recent Jobs\b.*$|"
+    r"\bView Company Profile\b.*$|"
+    r"\bJob Tags\b.*$|"
+    r"\bApply for Job\b.*?\bBack to all jobs\b.*$|"
+    r"\bSponsors\b\s*$",
+    re.I | re.S,
+)
+
+
+def _strip_page_chrome(text: str) -> str:
+    # The literal breadcrumb phrase is pure navigation chrome with zero
+    # informational value — always safe to drop regardless of what follows.
+    text = _LEADING_BACKTO_PHRASE.sub("", text, count=1).strip()
+    text = _TRAILING_CHROME.sub("", text).strip()
+    with_header_stripped = _LEADING_CHROME.sub("", text, count=1).strip()
+    # Only trust the "after Job Description" cut if it left a substantial
+    # amount of text — otherwise the header text itself was most of the page.
+    if len(with_header_stripped) >= 200:
+        text = with_header_stripped
+    return text.strip()
+
+
 def extract_best_description(soup: BeautifulSoup, jsonld: Dict[str, Any]) -> str:
     jsonld_description = clean_text(strip_html(str(jsonld.get("description") or "")))
-    page_description = ""
 
+    # Structured JSON-LD description is authored by the source site to
+    # describe just the job — trust it over a raw container scrape whenever
+    # it's substantial, instead of preferring whichever text is *longer*.
+    if len(jsonld_description) >= 200:
+        return jsonld_description
+
+    page_description = ""
     content_nodes = [
         soup.find("main"),
         soup.find("article"),
@@ -820,7 +891,7 @@ def extract_best_description(soup: BeautifulSoup, jsonld: Dict[str, Any]) -> str
     for node in content_nodes:
         if not node:
             continue
-        candidate = clean_text(node.get_text(" ", strip=True))
+        candidate = _strip_page_chrome(clean_text(node.get_text(" ", strip=True)))
         if len(candidate) > len(page_description):
             page_description = candidate
 
@@ -841,6 +912,9 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     title_elem = soup.find("h1") or soup.find("h2") or soup.find("title")
     title = jsonld.get("title") or (title_elem.get_text(strip=True) if title_elem else "")
     title = re.sub(r"\s*-\s*a11yjobs\.com.*$", "", title, flags=re.I)
+    # Some sources double-escape JSON-LD text (e.g. "&amp;" instead of "&") —
+    # unescape so entities never render literally to job seekers.
+    title = html.unescape(title).strip()
 
     company = ""
     hiring_org = jsonld.get("hiringOrganization")
@@ -848,6 +922,7 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
         company = hiring_org.get("name") or ""
     if not company:
         company = extract_label_value(soup, r"company") or extract_label_value(soup, r"organization") or ""
+    company = html.unescape(company).strip()
 
     location_text = extract_label_value(soup, r"location") or ""
     job_location = jsonld.get("jobLocation")
@@ -888,6 +963,10 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     description = extract_best_description(soup, jsonld)
 
     job_description, key_responsibilities, requirements = split_description(description, title, company)
+    if not job_description:
+        # No real description could be recovered — skip rather than publish
+        # fabricated filler text under this job's title/company.
+        return None
 
     job_level = determine_job_level(title, description)
 
