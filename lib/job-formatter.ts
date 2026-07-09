@@ -68,8 +68,49 @@ export function formatJobDescription(text: string | null | undefined): string {
     html = html.replace(/^##\s+(.+)$/gm, '<h3>$1</h3>');
     html = html.replace(/^#\s+(.+)$/gm, '<h3>$1</h3>');
 
+    // Some scraped sources glue adjacent label/value pairs together with no
+    // separator (e.g. "Preferences****Salary Range: ..."), producing 3+
+    // consecutive asterisks — the regex below can't cleanly pair those into
+    // two separate <strong> runs, so collapse any such run down to a single
+    // "**" pair first.
+    html = html.replace(/\*{3,}/g, '**');
+
+    // Descriptions get split into description/responsibilities/requirements
+    // and each is rendered independently, so a "**" pair that originally
+    // spanned that split point leaves one orphaned marker in each half. An
+    // odd total count means exactly that happened — drop the last one so a
+    // literal "**" never shows up on the page (its partner is gone either
+    // way, so the emphasis can't be honored, only hidden).
+    const boldMarkerCount = (html.match(/\*\*/g) || []).length;
+    if (boldMarkerCount % 2 !== 0) {
+        const lastIndex = html.lastIndexOf('**');
+        html = html.slice(0, lastIndex) + html.slice(lastIndex + 2);
+    }
+
     // Bold: **text** -> <strong>text</strong>
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+    // Some sources glue a label straight onto its bolded value with no
+    // separator at all (e.g. "Agency**Dept of Health**" -> "Agency<strong>
+    // Dept of Health</strong>", reading as "AgencyDept of Health"). Real
+    // prose never transitions from plain text straight into bold with zero
+    // whitespace, so this only fires on that label/value artifact — add a
+    // colon so it reads as "Agency: Dept of Health" instead.
+    html = html.replace(/([a-zA-Z0-9)])(<strong>)/g, '$1: $2');
+    // Same artifact on the way out of a bold value into the next label
+    // (e.g. "...-$72,113Recruitment Range:" with zero space) — a plain space
+    // is enough here since there's no label on this side to punctuate.
+    html = html.replace(/(<\/strong>)([a-zA-Z0-9])/g, '$1 $2');
+
+    // Some sources use _text_ for italics instead of *text*. Apply the same
+    // cross-field-split guard as bold markers: an odd count means one half
+    // of a pair landed in a sibling field, so drop the orphan first.
+    const underscoreCount = (html.match(/_/g) || []).length;
+    if (underscoreCount % 2 !== 0) {
+        const lastIndex = html.lastIndexOf('_');
+        html = html.slice(0, lastIndex) + html.slice(lastIndex + 1);
+    }
+    html = html.replace(/(\s|^)_([^\s_][^_]*[^\s_])_(\s|$|\.)/g, '$1<em>$2</em>$3');
 
     // Italic: *text* -> <em>text</em> (but not if it's a bullet point)
     // Only match single asterisks that are surrounded by non-space characters
