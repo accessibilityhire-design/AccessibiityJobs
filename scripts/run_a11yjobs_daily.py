@@ -613,52 +613,102 @@ def extract_contact_email(text: str) -> Optional[str]:
     return match[0] if match else None
 
 
+# Word-bounded, not a bare substring check: "ADA" as a plain substring
+# matches inside "readability", "ADA" as lowercase would also match nothing
+# meaningful, but short acronyms need boundaries to avoid exactly this kind
+# of accidental mid-word collision.
+_SKILL_KEYWORDS = [
+    "WCAG", "ARIA", "screen reader", "JAWS", "NVDA", "VoiceOver",
+    "accessibility testing", "inclusive design", "a11y", "HTML", "CSS",
+    "JavaScript", "assistive technology", "usability", "disability",
+    "remediation", "audit", "manual testing", "automated testing",
+    "mobile accessibility", "web accessibility", "Section 508", "ADA",
+    "VPAT", "ACR", "accessibility conformance", "TalkBack",
+]
+_SKILL_PATTERNS = [
+    (skill, re.compile(r"\b" + re.escape(skill) + r"\b", re.I))
+    for skill in _SKILL_KEYWORDS
+]
+
+
 def extract_skills(text: str) -> List[str]:
     if not text:
         return []
-    keywords = [
-        "WCAG", "ARIA", "screen reader", "JAWS", "NVDA", "VoiceOver",
-        "accessibility testing", "inclusive design", "a11y", "HTML", "CSS",
-        "JavaScript", "assistive technology", "usability", "disability",
-        "remediation", "audit", "manual testing", "automated testing",
-        "mobile accessibility", "web accessibility", "Section 508", "ADA",
-        "VPAT", "ACR", "accessibility conformance", "TalkBack",
-    ]
-    found = []
-    text_lower = text.lower()
-    for skill in keywords:
-        if skill.lower() in text_lower:
-            found.append(skill)
+    found = [skill for skill, pattern in _SKILL_PATTERNS if pattern.search(text)]
     return list(sorted(set(found)))
+
+
+# Case-sensitive and word-bounded on purpose: "WAS" and "ADS" are real
+# accessibility certification acronyms, but a bare lowercase substring check
+# also matches the common English word "was" ("...which was established...")
+# and "ads" (inside "leads", "downloads", etc.), silently tagging unrelated
+# jobs as requiring a WAS certification. Certifications are always written
+# in caps in real postings, so exact-case, word-bounded matching is safe.
+_CERTIFICATION_PATTERNS = [
+    (cert, re.compile(r"\b" + re.escape(cert) + r"\b"))
+    for cert in ["CPACC", "WAS", "CPWA", "IAAP", "DHS Trusted Tester", "Section 508 Trusted Tester", "ADS", "CPABE"]
+]
 
 
 def extract_certifications(text: str) -> List[str]:
     if not text:
         return []
-    certs = ["CPACC", "WAS", "CPWA", "IAAP", "DHS Trusted Tester"]
-    found = []
-    text_lower = text.lower()
-    for cert in certs:
-        if cert.lower() in text_lower:
-            found.append(cert)
+    found = [cert for cert, pattern in _CERTIFICATION_PATTERNS if pattern.search(text)]
     return list(sorted(set(found)))
 
 
-def extract_benefits(text: str) -> Optional[str]:
+_BENEFIT_KEYWORDS = [
+    ("Health insurance", re.compile(r"health insurance|medical insurance", re.I), "health_insurance"),
+    ("Dental insurance", re.compile(r"\bdental\b", re.I), None),
+    ("Vision insurance", re.compile(r"\bvision\b", re.I), None),
+    ("Retirement plan", re.compile(r"401\(?k\)?|retirement plan", re.I), "retirement"),
+    ("Paid time off", re.compile(r"paid time off|\bPTO\b|paid vacation", re.I), None),
+    ("Parental leave", re.compile(r"parental leave|family leave", re.I), None),
+    ("Stock/equity", re.compile(r"stock (grant|purchase|option)|equity compensation", re.I), None),
+    ("Tuition assistance", re.compile(r"tuition (assistance|reimbursement)|college coaching", re.I), "professional_development"),
+    ("Wellness programs", re.compile(r"wellness program|mental health support", re.I), None),
+    ("Disability insurance", re.compile(r"disability insurance", re.I), None),
+]
+
+
+def extract_benefits(text: str) -> Tuple[List[str], Dict[str, bool]]:
+    """Returns (benefit list, boolean flags) — mirrors the JS repair library."""
     if not text:
-        return None
-    keywords = ["health", "dental", "vision", "401k", "retirement", "pto", "vacation", "bonus", "equity", "stock", "insurance", "wellness"]
-    hits = [kw for kw in keywords if kw in text.lower()]
-    return ", ".join(sorted(set(hits))) if hits else None
+        return [], {}
+    found: List[str] = []
+    flags: Dict[str, bool] = {}
+    for label, pattern, flag in _BENEFIT_KEYWORDS:
+        if pattern.search(text):
+            found.append(label)
+            if flag:
+                flags[flag] = True
+    return found, flags
+
+
+_WORD_NUMBERS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+}
+_EXPERIENCE_RE = re.compile(
+    r"\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\+?\s*(?:\(\d+\)\s*)?years?\s+"
+    r"(?:of\s+)?(?:related\s+|relevant\s+|professional\s+|direct\s+)?experience\b",
+    re.I,
+)
 
 
 def extract_experience(text: str) -> Optional[str]:
     if not text:
         return None
-    match = re.search(r"(\d+)\+?\s*years?", text, re.I)
+    # Require "experience" to follow within a few words — a bare "N years"
+    # matches unrelated things like "six years of creditable service" for
+    # veteran status, which has nothing to do with the job's experience bar.
+    match = _EXPERIENCE_RE.search(text)
     if not match:
         return None
-    years = int(match.group(1))
+    raw = match.group(1).lower()
+    years = int(raw) if raw.isdigit() else _WORD_NUMBERS.get(raw)
+    if years is None:
+        return None
     if years <= 1:
         return "0-1"
     if years <= 3:
@@ -678,15 +728,105 @@ def extract_education(text: str) -> Optional[str]:
     lower = text.lower()
     if "phd" in lower or "doctorate" in lower:
         return "phd"
-    if "master" in lower:
+    if re.search(r"master'?s?\b", lower):
         return "master"
-    if "bachelor" in lower:
+    if re.search(r"bachelor'?s?\b", lower):
         return "bachelor"
-    if "associate" in lower:
+    if re.search(r"associate'?s?\s+degree", lower):
         return "associate"
     if "high school" in lower:
         return "high-school"
     return None
+
+
+# --- Tagged (Required)/(Preferred) items — corporate JD template ----------
+
+_TAG_RE = re.compile(r"\((Required|Preferred)\)", re.I)
+_LEADING_SECTION_HEADER_RE = re.compile(
+    r"^(knowledge,?\s*skills?\s*(and|&)?\s*abilities|education\s*(and|&)?\s*(work\s*)?experience|"
+    r"licenses?\s*(and|&)?\s*certifications?|requirements?|qualifications?)\s*:?\s*",
+    re.I,
+)
+_PLACEHOLDER_PATTERNS = [
+    re.compile(r"please refer to the original job posting", re.I),
+    re.compile(r"see the full role overview above", re.I),
+    re.compile(r"full description (was|is) not available", re.I),
+    re.compile(r"to be discussed", re.I),
+]
+
+
+def _is_real_content(value: str) -> bool:
+    return not any(p.search(value) for p in _PLACEHOLDER_PATTERNS)
+
+
+def extract_tagged_items(text: str) -> Tuple[List[str], List[str]]:
+    """Splits text on (Required)/(Preferred) tags; common in corporate JDs
+    where every qualification/skill line ends with an explicit tag."""
+    if not text:
+        return [], []
+    required: List[str] = []
+    preferred: List[str] = []
+    last_end = 0
+    for match in _TAG_RE.finditer(text):
+        chunk = text[last_end:match.start()].strip()
+        last_end = match.end()
+        if len(chunk) < 3 or len(chunk) > 300:
+            continue
+        clean = re.sub(r"^[.\s;:,\-]+", "", chunk)
+        clean = _LEADING_SECTION_HEADER_RE.sub("", clean).strip()
+        if not clean or not _is_real_content(clean):
+            continue
+        if match.group(1).lower() == "preferred":
+            preferred.append(clean)
+        else:
+            required.append(clean)
+    return required, preferred
+
+
+def extract_bullet_items(text: str) -> List[str]:
+    """Extracts "* " / "- " / "•" prefixed lines — government/university JD
+    template. Splits on newlines and bullet-marker lookaheads so an item
+    never bleeds across a field boundary."""
+    if not text:
+        return []
+    parts = re.split(r"(?=\s[*•]\s)|\n", text)
+    items = []
+    for part in parts:
+        part = part.strip()
+        if not re.match(r"^[*•\-]\s+", part):
+            continue
+        clean = re.sub(r"^[*•\-]\s+", "", part).strip()
+        if 10 <= len(clean) <= 300 and _is_real_content(clean):
+            items.append(clean)
+    return items
+
+
+_LEGAL_BOILERPLATE_MARKERS = [
+    re.compile(r"\bEEO Statement\b", re.I),
+    re.compile(r"\bEqual Employment Opportunity Employer\b", re.I),
+    re.compile(r"\bis an [Ee]qual [Oo]pportunity [Ee]mployer\b"),
+    re.compile(r"\bADA Accommodations\b", re.I),
+    re.compile(r"\bSupplemental Contact Information\b", re.I),
+    re.compile(r"\bVeterans[’']? and National Guard Preference\b", re.I),
+    re.compile(r"\bApplication Process\b\s*\*\*", re.I),
+]
+
+
+def trim_legal_boilerplate(text: str) -> str:
+    """Cuts everything from the first universal legal/EEO/procedural
+    boilerplate marker onward — near-identical across every US employer and
+    government posting, and adds nothing a job seeker needs to decide
+    whether to apply. Only cuts if enough real content remains before it."""
+    if not text:
+        return text
+    earliest = -1
+    for pattern in _LEGAL_BOILERPLATE_MARKERS:
+        match = pattern.search(text)
+        if match and (earliest == -1 or match.start() < earliest):
+            earliest = match.start()
+    if earliest > 300:
+        return text[:earliest].strip()
+    return text
 
 
 def normalize_external_content(text: str) -> str:
@@ -962,7 +1102,23 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     apply_url = extract_apply_url(soup, url, jsonld)
     description = extract_best_description(soup, jsonld)
 
-    job_description, key_responsibilities, requirements = split_description(description, title, company)
+    # Structured fields are mined from the FULL untrimmed text — some real
+    # signal (e.g. an "Education and Experience" section) can appear after
+    # an earlier boilerplate marker, so trimming first would lose it.
+    tagged_required, tagged_preferred = extract_tagged_items(description)
+    bullet_items = extract_bullet_items(description) if not tagged_required else []
+    required_skills_list = tagged_required or bullet_items
+    required_certifications_list = extract_certifications(description)
+    years_experience = extract_experience(description)
+    education_level = extract_education(description)
+    benefits_list, benefit_flags = extract_benefits(description)
+
+    # The visible description/responsibilities/requirements DO drop the
+    # universal trailing EEO/legal boilerplate — it carries no decision
+    # value for someone browsing the board.
+    display_description = trim_legal_boilerplate(description)
+
+    job_description, key_responsibilities, requirements = split_description(display_description, title, company)
     if not job_description:
         # No real description could be recovered — skip rather than publish
         # fabricated filler text under this job's title/company.
@@ -1011,12 +1167,12 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
         "salary_type": salary_type,
         "equity_offered": None,
         "bonus_structure": None,
-        "years_experience": None,
-        "education_level": None,
-        "required_certifications": None,
+        "years_experience": years_experience,
+        "education_level": education_level,
+        "required_certifications": json.dumps(required_certifications_list) if required_certifications_list else None,
         "preferred_certifications": None,
-        "required_skills": None,
-        "preferred_skills": None,
+        "required_skills": json.dumps(required_skills_list[:15]) if required_skills_list else None,
+        "preferred_skills": json.dumps(tagged_preferred[:15]) if tagged_preferred else None,
         "wcag_level": None,
         "accessibility_focus": None,
         "assistive_tech_experience": None,
@@ -1024,10 +1180,10 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
         "key_responsibilities": key_responsibilities,
         "requirements": requirements,
         "nice_to_have": None,
-        "benefits": None,
-        "professional_development": None,
-        "health_insurance": None,
-        "retirement": None,
+        "benefits": json.dumps(benefits_list) if benefits_list else None,
+        "professional_development": benefit_flags.get("professional_development"),
+        "health_insurance": benefit_flags.get("health_insurance"),
+        "retirement": benefit_flags.get("retirement"),
         "pto_details": None,
         "contact_email": contact_email,
         "application_deadline": f"{valid_through.isoformat()}T00:00:00Z" if valid_through else None,
@@ -1094,14 +1250,23 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
                 job["currency"] = currency
                 job["salary_type"] = salary_type
         if not job.get("benefits"):
-            job["benefits"] = extract_benefits(content)
+            benefits_list, benefit_flags = extract_benefits(content)
+            job["benefits"] = json.dumps(benefits_list) if benefits_list else None
+            if benefit_flags.get("health_insurance") and not job.get("health_insurance"):
+                job["health_insurance"] = True
+            if benefit_flags.get("retirement") and not job.get("retirement"):
+                job["retirement"] = True
+            if benefit_flags.get("professional_development") and not job.get("professional_development"):
+                job["professional_development"] = True
         if not job.get("required_skills"):
-            skills = extract_skills(content)
-            job["required_skills"] = ", ".join(skills[:10]) if skills else None
-            job["preferred_skills"] = ", ".join(skills[10:]) if len(skills) > 10 else None
+            tagged_required, tagged_preferred = extract_tagged_items(content)
+            items = tagged_required or extract_bullet_items(content) or extract_skills(content)
+            job["required_skills"] = json.dumps(items[:15]) if items else None
+            if tagged_preferred:
+                job["preferred_skills"] = json.dumps(tagged_preferred[:15])
         if not job.get("required_certifications"):
             certs = extract_certifications(content)
-            job["required_certifications"] = ", ".join(certs) if certs else None
+            job["required_certifications"] = json.dumps(certs) if certs else None
         if not job.get("years_experience"):
             job["years_experience"] = extract_experience(content)
         if not job.get("education_level"):
