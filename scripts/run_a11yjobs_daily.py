@@ -41,7 +41,7 @@ EXPERIENCE_LEVELS = {"0-1", "1-3", "3-5", "5-7", "7-10", "10+"}
 EDUCATION_LEVELS = {"none-required", "high-school", "associate", "bachelor", "master", "phd"}
 WCAG_LEVELS = {"wcag-2.0", "wcag-2.1", "wcag-2.2", "wcag-3.0"}
 CURRENCIES = {"USD", "EUR", "GBP", "CAD", "AUD", "INR", "JPY", "CNY"}
-SALARY_TYPES = {"annual", "hourly", "daily", "project"}
+SALARY_TYPES = {"annual", "monthly", "hourly", "daily", "project"}
 TRAVEL_REQUIREMENTS = {"none", "occasional", "regular", "frequent"}
 
 REQUIRED_FIELDS = [
@@ -92,8 +92,8 @@ JUNK_TEXT_PATTERNS = [
     r"page has loaded",
     r"\[object Object\]",
     r"skip to main content",
-    r"navigation",
-    r"footer",
+    r"(?:^|\n)\s*navigation\s*(?:\n|$)",
+    r"(?:^|\n)\s*footer\s*(?:\n|$)",
     r"back to top",
 ]
 
@@ -370,132 +370,461 @@ def clean_text(text: str) -> str:
 def strip_html(text: str) -> str:
     if not text:
         return ""
-    return re.sub(r"<[^>]+>", " ", text)
+    soup = BeautifulSoup(text, "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    return soup.get_text("\n")
 
 
-# Section headers we can reliably split real job text on. Matched at a word
-# boundary followed by optional punctuation/colon, case-insensitive.
-_RESPONSIBILITIES_HEADER = re.compile(
-    r"\b(key responsibilities|responsibilities|duties|what you.ll do|what you will do)\b\s*:?",
+RESPONSIBILITIES_FALLBACK = "See the full role overview above for day-to-day responsibilities."
+REQUIREMENTS_FALLBACK = "See the full role overview above for required qualifications."
+
+
+_SECTION_PATTERNS = [
+    (
+        "overview",
+        re.compile(
+            r"^(?:about (?:the )?role|job summary|position summary|role summary|overview|"
+            r"company description|your role|the role|we are looking for)$",
+            re.I,
+        ),
+    ),
+    (
+        "responsibilities",
+        re.compile(
+            r"^(?:(?:key|core|primary|role) responsibilities|responsibilities|duties|"
+            r"duties and responsibilities|essential functions|job role and responsibilit(?:y|ies)|"
+            r"what you['’]?ll do|what you will do|what you['’]?ll own|your impact)$",
+            re.I,
+        ),
+    ),
+    (
+        "requirements",
+        re.compile(
+            r"^(?:requirements?|qualifications?|required qualifications?|must[- ]have qualifications?|"
+            r"minimum qualifications?|required experience(?:\s*/\s*clearance)?|experience required|"
+            r"required technical skills?(?:\s*&\s*qualifications?)?|required skills?(?: sets?)?|"
+            r"core skills?(?:\s*&\s*knowledge)?|knowledge,? skills?(?:\s*(?:and|&)\s*abilities)?|"
+            r"specific skills? required|required education and experience|competencies|"
+            r"tools?\s*&\s*technologies|your education|what you['’]?ll need|what you will need|"
+            r"who you are|what we['’]?re looking for)$",
+            re.I,
+        ),
+    ),
+    (
+        "preferred",
+        re.compile(
+            r"^(?:preferred qualifications?|preferred experience|preferred skills?|desired experience|"
+            r"nice[- ]to[- ]have qualifications?|nice to have|bonus points?|a plus)$",
+            re.I,
+        ),
+    ),
+    (
+        "ignore",
+        re.compile(
+            r"^(?:benefits?|why join us|what we offer|compensation|salary|pay range|location|"
+            r"travel expectations?|hiring journey|hiring process|application process|posting end date|"
+            r"company snapshot|our core principles|use of ai in hiring|seniority level|employment type|"
+            r"job function|industries|we value equal opportunity|applicants with disabilities|"
+            r"drug and alcohol policy|equal opportunity employer|eeo statement)$",
+            re.I,
+        ),
+    ),
+]
+
+_IGNORE_PROSE_START = re.compile(
+    r"^(?:the )?(?:salary|compensation|base pay|pay) (?:range|band|provided)|"
+    r"^actual compensation\b|^in addition to base salary\b",
     re.I,
 )
-_REQUIREMENTS_HEADER = re.compile(
-    r"\b(requirements|qualifications|required qualifications|what you.ll need|what you will need|who you are|required skills|minimum qualifications)\b\s*:?",
-    re.I,
-)
 
-_NO_REAL_CONTENT = (None, None, None)
+
+def _plain_markdown(value: str) -> str:
+    value = html.unescape(value or "")
+    value = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", value)
+    value = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", value)
+    value = re.sub(r"^[#>]+\s*", "", value.strip())
+    value = re.sub(r"[*_`]+", "", value)
+    return clean_text(value).strip(" :.;-–—")
+
+
+def _section_category(value: str) -> Optional[str]:
+    label = _plain_markdown(value)
+    if not label or len(label) > 100:
+        return None
+    for category, pattern in _SECTION_PATTERNS:
+        if pattern.fullmatch(label):
+            return category
+    return None
+
+
+def _split_glued_heading(value: str) -> List[str]:
+    """Split ``**Heading**content`` only when Heading is a known section.
+
+    This repairs a common LinkedIn-derived artifact without guessing that
+    every bold phrase is a section boundary.
+    """
+    match = re.match(r"^(\s*(?:#{1,6}\s*)?\*{2,}(.{2,100}?)\*{2,})(\S.*)$", value)
+    if not match or not _section_category(match.group(2)):
+        return [value]
+    remainder = match.group(3).strip()
+    if len(_plain_markdown(remainder)) < 2:
+        return [match.group(1)]
+    return [match.group(1), remainder]
+
+
+def normalize_description_text(text: str) -> str:
+    """Normalize source text while preserving paragraphs, headings and lists.
+
+    ``clean_text`` is intentionally unsuitable here because collapsing every
+    newline destroys the only reliable section and bullet evidence supplied by
+    A11yJobs JSON-LD.
+    """
+    if not text:
+        return ""
+
+    text = html.unescape(text).replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", text)
+    output: List[str] = []
+    prose_buffer: List[str] = []
+    pending_bullet_index: Optional[int] = None
+
+    def flush_prose() -> None:
+        if prose_buffer:
+            output.append(clean_text(" ".join(prose_buffer)))
+            prose_buffer.clear()
+
+    def add_break() -> None:
+        nonlocal pending_bullet_index
+        if output and output[-1] != "":
+            output.append("")
+        pending_bullet_index = None
+
+    for raw_line in text.split("\n"):
+        if not raw_line.strip():
+            flush_prose()
+            add_break()
+            continue
+
+        for split_line in _split_glued_heading(raw_line):
+            stripped = re.sub(r"\s+", " ", split_line.strip())
+            category = _section_category(stripped)
+            if category:
+                flush_prose()
+                add_break()
+                output.append(f"**{_plain_markdown(stripped)}**")
+                add_break()
+                continue
+
+            bold_bullet_match = re.match(r"^\s*\*{2,}[•-]\s*(.+?)\*{2,}\s*$", split_line)
+            bullet_match = re.match(r"^\s*(?:[-*•]|\d+[.)])\s+(.+)$", split_line)
+            was_indented = bool(re.match(r"^\s{2,}\S", split_line))
+            if bold_bullet_match or bullet_match or was_indented:
+                flush_prose()
+                content = (
+                    bold_bullet_match.group(1)
+                    if bold_bullet_match
+                    else bullet_match.group(1)
+                    if bullet_match
+                    else split_line.strip()
+                )
+                content = re.sub(r"\s+", " ", content).strip()
+                pending_text = output[pending_bullet_index] if pending_bullet_index is not None else ""
+                pending_plain = _plain_markdown(pending_text).lower()
+                if (
+                    was_indented
+                    and pending_bullet_index is not None
+                    and len(_plain_markdown(pending_text)) < 80
+                    and not re.search(r"[.!?;:]\s*$", pending_text.strip())
+                    and (
+                        re.search(r"(?:\bat least|\bof|\bwith|\bin|\bincluding|\bsuch as|\band|\bor|\bthe|\ba|\ban|\bto|\bfor)\s*$", pending_plain)
+                        or re.match(r"^(?:of|with|in|including|and|or|to|for)\b", _plain_markdown(content), re.I)
+                    )
+                ):
+                    output[pending_bullet_index] = f"{pending_text} {content}"
+                    continue
+                if content:
+                    output.append(f"- {content}")
+                    pending_bullet_index = len(output) - 1
+                continue
+
+            if pending_bullet_index is not None:
+                output[pending_bullet_index] = f"{output[pending_bullet_index]} {stripped}"
+            else:
+                prose_buffer.append(stripped)
+
+    flush_prose()
+    normalized = "\n".join(output)
+    normalized = re.sub(r"\n{3,}", "\n\n", normalized).strip()
+    normalized = re.sub(r"(?m)(^-\s+[^\n]+)\n\n(?=-\s+)", r"\1\n", normalized)
+    normalized = re.sub(r"(?<=[A-Za-z0-9):])\*\*(?=[A-Za-z0-9])", "** ", normalized)
+    return normalized
+
+
+def is_placeholder_section(value: Optional[str]) -> bool:
+    if not value:
+        return True
+    lowered = _plain_markdown(value).lower()
+    return lowered in {
+        _plain_markdown(RESPONSIBILITIES_FALLBACK).lower(),
+        _plain_markdown(REQUIREMENTS_FALLBACK).lower(),
+    }
+
+
+def parse_description_sections(description: str) -> Dict[str, Optional[str]]:
+    """Classify only real, line-level job section headings.
+
+    A word such as ``requirements`` inside prose is never a boundary. When a
+    source has no substantial overview, the full normalized posting remains in
+    the description and the two required DB columns receive hidden sentinels;
+    the UI omits those sentinels instead of showing duplicate "see above" cards.
+    """
+    normalized = normalize_description_text(description)
+    if len(_plain_markdown(normalized)) < 40:
+        return {
+            "description": None,
+            "key_responsibilities": None,
+            "requirements": None,
+            "nice_to_have": None,
+        }
+
+    buckets: Dict[str, List[str]] = {
+        "overview": [],
+        "responsibilities": [],
+        "requirements": [],
+        "preferred": [],
+    }
+    active = "overview"
+
+    for line in normalized.splitlines():
+        if _IGNORE_PROSE_START.match(_plain_markdown(line)):
+            active = "ignore"
+            continue
+        category = _section_category(line)
+        if category:
+            if category == "ignore":
+                active = "ignore"
+                continue
+            if category == "overview":
+                # Preamble before an explicit role overview is usually the
+                # duplicate title/location card or generic company marketing.
+                # Prefer the role-specific overview that follows the header.
+                buckets["overview"] = []
+                active = "overview"
+                continue
+            # Keep secondary same-category headers because labels such as
+            # "Tools & Technologies" make a long requirements section easier
+            # to scan. The first outer heading is already represented by UI.
+            if active == category and buckets[category]:
+                buckets[category].extend(["", f"**{_plain_markdown(line)}**", ""])
+            active = category
+            continue
+        if active != "ignore":
+            buckets[active].append(line)
+
+    def cleaned(name: str) -> str:
+        value = "\n".join(buckets[name])
+        value = re.sub(r"^\s+|\s+$", "", value)
+        return re.sub(r"\n{3,}", "\n\n", value)
+
+    overview = cleaned("overview")
+    responsibilities = cleaned("responsibilities")
+    requirements = cleaned("requirements")
+    preferred = cleaned("preferred")
+
+    # A title or one-line fragment is not an honest standalone role overview.
+    # In that case render the complete source text once and hide the redundant
+    # DB-required sibling sections.
+    if len(_plain_markdown(overview)) < 100:
+        return {
+            "description": normalized,
+            "key_responsibilities": RESPONSIBILITIES_FALLBACK,
+            "requirements": REQUIREMENTS_FALLBACK,
+            "nice_to_have": None,
+        }
+
+    return {
+        "description": overview,
+        "key_responsibilities": responsibilities if len(_plain_markdown(responsibilities)) >= 20 else RESPONSIBILITIES_FALLBACK,
+        "requirements": requirements if len(_plain_markdown(requirements)) >= 20 else REQUIREMENTS_FALLBACK,
+        "nice_to_have": preferred if len(_plain_markdown(preferred)) >= 20 else None,
+    }
 
 
 def split_description(description: str, title: str, company: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """Split a scraped description into overview/responsibilities/requirements.
-
-    Never slices at a fixed character offset — that cuts words in half and
-    produces nonsense fragments. Only splits at real section headers found
-    in the text; otherwise the whole (cleaned) text becomes the overview and
-    responsibilities/requirements get an honest static pointer back to it.
-    Returns (None, None, None) when there is no real content to publish —
-    callers must skip the job rather than fabricate filler text, since a
-    fabricated listing is worse than no listing on a curated board.
-    """
-    description = clean_text(description)
-    if len(description) < 40:
-        return _NO_REAL_CONTENT
-
-    resp_match = _RESPONSIBILITIES_HEADER.search(description)
-    req_match = _REQUIREMENTS_HEADER.search(description)
-
-    # Only trust the requirements header if it comes after the responsibilities
-    # header (or there's no responsibilities header at all) — otherwise we've
-    # likely matched a stray earlier mention of the word.
-    if resp_match and req_match and req_match.start() <= resp_match.start():
-        req_match = _REQUIREMENTS_HEADER.search(description, resp_match.end())
-
-    def _trim_markdown_edges(value: str) -> str:
-        return re.sub(r"^[\s*_#:\-–—•]+|[\s*_#:\-–—•]+$", "", value).strip()
-
-    if resp_match and req_match and req_match.start() > resp_match.start():
-        job_description = _trim_markdown_edges(description[: resp_match.start()])
-        key_responsibilities = _trim_markdown_edges(description[resp_match.end(): req_match.start()])
-        requirements = _trim_markdown_edges(description[req_match.end():])
-        if len(job_description) >= 40 and len(key_responsibilities) >= 20 and len(requirements) >= 20:
-            return job_description, key_responsibilities, requirements
-
-    # No reliable section split found — keep the full text intact rather
-    # than guessing at a character offset, and label the other fields
-    # honestly instead of stuffing them with a mid-word fragment.
-    return (
-        description,
-        "See the full role overview above for day-to-day responsibilities.",
-        "See the full role overview above for required qualifications.",
-    )
+    """Backward-compatible three-field wrapper for older callers."""
+    sections = parse_description_sections(description)
+    return sections["description"], sections["key_responsibilities"], sections["requirements"]
 
 
 def parse_salary(text: Optional[str]) -> Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]:
+    """Parse only amounts tied to explicit currency and pay context.
+
+    The old implementation grabbed the first two numbers from any line that
+    happened to contain the word "salary". On real postings that turned
+    "7+ years" and "Section 508" into a $7-$508 annual salary when the salary
+    paragraph contained no amount at all.
+    """
     if not text:
         return None, None, None, None
 
-    text = text.replace(",", "").strip()
+    text = html.unescape(strip_html(text)).strip()
     lower = text.lower()
-    salary_markers = [
-        "salary",
-        "compensation",
-        "pay",
-        "range",
-        "hourly",
-        "annual",
-        "per hour",
-        "per day",
-        "per year",
-        "/hr",
-        "/day",
-        "/yr",
-        "/year",
-        "usd",
-        "cad",
-        "eur",
-        "gbp",
-        "inr",
-        "$",
-        "£",
-        "€",
-        "₹",
-    ]
-    if not any(marker in lower for marker in salary_markers):
+    context_matches = list(re.finditer(r"\b(?:base salary|salary|compensation|pay range|base pay)\b", lower))
+    has_pay_unit = bool(re.search(r"(?:/|per\s+)(?:hour|hr|day|month|year|yr)\b|\bhourly\b|\bannual(?:ly)?\b", lower))
+    if not context_matches and not has_pay_unit:
         return None, None, None, None
 
+    # Look close to a pay marker rather than scanning the whole job body. The
+    # shortest valid window wins, which also avoids unrelated dates and years.
+    windows: List[str] = []
+    for match in context_matches:
+        windows.append(text[max(0, match.start() - 80): min(len(text), match.end() + 260)])
+    if not windows:
+        windows.append(text[:400])
+
+    currency_pattern = re.compile(r"[$£€₹]|\b(?:USD|CAD|EUR|GBP|AUD|INR|JPY|CNY)\b", re.I)
+    amount_pattern = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)([kK]?)(?![\w.])")
+
+    chosen_window = ""
+    chosen_numbers: List[int] = []
+    for window in windows:
+        if not currency_pattern.search(window):
+            continue
+        numbers: List[int] = []
+        currency_match = currency_pattern.search(window)
+        amount_region = window[max(0, currency_match.start() - 20):] if currency_match else window
+        amount_matches = list(amount_pattern.finditer(amount_region))
+        for index, amount_match in enumerate(amount_matches):
+            if index > 0:
+                previous = amount_matches[index - 1]
+                separator = amount_region[previous.end():amount_match.start()]
+                if not re.search(r"(?:-|–|—|\bto\b)", separator, re.I):
+                    break
+            raw, suffix = amount_match.group(1), amount_match.group(2)
+            value = float(raw.replace(",", ""))
+            if suffix:
+                value *= 1000
+            numbers.append(int(round(value)))
+            if len(numbers) == 2:
+                break
+        if numbers:
+            chosen_window = window
+            chosen_numbers = numbers
+            break
+
+    if not chosen_numbers:
+        return None, None, None, None
+
+    window_lower = chosen_window.lower()
     currency = None
-    if "£" in text:
+    first_currency = currency_pattern.search(chosen_window)
+    currency_token = first_currency.group(0).upper() if first_currency else ""
+    if currency_token in {"£", "GBP"}:
         currency = "GBP"
-    elif "€" in text:
+    elif currency_token in {"€", "EUR"}:
         currency = "EUR"
-    elif "₹" in text:
+    elif currency_token in {"₹", "INR"}:
         currency = "INR"
-    elif "$" in text:
+    elif currency_token == "CAD":
+        currency = "CAD"
+    elif currency_token == "AUD":
+        currency = "AUD"
+    elif currency_token == "JPY":
+        currency = "JPY"
+    elif currency_token == "CNY":
+        currency = "CNY"
+    elif currency_token in {"$", "USD"}:
         currency = "USD"
 
     salary_type = None
-    if "/hr" in lower or "per hour" in lower or "hourly" in lower:
+    if re.search(r"/\s*(?:hr|hour)\b|per\s+hour\b|\bhourly\b", window_lower):
         salary_type = "hourly"
-    elif "per day" in lower or "/day" in lower:
+    elif re.search(r"/\s*day\b|per\s+day\b", window_lower):
         salary_type = "daily"
-    elif "per year" in lower or "/yr" in lower or "/year" in lower or "annual" in lower:
+    elif re.search(r"/\s*month\b|per\s+month\b|\bmonthly\b", window_lower):
+        salary_type = "monthly"
+    elif re.search(r"/\s*(?:yr|year)\b|per\s+year\b|\bannual(?:ly)?\b|per-year", window_lower):
         salary_type = "annual"
-    elif "project" in lower:
+    elif "project" in window_lower:
         salary_type = "project"
-    elif currency or "salary" in lower or "compensation" in lower:
+    elif min(chosen_numbers) >= 10000:
         salary_type = "annual"
 
-    matches = re.findall(r"\d+(?:\.\d+)?", text)
-    numbers = [int(float(m)) for m in matches] if matches else []
+    # Small values without an explicit unit are not safely distinguishable
+    # from years, dates or benefit figures, so omit them instead of guessing.
+    if not salary_type:
+        return None, None, None, None
 
-    if not numbers:
-        return None, None, currency, salary_type
+    if len(chosen_numbers) == 1:
+        return chosen_numbers[0], chosen_numbers[0], currency, salary_type
 
-    if len(numbers) == 1:
-        return numbers[0], numbers[0], currency, salary_type
+    return min(chosen_numbers[0], chosen_numbers[1]), max(chosen_numbers[0], chosen_numbers[1]), currency, salary_type
 
-    return min(numbers[0], numbers[1]), max(numbers[0], numbers[1]), currency, salary_type
+
+def parse_jsonld_salary(jsonld: Dict[str, Any]) -> Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]:
+    base_salary = jsonld.get("baseSalary")
+    if not isinstance(base_salary, dict):
+        return None, None, None, None
+
+    currency = str(base_salary.get("currency") or "").upper() or None
+    value = base_salary.get("value")
+    if isinstance(value, (int, float, str)):
+        try:
+            amount = int(round(float(value)))
+        except (TypeError, ValueError):
+            return None, None, None, None
+        return amount, amount, currency, "annual"
+    if not isinstance(value, dict):
+        return None, None, None, None
+
+    raw_min = value.get("minValue", value.get("value"))
+    raw_max = value.get("maxValue", value.get("value"))
+    try:
+        minimum = int(round(float(raw_min))) if raw_min is not None else None
+        maximum = int(round(float(raw_max))) if raw_max is not None else None
+    except (TypeError, ValueError):
+        return None, None, None, None
+    if minimum is None and maximum is None:
+        return None, None, None, None
+    if minimum is None:
+        minimum = maximum
+    if maximum is None:
+        maximum = minimum
+
+    unit = str(value.get("unitText") or base_salary.get("unitText") or "YEAR").upper()
+    salary_type = {
+        "HOUR": "hourly",
+        "DAY": "daily",
+        "MONTH": "monthly",
+        "YEAR": "annual",
+    }.get(unit, "annual")
+    return minimum, maximum, currency, salary_type
+
+
+def format_salary_evidence(
+    minimum: Optional[int],
+    maximum: Optional[int],
+    currency: Optional[str],
+    salary_type: Optional[str],
+) -> Optional[str]:
+    if minimum is None and maximum is None:
+        return None
+    minimum = minimum if minimum is not None else maximum
+    maximum = maximum if maximum is not None else minimum
+    if minimum is None or maximum is None:
+        return None
+    unit = {
+        "annual": "year",
+        "monthly": "month",
+        "hourly": "hour",
+        "daily": "day",
+        "project": "project",
+    }.get(salary_type or "", salary_type or "")
+    amount = f"{minimum:,}" if minimum == maximum else f"{minimum:,} - {maximum:,}"
+    prefix = currency or ""
+    suffix = f" / {unit}" if unit else ""
+    return f"{prefix} {amount}{suffix}".strip()
 
 
 def valid_email(email: str) -> bool:
@@ -529,16 +858,21 @@ def validate_salary(min_val: Optional[int], max_val: Optional[int], salary_type:
         return "Salary cannot be negative"
     if max_val < min_val:
         return "Salary max below min"
+    if not salary_type:
+        return "Salary type missing"
 
     if salary_type == "hourly":
-        if max_val > 1000:
-            return "Hourly salary exceeds 1000"
+        if min_val <= 0 or max_val > 1000:
+            return "Hourly salary outside plausible range"
     elif salary_type == "daily":
-        if max_val > 5000:
-            return "Daily salary exceeds 5000"
-    else:
-        if max_val > 2000000:
-            return "Annual salary exceeds 2,000,000"
+        if min_val <= 0 or max_val > 5000:
+            return "Daily salary outside plausible range"
+    elif salary_type == "monthly":
+        if min_val < 100 or max_val > 200000:
+            return "Monthly salary outside plausible range"
+    elif salary_type == "annual":
+        if min_val < 10000 or max_val > 2000000:
+            return "Annual salary outside plausible range"
     return None
 
 
@@ -552,7 +886,10 @@ def sql_literal(value: Any) -> str:
     if isinstance(value, (datetime, date)):
         return "'" + value.isoformat() + "'"
     text = str(value)
-    text = text.replace("\\", "\\\\").replace("'", "''")
+    # PostgreSQL runs with standard_conforming_strings=on, so backslashes are
+    # ordinary data. Escaping them doubled JSON/markdown backslashes in stored
+    # content; only single quotes need SQL-literal escaping here.
+    text = text.replace("'", "''")
     return "'" + text + "'"
 
 
@@ -623,7 +960,11 @@ _SKILL_KEYWORDS = [
     "JavaScript", "assistive technology", "usability", "disability",
     "remediation", "audit", "manual testing", "automated testing",
     "mobile accessibility", "web accessibility", "Section 508", "ADA",
-    "VPAT", "ACR", "accessibility conformance", "TalkBack",
+    "VPAT", "ACR", "accessibility conformance", "TalkBack", "Axe DevTools",
+    "WAVE", "Lighthouse", "ARC Toolkit", "ZoomText", "Dragon", "Selenium",
+    "Playwright", "Figma", "USWDS", "Angular", "React", "TypeScript",
+    "Node.js", "PostgreSQL", "JIRA", "Drupal", "keyboard accessibility",
+    "PDF accessibility", "document accessibility", "AODA",
 ]
 _SKILL_PATTERNS = [
     (skill, re.compile(r"\b" + re.escape(skill) + r"\b", re.I))
@@ -634,8 +975,12 @@ _SKILL_PATTERNS = [
 def extract_skills(text: str) -> List[str]:
     if not text:
         return []
-    found = [skill for skill, pattern in _SKILL_PATTERNS if pattern.search(text)]
-    return list(sorted(set(found)))
+    analysis_text = _plain_markdown(text)
+    found: List[str] = []
+    for skill, pattern in _SKILL_PATTERNS:
+        if pattern.search(analysis_text) and skill not in found:
+            found.append(skill)
+    return found
 
 
 # Case-sensitive and word-bounded on purpose: "WAS" and "ADS" are real
@@ -658,9 +1003,9 @@ def extract_certifications(text: str) -> List[str]:
 
 
 _BENEFIT_KEYWORDS = [
-    ("Health insurance", re.compile(r"health insurance|medical insurance", re.I), "health_insurance"),
-    ("Dental insurance", re.compile(r"\bdental\b", re.I), None),
-    ("Vision insurance", re.compile(r"\bvision\b", re.I), None),
+    ("Health coverage", re.compile(r"health (?:insurance|coverage|benefits)|medical (?:insurance|coverage)|HMO coverage", re.I), "health_insurance"),
+    ("Dental insurance", re.compile(r"dental (?:insurance|coverage|benefits)", re.I), None),
+    ("Vision insurance", re.compile(r"vision (?:insurance|coverage|benefits)", re.I), None),
     ("Retirement plan", re.compile(r"401\(?k\)?|retirement plan", re.I), "retirement"),
     ("Paid time off", re.compile(r"paid time off|\bPTO\b|paid vacation", re.I), None),
     ("Parental leave", re.compile(r"parental leave|family leave", re.I), None),
@@ -668,6 +1013,7 @@ _BENEFIT_KEYWORDS = [
     ("Tuition assistance", re.compile(r"tuition (assistance|reimbursement)|college coaching", re.I), "professional_development"),
     ("Wellness programs", re.compile(r"wellness program|mental health support", re.I), None),
     ("Disability insurance", re.compile(r"disability insurance", re.I), None),
+    ("Life insurance", re.compile(r"life insurance", re.I), None),
 ]
 
 
@@ -677,8 +1023,9 @@ def extract_benefits(text: str) -> Tuple[List[str], Dict[str, bool]]:
         return [], {}
     found: List[str] = []
     flags: Dict[str, bool] = {}
+    analysis_text = _plain_markdown(text)
     for label, pattern, flag in _BENEFIT_KEYWORDS:
-        if pattern.search(text):
+        if pattern.search(analysis_text):
             found.append(label)
             if flag:
                 flags[flag] = True
@@ -690,8 +1037,9 @@ _WORD_NUMBERS = {
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
 }
 _EXPERIENCE_RE = re.compile(
-    r"\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\+?\s*(?:\(\d+\)\s*)?years?\s+"
-    r"(?:of\s+)?(?:related\s+|relevant\s+|professional\s+|direct\s+)?experience\b",
+    r"\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)"
+    r"(?:\s*[-–—]\s*\d+)?\+?\s*(?:\(\d+\)\s*)?years?\s+"
+    r"(?:of\s+)?(?:[A-Za-z][A-Za-z/&-]*\s+){0,4}experience\b",
     re.I,
 )
 
@@ -702,7 +1050,7 @@ def extract_experience(text: str) -> Optional[str]:
     # Require "experience" to follow within a few words — a bare "N years"
     # matches unrelated things like "six years of creditable service" for
     # veteran status, which has nothing to do with the job's experience bar.
-    match = _EXPERIENCE_RE.search(text)
+    match = _EXPERIENCE_RE.search(_plain_markdown(text))
     if not match:
         return None
     raw = match.group(1).lower()
@@ -725,10 +1073,10 @@ def extract_experience(text: str) -> Optional[str]:
 def extract_education(text: str) -> Optional[str]:
     if not text:
         return None
-    lower = text.lower()
+    lower = _plain_markdown(text).lower()
     if "phd" in lower or "doctorate" in lower:
         return "phd"
-    if re.search(r"master'?s?\b", lower):
+    if re.search(r"(?:master'?s?\s+degree|master\s+of\s+)", lower):
         return "master"
     if re.search(r"bachelor'?s?\b", lower):
         return "bachelor"
@@ -737,6 +1085,62 @@ def extract_education(text: str) -> Optional[str]:
     if "high school" in lower:
         return "high-school"
     return None
+
+
+_ASSISTIVE_TECH_NAMES = ["JAWS", "NVDA", "VoiceOver", "TalkBack", "ZoomText", "Dragon"]
+_ACCESSIBILITY_FOCUS_PATTERNS = [
+    ("web", re.compile(r"\bweb(?:site| application| content| accessibility)?\b", re.I)),
+    ("mobile", re.compile(r"\bmobile\b|\biOS\b|\bAndroid\b", re.I)),
+    ("documents", re.compile(r"\bdocuments?\b|\bPDFs?\b|\bWord\b|\bPowerPoint\b", re.I)),
+    ("design", re.compile(r"inclusive design|accessible design|\bUX\b|\bUI\b", re.I)),
+    ("testing", re.compile(r"accessibility testing|manual testing|automated testing", re.I)),
+]
+
+
+def extract_wcag_level(text: str) -> Optional[str]:
+    analysis_text = _plain_markdown(text)
+    for version in ["3.0", "2.2", "2.1", "2.0"]:
+        if re.search(rf"\bWCAG\s*{re.escape(version)}\b", analysis_text, re.I):
+            return f"wcag-{version}"
+    return None
+
+
+def extract_assistive_tech(text: str) -> List[str]:
+    analysis_text = _plain_markdown(text)
+    return [name for name in _ASSISTIVE_TECH_NAMES if re.search(r"\b" + re.escape(name) + r"\b", analysis_text, re.I)]
+
+
+def extract_accessibility_focus(text: str) -> List[str]:
+    analysis_text = _plain_markdown(text)
+    return [label for label, pattern in _ACCESSIBILITY_FOCUS_PATTERNS if pattern.search(analysis_text)]
+
+
+def extract_structured_fields(full_text: str, sections: Dict[str, Optional[str]]) -> Dict[str, Any]:
+    responsibilities = sections.get("key_responsibilities") or ""
+    requirements = sections.get("requirements") or ""
+    preferred_text = sections.get("nice_to_have") or ""
+
+    if is_placeholder_section(requirements):
+        required_context = full_text
+    else:
+        required_context = f"{requirements}\n{responsibilities}"
+
+    required_skills = extract_skills(required_context)
+    preferred_skills = [skill for skill in extract_skills(preferred_text) if skill not in required_skills]
+    benefits, benefit_flags = extract_benefits(full_text)
+
+    return {
+        "required_skills": required_skills,
+        "preferred_skills": preferred_skills,
+        "required_certifications": extract_certifications(full_text),
+        "years_experience": extract_experience(full_text),
+        "education_level": extract_education(full_text),
+        "benefits": benefits,
+        "benefit_flags": benefit_flags,
+        "wcag_level": extract_wcag_level(full_text),
+        "accessibility_focus": extract_accessibility_focus(full_text),
+        "assistive_tech_experience": extract_assistive_tech(full_text),
+    }
 
 
 # --- Tagged (Required)/(Preferred) items — corporate JD template ----------
@@ -837,7 +1241,7 @@ def normalize_external_content(text: str) -> str:
         soup = BeautifulSoup(text, "html.parser")
         for tag in soup(["script", "style", "noscript"]):
             tag.decompose()
-        visible_text = clean_text(soup.get_text(" ", strip=True))
+        visible_text = normalize_description_text(soup.get_text("\n", strip=True))
         if len(visible_text) >= 200:
             text = visible_text
         else:
@@ -854,9 +1258,9 @@ def normalize_external_content(text: str) -> str:
                 meta_tag = soup.find("meta", attrs=attrs)
                 if meta_tag and meta_tag.get("content"):
                     meta_parts.append(clean_text(meta_tag["content"]))
-            text = clean_text(" ".join(part for part in meta_parts if part))
+            text = normalize_description_text("\n\n".join(part for part in meta_parts if part))
 
-    return clean_text(strip_html(text))
+    return normalize_description_text(strip_html(text))
 
 
 def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[str], str]:
@@ -968,7 +1372,12 @@ def extract_salary_text(soup: BeautifulSoup) -> Optional[str]:
             continue
         if not re.search(r"salary|compensation|pay range", cleaned, re.I):
             continue
-        if not re.search(r"[$£€₹]|\b(?:USD|CAD|EUR|GBP|INR)\b|\d", cleaned):
+        # A pay word plus arbitrary digits is not evidence: descriptions often
+        # mention years of experience, WCAG 2.2 or Section 508 near a generic
+        # compensation paragraph. Require an explicit currency marker.
+        if not re.search(r"[$£€₹]|\b(?:USD|CAD|EUR|GBP|AUD|INR|JPY|CNY)\b", cleaned, re.I):
+            continue
+        if not re.search(r"\d", cleaned):
             continue
         candidates.append(cleaned)
 
@@ -1014,7 +1423,7 @@ def _strip_page_chrome(text: str) -> str:
 
 
 def extract_best_description(soup: BeautifulSoup, jsonld: Dict[str, Any]) -> str:
-    jsonld_description = clean_text(strip_html(str(jsonld.get("description") or "")))
+    jsonld_description = normalize_description_text(strip_html(str(jsonld.get("description") or "")))
 
     # Structured JSON-LD description is authored by the source site to
     # describe just the job — trust it over a raw container scrape whenever
@@ -1031,7 +1440,7 @@ def extract_best_description(soup: BeautifulSoup, jsonld: Dict[str, Any]) -> str
     for node in content_nodes:
         if not node:
             continue
-        candidate = _strip_page_chrome(clean_text(node.get_text(" ", strip=True)))
+        candidate = _strip_page_chrome(normalize_description_text(node.get_text("\n", strip=True)))
         if len(candidate) > len(page_description):
             page_description = candidate
 
@@ -1102,23 +1511,16 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     apply_url = extract_apply_url(soup, url, jsonld)
     description = extract_best_description(soup, jsonld)
 
-    # Structured fields are mined from the FULL untrimmed text — some real
-    # signal (e.g. an "Education and Experience" section) can appear after
-    # an earlier boilerplate marker, so trimming first would lose it.
-    tagged_required, tagged_preferred = extract_tagged_items(description)
-    bullet_items = extract_bullet_items(description) if not tagged_required else []
-    required_skills_list = tagged_required or bullet_items
-    required_certifications_list = extract_certifications(description)
-    years_experience = extract_experience(description)
-    education_level = extract_education(description)
-    benefits_list, benefit_flags = extract_benefits(description)
-
     # The visible description/responsibilities/requirements DO drop the
     # universal trailing EEO/legal boilerplate — it carries no decision
     # value for someone browsing the board.
     display_description = trim_legal_boilerplate(description)
 
-    job_description, key_responsibilities, requirements = split_description(display_description, title, company)
+    sections = parse_description_sections(display_description)
+    job_description = sections["description"]
+    key_responsibilities = sections["key_responsibilities"]
+    requirements = sections["requirements"]
+    nice_to_have = sections["nice_to_have"]
     if not job_description:
         # No real description could be recovered — skip rather than publish
         # fabricated filler text under this job's title/company.
@@ -1139,7 +1541,22 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
 
     contact_email = extract_contact_email(description) or None
 
-    salary_min, salary_max, currency, salary_type = parse_salary(salary_text)
+    salary_min, salary_max, currency, salary_type = parse_jsonld_salary(jsonld)
+    if validate_salary(salary_min, salary_max, salary_type):
+        salary_min, salary_max, currency, salary_type = None, None, None, None
+    if salary_min is None and salary_max is None:
+        salary_min, salary_max, currency, salary_type = parse_salary(salary_text)
+    if salary_min is None and salary_max is None:
+        salary_text = None
+    else:
+        salary_text = format_salary_evidence(salary_min, salary_max, currency, salary_type)
+
+    structured = extract_structured_fields(description, sections)
+    benefits_list = structured["benefits"]
+    benefit_flags = structured["benefit_flags"]
+    required_skills_list = structured["required_skills"]
+    preferred_skills_list = structured["preferred_skills"]
+    required_certifications_list = structured["required_certifications"]
 
     company_website = extract_company_website(soup, hiring_org)
 
@@ -1167,20 +1584,20 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
         "salary_type": salary_type,
         "equity_offered": None,
         "bonus_structure": None,
-        "years_experience": years_experience,
-        "education_level": education_level,
-        "required_certifications": json.dumps(required_certifications_list) if required_certifications_list else None,
+        "years_experience": structured["years_experience"],
+        "education_level": structured["education_level"],
+        "required_certifications": json.dumps(required_certifications_list, ensure_ascii=False) if required_certifications_list else None,
         "preferred_certifications": None,
-        "required_skills": json.dumps(required_skills_list[:15]) if required_skills_list else None,
-        "preferred_skills": json.dumps(tagged_preferred[:15]) if tagged_preferred else None,
-        "wcag_level": None,
-        "accessibility_focus": None,
-        "assistive_tech_experience": None,
+        "required_skills": json.dumps(required_skills_list[:15], ensure_ascii=False) if required_skills_list else None,
+        "preferred_skills": json.dumps(preferred_skills_list[:15], ensure_ascii=False) if preferred_skills_list else None,
+        "wcag_level": structured["wcag_level"],
+        "accessibility_focus": json.dumps(structured["accessibility_focus"], ensure_ascii=False) if structured["accessibility_focus"] else None,
+        "assistive_tech_experience": json.dumps(structured["assistive_tech_experience"], ensure_ascii=False) if structured["assistive_tech_experience"] else None,
         "description": job_description,
         "key_responsibilities": key_responsibilities,
         "requirements": requirements,
-        "nice_to_have": None,
-        "benefits": json.dumps(benefits_list) if benefits_list else None,
+        "nice_to_have": nice_to_have,
+        "benefits": json.dumps(benefits_list, ensure_ascii=False) if benefits_list else None,
         "professional_development": benefit_flags.get("professional_development"),
         "health_insurance": benefit_flags.get("health_insurance"),
         "retirement": benefit_flags.get("retirement"),
@@ -1230,16 +1647,20 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
 
     if content:
         content = normalize_external_content(content)
+        external_sections = parse_description_sections(content)
         if (
             not job.get("description")
             or len(job.get("description") or "") < 100
             or len(job.get("key_responsibilities") or "") < 50
             or len(job.get("requirements") or "") < 50
+            or is_placeholder_section(job.get("key_responsibilities"))
+            or is_placeholder_section(job.get("requirements"))
         ):
-            job_description, key_responsibilities, requirements = split_description(content, job.get("title") or "", job.get("company") or "")
-            job["description"] = job_description
-            job["key_responsibilities"] = key_responsibilities
-            job["requirements"] = requirements
+            if external_sections.get("description"):
+                job["description"] = external_sections["description"]
+                job["key_responsibilities"] = external_sections["key_responsibilities"]
+                job["requirements"] = external_sections["requirements"]
+                job["nice_to_have"] = external_sections["nice_to_have"]
         if not job.get("contact_email"):
             job["contact_email"] = extract_contact_email(content)
         if not job.get("salary_range"):
@@ -1249,9 +1670,11 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
                 job["salary_max"] = salary_max
                 job["currency"] = currency
                 job["salary_type"] = salary_type
+        structured = extract_structured_fields(content, external_sections)
         if not job.get("benefits"):
-            benefits_list, benefit_flags = extract_benefits(content)
-            job["benefits"] = json.dumps(benefits_list) if benefits_list else None
+            benefits_list = structured["benefits"]
+            benefit_flags = structured["benefit_flags"]
+            job["benefits"] = json.dumps(benefits_list, ensure_ascii=False) if benefits_list else None
             if benefit_flags.get("health_insurance") and not job.get("health_insurance"):
                 job["health_insurance"] = True
             if benefit_flags.get("retirement") and not job.get("retirement"):
@@ -1259,18 +1682,24 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
             if benefit_flags.get("professional_development") and not job.get("professional_development"):
                 job["professional_development"] = True
         if not job.get("required_skills"):
-            tagged_required, tagged_preferred = extract_tagged_items(content)
-            items = tagged_required or extract_bullet_items(content) or extract_skills(content)
-            job["required_skills"] = json.dumps(items[:15]) if items else None
-            if tagged_preferred:
-                job["preferred_skills"] = json.dumps(tagged_preferred[:15])
+            items = structured["required_skills"]
+            preferred_items = structured["preferred_skills"]
+            job["required_skills"] = json.dumps(items[:15], ensure_ascii=False) if items else None
+            if preferred_items:
+                job["preferred_skills"] = json.dumps(preferred_items[:15], ensure_ascii=False)
         if not job.get("required_certifications"):
-            certs = extract_certifications(content)
-            job["required_certifications"] = json.dumps(certs) if certs else None
+            certs = structured["required_certifications"]
+            job["required_certifications"] = json.dumps(certs, ensure_ascii=False) if certs else None
         if not job.get("years_experience"):
-            job["years_experience"] = extract_experience(content)
+            job["years_experience"] = structured["years_experience"]
         if not job.get("education_level"):
-            job["education_level"] = extract_education(content)
+            job["education_level"] = structured["education_level"]
+        if not job.get("wcag_level"):
+            job["wcag_level"] = structured["wcag_level"]
+        if not job.get("accessibility_focus") and structured["accessibility_focus"]:
+            job["accessibility_focus"] = json.dumps(structured["accessibility_focus"], ensure_ascii=False)
+        if not job.get("assistive_tech_experience") and structured["assistive_tech_experience"]:
+            job["assistive_tech_experience"] = json.dumps(structured["assistive_tech_experience"], ensure_ascii=False)
 
     job["additional_notes"] = f"enrichment_source={source_used}" if source_used != "none" else None
     return job
@@ -1356,12 +1785,37 @@ def validate_record(record: Dict[str, Any]) -> List[str]:
     key_resp = record.get("key_responsibilities") or ""
     requirements = record.get("requirements") or ""
 
-    if len(re.sub(r"<[^>]*>", "", description).strip()) < 100:
+    if len(_plain_markdown(description)) < 100:
         errors.append("Description too short")
-    if len(re.sub(r"<[^>]*>", "", key_resp).strip()) < 50:
+    if len(_plain_markdown(key_resp)) < 50:
         errors.append("Key responsibilities too short")
-    if len(re.sub(r"<[^>]*>", "", requirements).strip()) < 50:
+    if len(_plain_markdown(requirements)) < 50:
         errors.append("Requirements too short")
+
+    for field_name, value in [("key_responsibilities", key_resp), ("requirements", requirements)]:
+        if is_placeholder_section(value):
+            continue
+        plain_value = _plain_markdown(value)
+        if re.match(r"^(?:[,;:]|to apply\b|and\s+|or\s+)", plain_value, re.I):
+            errors.append(f"{field_name} starts mid-sentence")
+
+    for field_name in [
+        "required_skills", "preferred_skills", "required_certifications",
+        "preferred_certifications", "accessibility_focus", "assistive_tech_experience", "benefits",
+    ]:
+        raw_value = record.get(field_name)
+        if not raw_value:
+            continue
+        try:
+            parsed_value = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+        except (TypeError, json.JSONDecodeError):
+            errors.append(f"{field_name} is not valid JSON")
+            continue
+        if not isinstance(parsed_value, list) or any(not isinstance(item, str) for item in parsed_value):
+            errors.append(f"{field_name} must be a JSON string array")
+            continue
+        if field_name in {"required_skills", "preferred_skills"} and any(len(item) > 80 for item in parsed_value):
+            errors.append(f"{field_name} contains sentence-sized item")
 
     if description and not description_is_clean(description):
         errors.append("Description contains junk text")

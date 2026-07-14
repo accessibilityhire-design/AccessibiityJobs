@@ -20,13 +20,20 @@ function colorFromString(input: string) {
 
 export function JobCard({ job }: JobCardProps) {
     const formatSalary = () => {
+        const suffix = job.salaryType === 'hourly'
+            ? '/hr'
+            : job.salaryType === 'daily'
+            ? '/day'
+            : job.salaryType === 'monthly'
+            ? '/mo'
+            : '';
         if (job.salaryMin && job.salaryMax) {
             if (job.salaryMin === job.salaryMax) {
-                return `$${job.salaryMin.toLocaleString()}`;
+                return `$${job.salaryMin.toLocaleString()}${suffix}`;
             }
             const fmt = (n: number) =>
                 n >= 1000 ? `$${Math.round(n / 1000)}k` : `$${n.toLocaleString()}`;
-            return `${fmt(job.salaryMin)}–${fmt(job.salaryMax)}`;
+            return `${fmt(job.salaryMin)}–${fmt(job.salaryMax)}${suffix}`;
         }
         if (job.salaryRange) return job.salaryRange;
         return 'Competitive';

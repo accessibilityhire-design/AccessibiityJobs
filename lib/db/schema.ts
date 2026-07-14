@@ -28,7 +28,7 @@ export const jobs = pgTable('jobs', {
   salaryMin: integer('salary_min'),
   salaryMax: integer('salary_max'),
   currency: varchar('currency', { length: 10 }).default('USD'),
-  salaryType: varchar('salary_type', { length: 50 }), // annual, hourly, daily, project
+  salaryType: varchar('salary_type', { length: 50 }), // annual, monthly, hourly, daily, project
   equityOffered: boolean('equity_offered').default(false),
   bonusStructure: varchar('bonus_structure', { length: 255 }),
   

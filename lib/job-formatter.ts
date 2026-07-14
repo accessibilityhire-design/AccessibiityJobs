@@ -4,6 +4,21 @@
  */
 import sanitize from 'sanitize-html';
 
+const PLACEHOLDER_SECTION_PATTERNS = [
+    /see the full role overview above for day-to-day responsibilities/i,
+    /see the full role overview above for required qualifications/i,
+    /please refer to the original job posting/i,
+    /full description (?:was|is) not available/i,
+];
+
+/** DB columns are non-null, so the scraper uses sentinels when a source does
+ * not provide a separate section. Keep those internal sentinels off the page
+ * and out of JobPosting structured data. */
+export function hasMeaningfulJobSection(text: string | null | undefined): boolean {
+    if (!text || text.trim().length < 20) return false;
+    return !PLACEHOLDER_SECTION_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 /**
  * Sanitize HTML to a strict allowlist. Job descriptions come from public
  * submissions and third-party scrapes — never trust their markup.

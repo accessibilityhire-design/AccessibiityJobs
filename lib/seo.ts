@@ -1,7 +1,7 @@
 import { Job } from './db/schema';
 import { jobValidThrough } from './constants/jobs';
 import { jobPath } from './slug';
-import { sanitizeJobHtml } from './job-formatter';
+import { hasMeaningfulJobSection, sanitizeJobHtml } from './job-formatter';
 
 /**
  * Serialize structured data for a <script type="application/ld+json"> block.
@@ -30,7 +30,7 @@ export function generateJobStructuredData(job: Job, url: string) {
         ? JSON.parse(job.preferredSkills)
         : job.preferredSkills;
     }
-  } catch (e) {
+  } catch {
     // Ignore parsing errors
   }
 
@@ -40,9 +40,9 @@ export function generateJobStructuredData(job: Job, url: string) {
   const fullDescription = sanitizeJobHtml(
     [
       job.description,
-      job.keyResponsibilities && `\n\nKey Responsibilities:\n${job.keyResponsibilities}`,
-      job.requirements && `\n\nRequirements:\n${job.requirements}`,
-      job.niceToHave && `\n\nNice to Have:\n${job.niceToHave}`,
+      hasMeaningfulJobSection(job.keyResponsibilities) && `\n\nKey Responsibilities:\n${job.keyResponsibilities}`,
+      hasMeaningfulJobSection(job.requirements) && `\n\nRequirements:\n${job.requirements}`,
+      hasMeaningfulJobSection(job.niceToHave) && `\n\nNice to Have:\n${job.niceToHave}`,
     ]
       .filter(Boolean)
       .join('')
@@ -58,7 +58,7 @@ export function generateJobStructuredData(job: Job, url: string) {
   const validThrough = jobValidThrough(job);
 
   // Determine occupational category
-  const occupationalCategory = determineOccupationalCategory(job.title, job.description);
+  const occupationalCategory = determineOccupationalCategory(job.title);
 
   // Determine industry based on job context
   const industry = determineIndustry(job.title, job.description);
@@ -67,7 +67,7 @@ export function generateJobStructuredData(job: Job, url: string) {
   const isRemote = job.type === 'remote' || job.workArrangement === 'remote';
   const isHybrid = job.workArrangement === 'hybrid';
 
-  const jobLocation: any = {
+  const jobLocation: Record<string, unknown> = {
     '@type': 'Place',
     address: {
       '@type': 'PostalAddress',
@@ -80,8 +80,9 @@ export function generateJobStructuredData(job: Job, url: string) {
   };
 
   // Build base salary if available
-  let baseSalary: any = undefined;
+  let baseSalary: Record<string, unknown> | undefined;
   if (job.salaryMin || job.salaryMax) {
+    const salaryType = job.salaryType?.toLowerCase();
     baseSalary = {
       '@type': 'MonetaryAmount',
       currency: job.currency || 'USD',
@@ -95,8 +96,9 @@ export function generateJobStructuredData(job: Job, url: string) {
         } : {
           value: job.salaryMax,
         }),
-        unitText: job.salaryType === 'Hourly' ? 'HOUR' :
-          job.salaryType === 'Monthly' ? 'MONTH' : 'YEAR',
+        unitText: salaryType === 'hourly' ? 'HOUR' :
+          salaryType === 'daily' ? 'DAY' :
+          salaryType === 'monthly' ? 'MONTH' : 'YEAR',
       },
     };
   } else if (job.salaryRange) {
@@ -208,8 +210,8 @@ export function generateJobStructuredData(job: Job, url: string) {
     }),
 
     // Skills - array format
-    ...(requiredSkills.length > 0 && {
-      skills: requiredSkills,
+    ...((requiredSkills.length > 0 || preferredSkills.length > 0) && {
+      skills: [...new Set([...requiredSkills, ...preferredSkills])],
     }),
 
     // Qualifications - text format
@@ -358,9 +360,8 @@ function determineIndustry(title: string, description: string | null): string {
   return 'Technology'; // Default for accessibility roles
 }
 
-function determineOccupationalCategory(title: string, description: string | null): string {
+function determineOccupationalCategory(title: string): string {
   const titleLower = title.toLowerCase();
-  const descLower = (description || '').toLowerCase();
 
   if (titleLower.includes('engineer') || titleLower.includes('developer')) {
     return '15-1132.00'; // Software Developers, Applications

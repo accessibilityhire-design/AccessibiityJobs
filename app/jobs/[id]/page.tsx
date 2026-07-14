@@ -14,7 +14,7 @@ import { jobs } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { generateJobStructuredData, safeJsonLd } from '@/lib/seo';
 import { generateBreadcrumbStructuredData } from '@/lib/seo-config';
-import { formatJobDescription, formatCompanyName, extractPlainText } from '@/lib/job-formatter';
+import { formatJobDescription, formatCompanyName, extractPlainText, hasMeaningfulJobSection } from '@/lib/job-formatter';
 import { extractJobId, jobPath } from '@/lib/slug';
 import { isJobExpired } from '@/lib/constants/jobs';
 import { relatedJobs } from '@/lib/jobs-query';
@@ -191,15 +191,23 @@ export default async function JobDetailPage({ params }: PageProps) {
   const certifications = parseJsonField(job.requiredCertifications);
   const accessibilityFocus = parseJsonField(job.accessibilityFocus);
   const assistiveTech = parseJsonField(job.assistiveTechExperience);
+  const benefits = parseJsonField(job.benefits);
+  const showResponsibilities = hasMeaningfulJobSection(job.keyResponsibilities);
+  const showRequirements = hasMeaningfulJobSection(job.requirements);
 
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.currency);
+  const salaryPeriod = job.salaryType
+    ? ({ annual: 'year', monthly: 'month', hourly: 'hour', daily: 'day', project: 'project' } as Record<string, string>)[job.salaryType.toLowerCase()] || job.salaryType
+    : null;
   const location = job.specificLocation || job.city || job.location || 'Location not specified';
   const workArrangement = job.workArrangement || job.type || 'full-time';
   const sourceConfig = getSourceConfig(job.jobSource);
 
   const showYearsSuffix = !!(job.yearsExperience && !/year/i.test(job.yearsExperience));
   const wcagDisplay = job.wcagLevel
-    ? /^wcag/i.test(job.wcagLevel) ? job.wcagLevel : `WCAG ${job.wcagLevel}`
+    ? /^wcag[-\s]/i.test(job.wcagLevel)
+      ? job.wcagLevel.replace(/^wcag[-\s]*/i, 'WCAG ')
+      : `WCAG ${job.wcagLevel}`
     : null;
 
   const avatarColor = colorFromString(companyName || 'job');
@@ -323,7 +331,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                   <span className="inline-flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-[var(--lime)]" aria-hidden="true" />
                     <span className="font-semibold text-[var(--paper)]">{salary}</span>
-                    {job.salaryType && <span className="text-white/50">/ {job.salaryType}</span>}
+                    {salaryPeriod && <span className="text-white/50">/ {salaryPeriod}</span>}
                   </span>
                 )}
                 <span className="inline-flex items-center gap-2">
@@ -376,7 +384,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               />
             </Section>
 
-            {job.keyResponsibilities && (
+            {showResponsibilities && (
               <Section color="var(--lime)" title="Key responsibilities">
                 <div
                   className="prose prose-slate max-w-none leading-relaxed job-description"
@@ -387,14 +395,16 @@ export default async function JobDetailPage({ params }: PageProps) {
               </Section>
             )}
 
-            <Section color="var(--saffron)" title="Requirements">
-              <div
-                className="prose prose-slate max-w-none leading-relaxed job-description"
-                dangerouslySetInnerHTML={{
-                  __html: formatJobDescription(job.requirements),
-                }}
-              />
-            </Section>
+            {showRequirements && (
+              <Section color="var(--saffron)" title="Requirements">
+                <div
+                  className="prose prose-slate max-w-none leading-relaxed job-description"
+                  dangerouslySetInnerHTML={{
+                    __html: formatJobDescription(job.requirements),
+                  }}
+                />
+              </Section>
+            )}
 
             {job.niceToHave && (
               <Section color="var(--ink-soft)" title="Nice to have">
@@ -636,16 +646,23 @@ export default async function JobDetailPage({ params }: PageProps) {
             </div>
 
             {/* Benefits */}
-            {(job.healthInsurance || job.retirement || job.professionalDevelopment || job.ptoDetails) && (
+            {(benefits.length > 0 || job.healthInsurance || job.retirement || job.professionalDevelopment || job.ptoDetails) && (
               <div className="rounded-2xl border border-[var(--border)] bg-white p-6">
                 <p className="eyebrow">Benefits</p>
                 <h3 className="font-display text-lg font-semibold mt-1 mb-4 text-[var(--ink)]">
                   What&apos;s included
                 </h3>
                 <ul className="space-y-2.5" role="list">
-                  {job.healthInsurance && <BenefitItem>Health insurance</BenefitItem>}
-                  {job.retirement && <BenefitItem>Retirement benefits</BenefitItem>}
-                  {job.professionalDevelopment && (
+                  {benefits.map((benefit) => (
+                    <BenefitItem key={benefit}>{benefit}</BenefitItem>
+                  ))}
+                  {job.healthInsurance && !benefits.some((benefit) => /health/i.test(benefit)) && (
+                    <BenefitItem>Health insurance</BenefitItem>
+                  )}
+                  {job.retirement && !benefits.some((benefit) => /retirement|401/i.test(benefit)) && (
+                    <BenefitItem>Retirement benefits</BenefitItem>
+                  )}
+                  {job.professionalDevelopment && !benefits.some((benefit) => /professional|tuition|learning/i.test(benefit)) && (
                     <BenefitItem>Professional development</BenefitItem>
                   )}
                   {job.ptoDetails && <BenefitItem>{job.ptoDetails}</BenefitItem>}
