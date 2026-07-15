@@ -1,6 +1,6 @@
 'use client';
 
-import { Control, Controller, FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form';
+import { Control, FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { JobSubmissionData } from '@/lib/validations/job';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,7 @@ interface Step5SkillsProps {
   errors: FieldErrors<JobSubmissionData>;
 }
 
-export function Step5Skills({ register, control, watch, setValue, errors }: Step5SkillsProps) {
+export function Step5Skills({ watch, setValue, errors }: Step5SkillsProps) {
   const requiredSkills = watch('requiredSkills') || [];
   const preferredSkills = watch('preferredSkills') || [];
   const accessibilityFocus = watch('accessibilityFocus') || [];
@@ -129,4 +129,3 @@ export function Step5Skills({ register, control, watch, setValue, errors }: Step
     </Card>
   );
 }
-

@@ -16,7 +16,7 @@ interface Step4RequirementsProps {
   errors: FieldErrors<JobSubmissionData>;
 }
 
-export function Step4Requirements({ register, control, watch, setValue, errors }: Step4RequirementsProps) {
+export function Step4Requirements({ control, watch, setValue }: Step4RequirementsProps) {
   const requiredCertifications = watch('requiredCertifications') || [];
   const preferredCertifications = watch('preferredCertifications') || [];
 
@@ -146,4 +146,3 @@ export function Step4Requirements({ register, control, watch, setValue, errors }
     </Card>
   );
 }
-

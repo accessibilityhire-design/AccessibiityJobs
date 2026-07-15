@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
-import { CheckCircle, ExternalLink, DollarSign, Clock, ArrowRight, Award, User } from 'lucide-react';
+import { CheckCircle, ExternalLink, DollarSign, Clock } from 'lucide-react';
 import { generateFAQStructuredData, generateHowToStructuredData, generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({

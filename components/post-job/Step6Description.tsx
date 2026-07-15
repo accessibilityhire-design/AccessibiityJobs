@@ -17,7 +17,7 @@ interface Step6DescriptionProps {
   errors: FieldErrors<JobSubmissionData>;
 }
 
-export function Step6Description({ register, control, setValue, errors }: Step6DescriptionProps) {
+export function Step6Description({ register, control, errors }: Step6DescriptionProps) {
   return (
     <Card>
       <CardHeader>
@@ -265,4 +265,3 @@ Or numbered lists for priorities"
     </Card>
   );
 }
-

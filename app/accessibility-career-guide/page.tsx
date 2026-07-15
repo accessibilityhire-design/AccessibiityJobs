@@ -10,9 +10,8 @@ import {
 } from '@/components/ui/accordion';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
-import { CheckCircle, DollarSign, GraduationCap, Award, Building2, Users, Briefcase, Code, Palette, TestTube, FileText, Globe, MapPin, HelpCircle, ChevronDown } from 'lucide-react';
+import { CheckCircle, DollarSign, GraduationCap, Award, Users, Briefcase, Code, Palette, TestTube, FileText, Globe, MapPin, HelpCircle } from 'lucide-react';
 import { generatePageMetadata, generateFAQStructuredData, generateArticleStructuredData } from '@/lib/seo-config';
-import { seoConfig } from '@/lib/seo-config';
 
 const pageMetadata = generatePageMetadata({
   title: 'Accessibility Career Guide - Jobs, Salaries, Education & Certifications by Country',
