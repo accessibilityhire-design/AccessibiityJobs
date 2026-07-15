@@ -19,6 +19,12 @@ from run_a11yjobs_daily import (
 
 
 class DescriptionQualityTests(unittest.TestCase):
+    def test_em_dashes_are_normalized_for_site_copy(self):
+        self.assertEqual(
+            normalize_description_text("Accessibility matters—it improves access."),
+            "Accessibility matters - it improves access.",
+        )
+
     def test_sections_only_split_on_standalone_headings(self):
         source = """About the Role
 

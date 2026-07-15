@@ -30,7 +30,7 @@ export function ShareButton({ title, url, className }: ShareButtonProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      // clipboard unavailable — nothing sensible to do
+      // Clipboard unavailable; there is nothing sensible to do
     }
   };
 

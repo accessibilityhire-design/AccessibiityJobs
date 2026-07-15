@@ -1,5 +1,5 @@
 // Simple in-memory sliding-window rate limiter.
-// Per-instance only (resets on deploy/restart) — sufficient to stop
+// Per-instance only (resets on deploy/restart), which is sufficient to stop
 // brute-force login attempts and submission spam without external infra.
 
 type Bucket = { timestamps: number[] };

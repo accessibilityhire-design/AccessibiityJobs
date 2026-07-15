@@ -1,6 +1,7 @@
 import { recentActiveJobs } from '@/lib/jobs-query';
 import { jobPath } from '@/lib/slug';
 import { extractPlainText, formatCompanyName } from '@/lib/job-formatter';
+import { replaceEmDashes } from '@/lib/text-style';
 
 export const revalidate = 900; // 15 minutes
 
@@ -26,7 +27,7 @@ export async function GET() {
   const items = jobs
     .map((job) => {
       const url = `${SITE_URL}${jobPath(job)}`;
-      const title = `${job.title} at ${formatCompanyName(job.company)}`;
+      const title = `${replaceEmDashes(job.title)} at ${formatCompanyName(job.company)}`;
       const description = extractPlainText(job.description, 300);
       const pubDate = new Date(job.createdAt).toUTCString();
       return `    <item>
@@ -43,7 +44,7 @@ export async function GET() {
   const rss = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>AccessibilityJobs — New Accessibility Jobs</title>
+    <title>AccessibilityJobs: New Accessibility Jobs</title>
     <link>${SITE_URL}</link>
     <atom:link href="${SITE_URL}/feed.xml" rel="self" type="application/rss+xml"/>
     <description>The latest digital accessibility jobs: engineers, auditors, designers, and consultants.</description>

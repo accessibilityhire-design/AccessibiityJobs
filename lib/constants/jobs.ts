@@ -3,7 +3,7 @@
  *
  * - DISPLAY window: how long a job stays visible on the site (board, search,
  *   related jobs, feed). Generous so the board stays populated.
- * - GOOGLE window: how long a job is treated as fresh for Google Jobs — it
+ * - GOOGLE window: how long a job is treated as fresh for Google Jobs. It
  *   caps validThrough, and past it a job is dropped from JobPosting schema,
  *   set to noindex, excluded from the sitemap, and flagged "may be filled".
  *   Kept at ~90 days so we never tell Google a stale job is still open.
@@ -44,5 +44,5 @@ export function isJobStale(job: JobDates): boolean {
   return jobValidThrough(job).getTime() < Date.now();
 }
 
-/** Back-compat alias — same meaning as isJobStale. */
+/** Back-compat alias with the same meaning as isJobStale. */
 export const isJobExpired = isJobStale;

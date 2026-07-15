@@ -89,7 +89,7 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://accessibilityjobs.net',
     types: {
-      'application/rss+xml': [{ url: '/feed.xml', title: 'AccessibilityJobs — New Jobs' }],
+      'application/rss+xml': [{ url: '/feed.xml', title: 'AccessibilityJobs: New Jobs' }],
     },
   },
   category: 'careers',

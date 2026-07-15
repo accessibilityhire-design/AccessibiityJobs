@@ -133,7 +133,7 @@ export default async function HomePage({
             </h1>
 
             <p className="mt-7 max-w-2xl text-lg md:text-xl text-[var(--ink-soft)] leading-relaxed">
-              A focused board for digital accessibility — curated roles across WCAG,
+              A focused board for digital accessibility, with curated roles across WCAG,
               ADA, Section 508, assistive technology, and inclusive design. No noise.
             </p>
 
@@ -199,7 +199,7 @@ export default async function HomePage({
           <ValueCard
             icon={<Gauge className="h-5 w-5" />}
             label="Curated feed"
-            title="Signal over volume — one category, done well"
+            title="Signal over volume: one category, done well"
             body="We skip the noise. If it isn't meaningfully about accessibility, it doesn't run."
             highlight
           />
@@ -246,7 +246,7 @@ export default async function HomePage({
                 : 'No roles match this filter yet'}
             </p>
             <p className="text-sm text-[var(--muted-foreground)] mt-1 mb-6">
-              Try different keywords or filters — new listings drop throughout the week.
+              Try different keywords or filters. New listings drop throughout the week.
             </p>
             <Link
               href="/"

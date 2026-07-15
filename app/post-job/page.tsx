@@ -25,7 +25,7 @@ const detectTimezone = () => {
 
 const DRAFT_KEY = 'post-job-draft';
 
-// Which fields belong to which step — used to validate before advancing
+// Which fields belong to each step, used to validate before advancing
 // and to route the user back to the step containing an error.
 const STEPS: Array<{ title: string; fields: (keyof JobSubmissionData)[] }> = [
   {
@@ -111,7 +111,7 @@ export default function PostJobPage() {
   });
 
   // Restore a saved draft, then auto-detect timezone (no third-party
-  // geo-IP calls — that was a silent privacy leak).
+  // geo-IP calls because that was a silent privacy leak).
   useEffect(() => {
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
@@ -123,7 +123,7 @@ export default function PostJobPage() {
         }
       }
     } catch {
-      // corrupted draft — ignore
+      // Ignore a corrupted draft
     }
     restoredRef.current = true;
 
@@ -140,7 +140,7 @@ export default function PostJobPage() {
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({ values, step: currentStep }));
       } catch {
-        // storage full/unavailable — drafts are best-effort
+        // Storage full or unavailable; drafts are best-effort
       }
     });
     return () => subscription.unsubscribe();

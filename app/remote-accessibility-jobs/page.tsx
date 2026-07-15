@@ -10,7 +10,7 @@ import { generateJobCollectionStructuredData, safeJsonLd } from '@/lib/seo';
 export const revalidate = 300;
 
 const REMOTE_JOBS_METADATA: Metadata = generatePageMetadata({
-  title: 'Remote Accessibility Jobs — Work From Anywhere',
+  title: 'Remote Accessibility Jobs: Work From Anywhere',
   description:
     'Browse remote digital accessibility jobs: accessibility engineers, WCAG auditors, a11y consultants, and inclusive design roles you can do from anywhere.',
   path: '/remote-accessibility-jobs',
@@ -77,7 +77,7 @@ export default async function RemoteJobsPage({
           </h1>
           <p className="mt-4 text-lg text-[var(--ink-soft)] leading-relaxed">
             {result ? `${result.total.toLocaleString()} live remote roles` : 'Live remote roles'}{' '}
-            in digital accessibility — engineering, auditing, design, and consulting positions
+            in digital accessibility, including engineering, auditing, design, and consulting positions
             you can do from anywhere. Updated daily.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
@@ -107,7 +107,7 @@ export default async function RemoteJobsPage({
                 No remote roles right now
               </p>
               <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                New listings drop throughout the week — check back soon.
+                New listings drop throughout the week. Check back soon.
               </p>
             </div>
           )}

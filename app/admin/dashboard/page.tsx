@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDistanceToNow } from 'date-fns';
 import { Check, X, LogOut, Trash2 } from 'lucide-react';
+import { replaceEmDashes } from '@/lib/text-style';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -153,9 +154,9 @@ export default function AdminDashboardPage() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-xl">{job.title}</CardTitle>
+                    <CardTitle className="text-xl">{replaceEmDashes(job.title)}</CardTitle>
                     <CardDescription className="text-base">
-                      {job.company} • {job.location} • {job.type}
+                      {replaceEmDashes(`${job.company} • ${job.location} • ${job.type}`)}
                     </CardDescription>
                   </div>
                   <span className="text-sm text-gray-500">
@@ -167,12 +168,12 @@ export default function AdminDashboardPage() {
                 <div className="space-y-4">
                   <div>
                     <h4 className="font-semibold mb-2">Description</h4>
-                    <p className="text-sm text-gray-700 line-clamp-3">{job.description}</p>
+                    <p className="text-sm text-gray-700 line-clamp-3">{replaceEmDashes(job.description)}</p>
                   </div>
 
                   <div>
                     <h4 className="font-semibold mb-2">Requirements</h4>
-                    <p className="text-sm text-gray-700 line-clamp-2">{job.requirements}</p>
+                    <p className="text-sm text-gray-700 line-clamp-2">{replaceEmDashes(job.requirements)}</p>
                   </div>
 
                   <div className="flex items-center gap-4 text-sm text-gray-600">
@@ -232,4 +233,3 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
-

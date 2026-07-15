@@ -69,7 +69,7 @@ export function RichTextEditor({
     content: content || '',
     editorProps: {
       attributes: {
-        // The contenteditable is the real form control — give it the label
+        // The contenteditable is the real form control, so give it the label
         // association and validation state (WCAG 1.3.1 / 4.1.2)
         ...(id && { id }),
         ...(ariaLabel && { 'aria-label': ariaLabel }),
@@ -236,4 +236,3 @@ function MenuButton({
     </button>
   );
 }
-

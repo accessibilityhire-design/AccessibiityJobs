@@ -30,7 +30,7 @@ export function NewsletterForm() {
         return;
       }
       setStatus('success');
-      setMessage("You're on the list — new accessibility roles, straight to your inbox.");
+      setMessage("You're on the list. New accessibility roles will go straight to your inbox.");
       setEmail('');
     } catch {
       setStatus('error');

@@ -20,6 +20,7 @@ import { isJobExpired } from '@/lib/constants/jobs';
 import { relatedJobs } from '@/lib/jobs-query';
 import { ShareButton } from '@/components/ShareButton';
 import { JobCard } from '@/components/JobCard';
+import { replaceEmDashes } from '@/lib/text-style';
 
 // Serve cached HTML to crawlers and visitors; refresh every 10 minutes
 export const revalidate = 600;
@@ -125,23 +126,24 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const jobUrl = `https://accessibilityjobs.net${jobPath(jobData)}`;
   const workType = jobData.workArrangement || jobData.type || 'Full-time';
+  const jobTitle = replaceEmDashes(jobData.title);
   const cleanDescription = extractPlainText(jobData.description, 155);
   const expired = isJobExpired(jobData);
 
   return {
-    title: `${jobData.title} at ${formatCompanyName(jobData.company)}`,
+    title: `${jobTitle} at ${formatCompanyName(jobData.company)}`,
     description: cleanDescription,
     keywords: [
       'accessibility jobs',
       'a11y jobs',
-      jobData.title.toLowerCase(),
+      jobTitle.toLowerCase(),
       `${jobData.company} careers`,
       'digital accessibility',
       'WCAG jobs',
       workType === 'remote' ? 'remote accessibility jobs' : undefined,
     ].filter(Boolean) as string[],
     openGraph: {
-      title: `${jobData.title} at ${formatCompanyName(jobData.company)}`,
+      title: `${jobTitle} at ${formatCompanyName(jobData.company)}`,
       description: cleanDescription,
       type: 'website',
       url: jobUrl,
@@ -151,13 +153,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
           url: '/og-image.png',
           width: 1024,
           height: 1024,
-          alt: `${jobData.title} at ${formatCompanyName(jobData.company)} — AccessibilityJobs`,
+          alt: `${jobTitle} at ${formatCompanyName(jobData.company)} | AccessibilityJobs`,
         },
       ],
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${jobData.title} at ${formatCompanyName(jobData.company)}`,
+      title: `${jobTitle} at ${formatCompanyName(jobData.company)}`,
       description: cleanDescription,
       images: ['/og-image.png'],
     },
@@ -184,6 +186,7 @@ export default async function JobDetailPage({ params }: PageProps) {
   const expired = isJobExpired(job);
   const related = await relatedJobs(job).catch(() => []);
   const companyName = formatCompanyName(job.company);
+  const jobTitle = replaceEmDashes(job.title);
 
   const requiredSkills = parseJsonField(job.requiredSkills);
   const preferredSkills = parseJsonField(job.preferredSkills);
@@ -198,7 +201,7 @@ export default async function JobDetailPage({ params }: PageProps) {
   const salaryPeriod = job.salaryType
     ? ({ annual: 'year', monthly: 'month', hourly: 'hour', daily: 'day', project: 'project' } as Record<string, string>)[job.salaryType.toLowerCase()] || job.salaryType
     : null;
-  const location = job.specificLocation || job.city || job.location || 'Location not specified';
+  const location = replaceEmDashes(job.specificLocation || job.city || job.location || 'Location not specified');
   const workArrangement = job.workArrangement || job.type || 'full-time';
   const sourceConfig = getSourceConfig(job.jobSource);
   const companyWebsite = validCompanyWebsite(job.companyWebsite);
@@ -216,11 +219,11 @@ export default async function JobDetailPage({ params }: PageProps) {
   const canonicalUrl = `https://accessibilityjobs.net${canonicalPath}`;
   const jobStructuredData = expired ? null : generateJobStructuredData(job, canonicalUrl);
   const pageStructuredData = generateWebPageStructuredData({
-    name: `${job.title} at ${companyName}`,
+    name: `${jobTitle} at ${companyName}`,
     path: canonicalPath,
     breadcrumbs: [
       { name: 'Home', url: '/' },
-      { name: job.title, url: canonicalPath },
+      { name: jobTitle, url: canonicalPath },
     ],
   });
 
@@ -308,7 +311,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               </div>
 
               <h1 className="display-lg mt-6 text-[var(--paper)] max-w-3xl">
-                {job.title}
+                {jobTitle}
               </h1>
 
               <div className="flex flex-wrap gap-2 mt-6">
@@ -353,7 +356,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                     href={job.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label={`Apply for ${job.title} on original posting`}
+                    aria-label={`Apply for ${jobTitle} on original posting`}
                   >
                     Apply now
                     <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -362,15 +365,15 @@ export default async function JobDetailPage({ params }: PageProps) {
               ) : (
                 <Button variant="lime" size="xl" asChild>
                   <a
-                    href={`mailto:${job.contactEmail}?subject=Application for ${job.title}`}
-                    aria-label={`Apply for ${job.title} via email`}
+                    href={`mailto:${job.contactEmail}?subject=Application for ${jobTitle}`}
+                    aria-label={`Apply for ${jobTitle} via email`}
                   >
                     <Mail className="h-4 w-4" aria-hidden="true" />
                     Apply via email
                   </a>
                 </Button>
               )}
-              <ShareButton title={`${job.title} at ${companyName}`} url={canonicalUrl} />
+              <ShareButton title={`${jobTitle} at ${companyName}`} url={canonicalUrl} />
             </div>
           </div>
         </div>
@@ -483,7 +486,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                         href={job.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label={`Apply for ${job.title} on ${sourceConfig?.label || 'original posting'}`}
+                        aria-label={`Apply for ${jobTitle} on ${sourceConfig?.label || 'original posting'}`}
                       >
                         Apply now
                         <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -498,8 +501,8 @@ export default async function JobDetailPage({ params }: PageProps) {
                   <>
                     <Button variant="ink" size="lg" className="w-full" asChild>
                       <a
-                        href={`mailto:${job.contactEmail}?subject=Application for ${job.title}`}
-                        aria-label={`Apply for ${job.title} via email`}
+                        href={`mailto:${job.contactEmail}?subject=Application for ${jobTitle}`}
+                        aria-label={`Apply for ${jobTitle} via email`}
                       >
                         <Mail className="h-4 w-4" aria-hidden="true" />
                         Apply via email
@@ -543,7 +546,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                         href={companyWebsite}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label={`Apply for ${job.title} on company website`}
+                        aria-label={`Apply for ${jobTitle} on company website`}
                       >
                         <Globe className="h-4 w-4" aria-hidden="true" />
                         Apply on company site

@@ -3,6 +3,8 @@ import { Job } from '@/lib/db/schema';
 import { formatDistanceToNow } from 'date-fns';
 import { MapPin, Clock, ArrowUpRight } from 'lucide-react';
 import { jobPath } from '@/lib/slug';
+import { formatCompanyName } from '@/lib/job-formatter';
+import { replaceEmDashes } from '@/lib/text-style';
 
 interface JobCardProps {
     job: Job;
@@ -19,6 +21,8 @@ function colorFromString(input: string) {
 }
 
 export function JobCard({ job }: JobCardProps) {
+    const jobTitle = replaceEmDashes(job.title);
+    const companyName = formatCompanyName(job.company);
     const formatSalary = () => {
         const suffix = job.salaryType === 'hourly'
             ? '/hr'
@@ -116,10 +120,10 @@ export function JobCard({ job }: JobCardProps) {
                 </span>
                 <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-[var(--muted-foreground)] truncate">
-                        {job.company}
+                        {companyName}
                     </p>
                     <h3 className="font-display text-lg md:text-[1.35rem] font-semibold leading-tight tracking-tight text-[var(--ink)] group-hover:text-[var(--ink)] transition-colors line-clamp-2 mt-0.5">
-                        {job.title}
+                        {jobTitle}
                     </h3>
                 </div>
             </div>
@@ -129,7 +133,7 @@ export function JobCard({ job }: JobCardProps) {
                 <span className="inline-flex items-center gap-1.5">
                     <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
                     <span className="truncate max-w-[14rem]">
-                        {job.city && job.country ? `${job.city}, ${job.country}` : job.location}
+                        {replaceEmDashes(job.city && job.country ? `${job.city}, ${job.country}` : job.location || '')}
                     </span>
                 </span>
                 <span className="text-[var(--ink)] font-semibold">{formatSalary()}</span>

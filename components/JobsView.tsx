@@ -44,7 +44,7 @@ export function JobsView({
                     No roles match this view
                 </h3>
                 <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                    Try another filter — new listings drop throughout the week.
+                    Try another filter. New listings drop throughout the week.
                 </p>
             </div>
         );

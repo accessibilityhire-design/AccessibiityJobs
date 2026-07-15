@@ -11,7 +11,7 @@
   --font-display: var(--font-space-grotesk), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Brand palette — Ink & Lime */
+  /* Brand palette: Ink & Lime */
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
   --color-lime: var(--lime);
@@ -60,7 +60,7 @@
 :root {
   --radius: 0.5rem;
 
-  /* Brand — Ink & Lime */
+  /* Brand: Ink & Lime */
   --ink: oklch(0.16 0.02 280);          /* near-black, subtle violet undertone */
   --ink-soft: oklch(0.28 0.02 280);
   --lime: oklch(0.86 0.19 124);          /* electric lime accent */
@@ -152,7 +152,7 @@
   }
 }
 
-/* Focus — ink ring with lime pulse on keyboard focus */
+/* Focus: ink ring with lime pulse on keyboard focus */
 *:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 3px;
@@ -239,7 +239,7 @@ textarea:focus-visible {
   background-size: 28px 28px;
 }
 
-/* Marquee rail — pausable via control button (WCAG 2.2.2) */
+/* Marquee rail, pausable via control button (WCAG 2.2.2) */
 @keyframes marquee {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
@@ -259,7 +259,7 @@ textarea:focus-visible {
 }
 .lime-pulse { animation: lime-pulse 2.4s ease-in-out infinite; }
 
-/* Legacy public-page utility classes kept for content pages — tuned to new palette */
+/* Legacy public-page utility classes kept for content pages and tuned to the new palette */
 .page-header {
   @apply text-center mb-12 pb-8;
   border-radius: 0 0 2rem 2rem;
@@ -409,7 +409,7 @@ textarea:focus-visible {
 .comparison-item.secondary { border-color: var(--lime);    background: color-mix(in oklab, var(--lime) 12%, transparent); }
 .comparison-item.tertiary  { border-color: var(--saffron); background: color-mix(in oklab, var(--saffron) 12%, transparent); }
 
-/* CTA section — bold ink with lime accent */
+/* CTA section with bold ink and a lime accent */
 .cta-section {
   @apply rounded-2xl p-8 md:p-12 text-center;
   background: var(--ink);
@@ -499,7 +499,7 @@ textarea:focus-visible {
 .page-meta { @apply text-center text-sm mt-12 pt-6 border-t; color: var(--muted-foreground); border-color: var(--border); }
 
 /* ============================================
-   Reduced motion — respect the user's OS preference (WCAG 2.3.3)
+   Reduced motion: respect the user's OS preference (WCAG 2.3.3)
    ============================================ */
 @media (prefers-reduced-motion: reduce) {
   .marquee,

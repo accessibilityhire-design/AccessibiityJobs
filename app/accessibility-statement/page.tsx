@@ -26,7 +26,7 @@ export default function AccessibilityStatementPage() {
           </CardHeader>
           <CardContent className="space-y-4 text-gray-700">
             <p>
-              AccessibilityJobs is dedicated to ensuring digital accessibility for people with disabilities. We believe that accessibility is not just a compliance requirement—it's a fundamental right that enables everyone to access and benefit from the opportunities we provide.
+              AccessibilityJobs is dedicated to ensuring digital accessibility for people with disabilities. We believe that accessibility is not just a compliance requirement; it&apos;s a fundamental right that enables everyone to access and benefit from the opportunities we provide.
             </p>
             <p>
               We are continually improving the user experience for everyone and applying the relevant accessibility standards throughout our platform. Our mission is to create an inclusive digital environment where all users can navigate, understand, and interact with our content effectively.

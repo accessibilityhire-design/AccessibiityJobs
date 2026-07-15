@@ -559,6 +559,7 @@ def normalize_description_text(text: str) -> str:
         return ""
 
     text = html.unescape(text).replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"\s*—\s*", " - ", text)
     text = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", text)
     output: List[str] = []
     prose_buffer: List[str] = []
@@ -1093,7 +1094,7 @@ _BENEFIT_KEYWORDS = [
 
 
 def extract_benefits(text: str) -> Tuple[List[str], Dict[str, bool]]:
-    """Returns (benefit list, boolean flags) — mirrors the JS repair library."""
+    """Returns (benefit list, boolean flags) and mirrors the JS repair library."""
     if not text:
         return [], {}
     found: List[str] = []
@@ -1122,7 +1123,7 @@ _EXPERIENCE_RE = re.compile(
 def extract_experience(text: str) -> Optional[str]:
     if not text:
         return None
-    # Require "experience" to follow within a few words — a bare "N years"
+    # Require "experience" to follow within a few words. A bare "N years"
     # matches unrelated things like "six years of creditable service" for
     # veteran status, which has nothing to do with the job's experience bar.
     match = _EXPERIENCE_RE.search(_plain_markdown(text))
@@ -1218,7 +1219,7 @@ def extract_structured_fields(full_text: str, sections: Dict[str, Optional[str]]
     }
 
 
-# --- Tagged (Required)/(Preferred) items — corporate JD template ----------
+# --- Tagged (Required)/(Preferred) items in a corporate JD template -------
 
 _TAG_RE = re.compile(r"\((Required|Preferred)\)", re.I)
 _LEADING_SECTION_HEADER_RE = re.compile(
@@ -1263,7 +1264,7 @@ def extract_tagged_items(text: str) -> Tuple[List[str], List[str]]:
 
 
 def extract_bullet_items(text: str) -> List[str]:
-    """Extracts "* " / "- " / "•" prefixed lines — government/university JD
+    """Extracts "* " / "- " / "•" prefixed lines from government/university JD
     template. Splits on newlines and bullet-marker lookaheads so an item
     never bleeds across a field boundary."""
     if not text:
@@ -1293,7 +1294,7 @@ _LEGAL_BOILERPLATE_MARKERS = [
 
 def trim_legal_boilerplate(text: str) -> str:
     """Cuts everything from the first universal legal/EEO/procedural
-    boilerplate marker onward — near-identical across every US employer and
+    boilerplate marker onward. It is near-identical across every US employer and
     government posting, and adds nothing a job seeker needs to decide
     whether to apply. Only cuts if enough real content remains before it."""
     if not text:
@@ -1472,7 +1473,7 @@ def extract_salary_text(soup: BeautifulSoup) -> Optional[str]:
 
 
 # Boilerplate that shows up around the real description in a11yjobs.com's
-# <main>/<article> containers — breadcrumbs, the duplicate title/company/
+# <main>/<article> containers include breadcrumbs, the duplicate title/company/
 # location/salary header, and the "Other Recent Jobs" sidebar widget. All of
 # this lives in the same container as the real text, so a naive
 # `.get_text()` scoops it up as if it were part of the job description.
@@ -1494,12 +1495,12 @@ _TRAILING_CHROME = re.compile(
 
 def _strip_page_chrome(text: str) -> str:
     # The literal breadcrumb phrase is pure navigation chrome with zero
-    # informational value — always safe to drop regardless of what follows.
+    # informational value, so it is always safe to drop regardless of what follows.
     text = _LEADING_BACKTO_PHRASE.sub("", text, count=1).strip()
     text = _TRAILING_CHROME.sub("", text).strip()
     with_header_stripped = _LEADING_CHROME.sub("", text, count=1).strip()
     # Only trust the "after Job Description" cut if it left a substantial
-    # amount of text — otherwise the header text itself was most of the page.
+    # amount of text; otherwise the header text itself was most of the page.
     if len(with_header_stripped) >= 200:
         text = with_header_stripped
     return text.strip()
@@ -1509,7 +1510,7 @@ def extract_best_description(soup: BeautifulSoup, jsonld: Dict[str, Any]) -> str
     jsonld_description = normalize_description_text(strip_html(str(jsonld.get("description") or "")))
 
     # Structured JSON-LD description is authored by the source site to
-    # describe just the job — trust it over a raw container scrape whenever
+    # describe just the job. Trust it over a raw container scrape whenever
     # it's substantial, instead of preferring whichever text is *longer*.
     if len(jsonld_description) >= 200:
         return jsonld_description
@@ -1544,9 +1545,9 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     title_elem = soup.find("h1") or soup.find("h2") or soup.find("title")
     title = jsonld.get("title") or (title_elem.get_text(strip=True) if title_elem else "")
     title = re.sub(r"\s*-\s*a11yjobs\.com.*$", "", title, flags=re.I)
-    # Some sources double-escape JSON-LD text (e.g. "&amp;" instead of "&") —
+    # Some sources double-escape JSON-LD text (e.g. "&amp;" instead of "&").
     # unescape so entities never render literally to job seekers.
-    title = html.unescape(title).strip()
+    title = re.sub(r"\s*—\s*", " - ", html.unescape(title)).strip()
 
     company = ""
     hiring_org = jsonld.get("hiringOrganization")
@@ -1607,7 +1608,7 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     )
 
     # The visible description/responsibilities/requirements DO drop the
-    # universal trailing EEO/legal boilerplate — it carries no decision
+    # universal trailing EEO/legal boilerplate because it carries no decision
     # value for someone browsing the board.
     display_description = trim_legal_boilerplate(description)
 
@@ -1617,7 +1618,7 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     requirements = sections["requirements"]
     nice_to_have = sections["nice_to_have"]
     if not job_description:
-        # No real description could be recovered — skip rather than publish
+        # No real description could be recovered. Skip rather than publish
         # fabricated filler text under this job's title/company.
         return None
 

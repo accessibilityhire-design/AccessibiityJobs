@@ -74,7 +74,7 @@ export default function ToolsPage() {
               <h2 className="text-lg font-semibold mb-2">Quick Answer</h2>
               <p className="mb-0">
                 Start with <strong>axe DevTools</strong> or <strong>WAVE</strong> (free browser extensions) for automated testing.
-                Use <strong>NVDA</strong> (free) for screen reader testing. Automated tools find ~30-40% of issues—manual testing is essential.
+                Use <strong>NVDA</strong> (free) for screen reader testing. Automated tools find ~30-40% of issues; manual testing is essential.
                 All these tools help test <Link href="/wcag" className="text-blue-600 hover:underline">WCAG compliance</Link>.
               </p>
             </div>

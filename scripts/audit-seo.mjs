@@ -12,6 +12,7 @@ function localUrl(url) {
 
 function decodeHtml(value = '') {
   return value
+    .replace(/&mdash;|&#8212;|&#x2014;/gi, '—')
     .replace(/&quot;/g, '"')
     .replace(/&#39;|&apos;/g, "'")
     .replace(/&amp;/g, '&')
@@ -98,6 +99,12 @@ async function auditPage(productionUrl) {
   const canonical = canonicalUrl(html);
   const robots = metaContent(html, 'robots');
   const nodes = jsonLdNodes(html, errors, path);
+  const visibleMarkup = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+
+  if (decodeHtml(visibleMarkup).includes('—')) errors.push(`${path}: rendered copy contains an em dash`);
+  if (JSON.stringify(nodes).includes('—')) errors.push(`${path}: structured data contains an em dash`);
 
   if (!title) errors.push(`${path}: missing title`);
   if ((title.match(/AccessibilityJobs/gi) || []).length > 1) {
@@ -218,6 +225,13 @@ async function main() {
   const admin = await fetch(new URL('/admin/login', baseUrl), { redirect: 'manual' });
   if (!/noindex/i.test(admin.headers.get('x-robots-tag') || '')) {
     errors.push('admin: X-Robots-Tag noindex header missing');
+  }
+
+  for (const resourcePath of ['/feed.xml', '/site.webmanifest']) {
+    const resource = await fetchText(new URL(resourcePath, baseUrl));
+    if (decodeHtml(resource.text).includes('—')) {
+      errors.push(`${resourcePath}: contains an em dash`);
+    }
   }
 
   const jobPages = pageResults.filter((result) => result.path.startsWith('/jobs/'));

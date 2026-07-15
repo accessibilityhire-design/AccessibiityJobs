@@ -1,3 +1,5 @@
+import { replaceEmDashes } from './text-style';
+
 // SEO Configuration and Utilities
 
 export const seoConfig = {
@@ -14,11 +16,11 @@ const organizationId = `${seoConfig.siteUrl}/#organization`;
 const websiteId = `${seoConfig.siteUrl}/#website`;
 
 export function safeJsonLd(data: unknown): string {
-  return JSON.stringify(data).replace(/</g, '\\u003c');
+  return replaceEmDashes(JSON.stringify(data)).replace(/</g, '\\u003c');
 }
 
 function cleanMetadataTitle(title: string): string {
-  return title
+  return replaceEmDashes(title)
     .replace(/\s*\|\s*AccessibilityJobs.*$/i, '')
     .replace(/\s*-\s*AccessibilityJobs$/i, '')
     .trim();

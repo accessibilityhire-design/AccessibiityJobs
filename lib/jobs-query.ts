@@ -122,7 +122,7 @@ export async function queryJobs(filter: Required<JobsFilter>, perPage: number = 
   return { jobs: rows, total, page, totalPages, perPage };
 }
 
-/** Aggregate stats for the homepage hero — counts the whole live board. */
+/** Aggregate stats for the homepage hero. Counts the whole live board. */
 export async function jobBoardStats() {
   const where = activeJobsWhere();
   const [row] = await db
@@ -136,7 +136,7 @@ export async function jobBoardStats() {
   return row;
 }
 
-/** Recent live jobs — used by the RSS feed and related-jobs lookups. */
+/** Recent live jobs used by the RSS feed and related-jobs lookups. */
 export async function recentActiveJobs(limit = 500) {
   return db
     .select()
@@ -147,7 +147,7 @@ export async function recentActiveJobs(limit = 500) {
 }
 
 /**
- * Google-indexable jobs for the sitemap — only those still carrying
+ * Google-indexable jobs for the sitemap, limited to those still carrying
  * JobPosting schema (stale jobs are noindex, so they don't belong here).
  */
 export async function indexableJobs(limit = 2000) {

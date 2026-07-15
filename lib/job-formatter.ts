@@ -3,6 +3,7 @@
  * Converts raw markdown/text job descriptions to clean HTML for display
  */
 import sanitize from 'sanitize-html';
+import { replaceEmDashes } from './text-style';
 
 const PLACEHOLDER_SECTION_PATTERNS = [
     /see the full role overview above for day-to-day responsibilities/i,
@@ -21,10 +22,10 @@ export function hasMeaningfulJobSection(text: string | null | undefined): boolea
 
 /**
  * Sanitize HTML to a strict allowlist. Job descriptions come from public
- * submissions and third-party scrapes — never trust their markup.
+ * submissions and third-party scrapes, so their markup is never trusted.
  */
 export function sanitizeJobHtml(html: string): string {
-    return sanitize(html, {
+    return sanitize(replaceEmDashes(html), {
         allowedTags: [
             'p', 'br', 'strong', 'em', 'b', 'i', 'u', 's',
             'ul', 'ol', 'li', 'h3', 'h4', 'h5', 'h6', 'a', 'blockquote',
@@ -85,7 +86,7 @@ export function formatJobDescription(text: string | null | undefined): string {
 
     // Some scraped sources glue adjacent label/value pairs together with no
     // separator (e.g. "Preferences****Salary Range: ..."), producing 3+
-    // consecutive asterisks — the regex below can't cleanly pair those into
+    // consecutive asterisks. The regex below cannot cleanly pair those into
     // two separate <strong> runs, so collapse any such run down to a single
     // "**" pair first.
     html = html.replace(/\*{3,}/g, '**');
@@ -93,7 +94,7 @@ export function formatJobDescription(text: string | null | undefined): string {
     // Descriptions get split into description/responsibilities/requirements
     // and each is rendered independently, so a "**" pair that originally
     // spanned that split point leaves one orphaned marker in each half. An
-    // odd total count means exactly that happened — drop the last one so a
+    // odd total count means exactly that happened. Drop the last one so a
     // literal "**" never shows up on the page (its partner is gone either
     // way, so the emphasis can't be honored, only hidden).
     const boldMarkerCount = (html.match(/\*\*/g) || []).length;
@@ -109,11 +110,11 @@ export function formatJobDescription(text: string | null | undefined): string {
     // separator at all (e.g. "Agency**Dept of Health**" -> "Agency<strong>
     // Dept of Health</strong>", reading as "AgencyDept of Health"). Real
     // prose never transitions from plain text straight into bold with zero
-    // whitespace, so this only fires on that label/value artifact — add a
+    // whitespace, so this only fires on that label/value artifact. Add a
     // colon so it reads as "Agency: Dept of Health" instead.
     html = html.replace(/([a-zA-Z0-9)])(<strong>)/g, '$1: $2');
     // Same artifact on the way out of a bold value into the next label
-    // (e.g. "...-$72,113Recruitment Range:" with zero space) — a plain space
+    // (e.g. "...-$72,113Recruitment Range:" with zero space). A plain space
     // is enough here since there's no label on this side to punctuate.
     html = html.replace(/(<\/strong>)([a-zA-Z0-9])/g, '$1 $2');
 
@@ -199,7 +200,7 @@ export function formatJobDescription(text: string | null | undefined): string {
 export function extractPlainText(text: string | null | undefined, maxLength: number = 200): string {
     if (!text) return 'No description available';
 
-    let plainText = text;
+    let plainText = replaceEmDashes(text);
 
     // Remove HTML tags
     plainText = plainText.replace(/<[^>]*>/g, '');
@@ -274,7 +275,7 @@ export function formatCompanyName(company: string | null | undefined): string {
     }
 
     // Clean up whitespace
-    return company!.trim();
+    return replaceEmDashes(company!.trim());
 }
 
 /**

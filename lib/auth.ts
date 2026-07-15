@@ -1,5 +1,5 @@
 // Admin authentication using environment variables
-// Sessions are HMAC-signed cookies — forging requires the ADMIN_SESSION_SECRET.
+// Sessions are HMAC-signed cookies; forging requires the ADMIN_SESSION_SECRET.
 import { createHmac, timingSafeEqual } from 'crypto';
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24; // 24 hours

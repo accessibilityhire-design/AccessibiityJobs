@@ -2,7 +2,7 @@ import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { jobs } from '../lib/db/schema';
 
-// Database connection — set DATABASE_URL in .env (never hardcode credentials)
+// Database connection: set DATABASE_URL in .env (never hardcode credentials)
 import 'dotenv/config';
 
 const connectionString = process.env.DATABASE_URL;

@@ -8,6 +8,7 @@ import {
   hasMeaningfulJobSection,
   sanitizeJobHtml,
 } from './job-formatter';
+import { replaceEmDashes } from './text-style';
 
 const SITE_URL = 'https://accessibilityjobs.net';
 const ORGANIZATION_ID = `${SITE_URL}/#organization`;
@@ -18,7 +19,7 @@ const WEBSITE_ID = `${SITE_URL}/#website`;
  * Escapes `<` so user-sourced strings can never break out of the script tag.
  */
 export function safeJsonLd(data: unknown): string {
-  return JSON.stringify(data).replace(/</g, '\\u003c');
+  return replaceEmDashes(JSON.stringify(data)).replace(/</g, '\\u003c');
 }
 
 function parseJsonArray(value: string | null | undefined): string[] {
@@ -28,7 +29,7 @@ function parseJsonArray(value: string | null | undefined): string[] {
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((item): item is string => typeof item === 'string')
-      .map((item) => item.trim())
+      .map((item) => replaceEmDashes(item.trim()))
       .filter(Boolean);
   } catch {
     return [];
@@ -201,7 +202,9 @@ function buildJobLocation(job: Job, isRemote: boolean) {
   const countryCode = countryCodes[0];
   if (!countryCode) return null;
 
-  const city = job.city && !/^remote$/i.test(job.city.trim()) ? job.city.trim() : undefined;
+  const city = job.city && !/^remote$/i.test(job.city.trim())
+    ? replaceEmDashes(job.city.trim())
+    : undefined;
   const region = locationRegion(job, countryCode);
   return {
     jobLocation: {
@@ -307,7 +310,7 @@ function educationCredential(value: string | null): string | undefined {
  * required Google field when a listing is incomplete or geographically vague.
  */
 export function generateJobStructuredData(job: Job, url: string) {
-  const title = job.title?.trim();
+  const title = job.title ? replaceEmDashes(job.title.trim()) : undefined;
   const company = formatCompanyName(job.company);
   const createdAt = new Date(job.createdAt);
   const description = buildFullDescription(job);
@@ -374,7 +377,7 @@ export function generateJobStructuredData(job: Job, url: string) {
         credentialCategory: educationRequirements,
       },
     }),
-    ...(job.industry?.trim() && { industry: job.industry.trim() }),
+    ...(job.industry?.trim() && { industry: replaceEmDashes(job.industry.trim()) }),
     ...(skills.length > 0 && { skills: skills.join(', ') }),
     ...(qualifications && { qualifications }),
     ...(responsibilities && { responsibilities }),
@@ -453,7 +456,7 @@ export function generateJobCollectionStructuredData(
             '@type': 'WebPage',
             '@id': `${jobUrl}#webpage`,
             url: jobUrl,
-            name: `${job.title} at ${formatCompanyName(job.company)}`,
+            name: `${replaceEmDashes(job.title)} at ${formatCompanyName(job.company)}`,
           },
         };
       }),

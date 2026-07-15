@@ -125,7 +125,7 @@ export function Header() {
                   />
                 </button>
 
-                {/* Disclosure of links — not an ARIA menu, so no roving focus needed */}
+                {/* Disclosure of links, not an ARIA menu, so no roving focus is needed */}
                 {resourcesOpen && (
                   <ul
                     id="resources-menu"

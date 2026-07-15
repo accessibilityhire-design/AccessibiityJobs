@@ -40,7 +40,7 @@ export function Footer() {
     },
   ];
 
-  // Add real profile URLs here when the accounts exist — placeholder links
+  // Add real profile URLs here when the accounts exist. Placeholder links
   // to platform homepages erode trust.
   const socialLinks = [
     { icon: Mail, href: 'mailto:hello@accessibilityjobs.net', label: 'Email AccessibilityJobs', text: 'Email' },
@@ -76,20 +76,20 @@ export function Footer() {
           <div className="col-span-2">
             <Link
               href="/"
-              aria-label="AccessibilityJobs home"
-              className="inline-flex items-center hover:opacity-90 transition-opacity"
+              aria-label="AccessibilityJobs Home"
+              className="inline-flex items-center rounded-xl bg-white px-3 py-2 hover:opacity-90 transition-opacity"
             >
               <Image
-                src="/logo-light.svg"
+                src="/logo.png"
                 alt="AccessibilityJobs Logo"
-                width={180}
-                height={50}
-                className="h-10 md:h-12 w-auto"
+                width={220}
+                height={60}
+                className="h-9 md:h-10 w-auto"
               />
             </Link>
 
             <p className="mt-4 max-w-sm text-sm text-white/75 leading-relaxed">
-              A focused job board for digital accessibility — connecting engineers,
+              A focused job board for digital accessibility, connecting engineers,
               designers, and researchers to the teams making the web work for everyone.
             </p>
 

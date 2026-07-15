@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Pause, Play } from 'lucide-react';
+import { replaceEmDashes } from '@/lib/text-style';
 
 interface CompanyMarqueeProps {
   companies: string[];
@@ -9,7 +10,7 @@ interface CompanyMarqueeProps {
 
 /**
  * Auto-scrolling company rail with a keyboard-accessible pause control
- * (WCAG 2.2.2 — moving content must be pausable by any user).
+ * (WCAG 2.2.2 requires moving content to be pausable by any user).
  */
 export function CompanyMarquee({ companies }: CompanyMarqueeProps) {
   const [paused, setPaused] = useState(false);
@@ -27,12 +28,12 @@ export function CompanyMarquee({ companies }: CompanyMarqueeProps) {
             key={`${name}-${i}`}
             className="text-xs md:text-sm font-medium tracking-wide uppercase text-[var(--muted-foreground)]"
           >
-            {name}
+            {replaceEmDashes(name)}
             <span className="mx-6 text-[var(--border)]">·</span>
           </span>
         ))}
       </div>
-      <p className="sr-only">Companies currently hiring: {companies.join(', ')}</p>
+      <p className="sr-only">Companies currently hiring: {replaceEmDashes(companies.join(', '))}</p>
       <button
         type="button"
         onClick={() => setPaused(!paused)}

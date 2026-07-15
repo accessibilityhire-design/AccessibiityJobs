@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { jobSubmissionSchema } from '@/lib/validations/job';
 import { rateLimit, clientIp } from '@/lib/rate-limit';
+import { normalizeSubmittedCopy } from '@/lib/text-style';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const body = normalizeSubmittedCopy(await request.json());
 
     // Validate the request body
     const validationResult = jobSubmissionSchema.safeParse(body);
