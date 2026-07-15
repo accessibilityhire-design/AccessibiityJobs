@@ -13,6 +13,7 @@ import { Step3Compensation } from '@/components/post-job/Step3Compensation';
 import { Step4Requirements } from '@/components/post-job/Step4Requirements';
 import { Step5Skills } from '@/components/post-job/Step5Skills';
 import { Step6Description } from '@/components/post-job/Step6Description';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 const detectTimezone = () => {
   try {
@@ -220,6 +221,7 @@ export default function PostJobPage() {
   if (submitSuccess) {
     return (
       <div className="container mx-auto px-4 py-12">
+        <Breadcrumbs items={[{ label: 'Post a Job', href: '/post-job' }]} />
         <Card className="max-w-2xl mx-auto" role="status">
           <CardHeader>
             <CardTitle className="text-2xl text-green-700">
@@ -248,6 +250,7 @@ export default function PostJobPage() {
 
   return (
     <div className="container mx-auto px-4 py-12">
+      <Breadcrumbs items={[{ label: 'Post a Job', href: '/post-job' }]} />
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-4">Post an Accessibility Job</h1>

@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, Gift, Eye, AlertTriangle, Info } from 'lucid
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'WAVE Accessibility Tool Guide 2025 - Web Accessibility Evaluation',
+  title: 'WAVE Accessibility Tool Guide - Web Accessibility Evaluation',
   description: 'Complete WAVE guide: free browser extension for visual accessibility feedback, WCAG testing, issue identification, and best practices for accessibility professionals.',
   path: '/tools/wave',
   keywords: ['WAVE', 'WAVE accessibility', 'WebAIM WAVE', 'accessibility evaluation tool', 'WCAG testing', 'visual accessibility feedback'],

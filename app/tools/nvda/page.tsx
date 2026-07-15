@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, Gift, Monitor, Volume2 } from 'lucide-react'
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'NVDA Screen Reader Guide 2025 - Free Accessibility Testing',
+  title: 'NVDA Screen Reader Guide - Free Accessibility Testing',
   description: 'Complete NVDA screen reader guide: free Windows screen reader, features, keyboard shortcuts, testing workflows, and best practices.',
   path: '/tools/nvda',
   keywords: ['NVDA', 'screen reader', 'free screen reader', 'accessibility testing', 'NVDA screen reader', 'Windows accessibility'],

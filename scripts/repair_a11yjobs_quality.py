@@ -36,6 +36,12 @@ from run_a11yjobs_daily import (
 
 
 REPAIR_FIELDS = [
+    "company_website",
+    "work_arrangement",
+    "country",
+    "city",
+    "specific_location",
+    "location",
     "description",
     "key_responsibilities",
     "requirements",
@@ -110,6 +116,10 @@ def validate_target(current: Dict[str, Any], parsed: Dict[str, Any], target: Dic
         errors.append("description shorter than 100 characters")
     if not target.get("key_responsibilities") or not target.get("requirements"):
         errors.append("DB-required sibling section missing")
+    if target.get("work_arrangement") not in {"remote", "hybrid", "onsite"}:
+        errors.append("invalid work arrangement")
+    if not target.get("country") or not target.get("specific_location"):
+        errors.append("structured location is incomplete")
     if target.get("description") and not description_is_clean(target["description"]):
         errors.append("description contains page chrome or junk text")
 
@@ -233,6 +243,8 @@ def post_verify(db_url: str, repair_id: str, expected: int, total_before: int) -
         "SELECT json_build_object("
         "'repaired', COUNT(*), "
         "'missing_required', COUNT(*) FILTER (WHERE description IS NULL OR key_responsibilities IS NULL OR requirements IS NULL), "
+        "'missing_location', COUNT(*) FILTER (WHERE country IS NULL OR specific_location IS NULL), "
+        "'invalid_work_arrangement', COUNT(*) FILTER (WHERE work_arrangement NOT IN ('remote', 'hybrid', 'onsite')), "
         "'short_description', COUNT(*) FILTER (WHERE length(trim(description)) < 100), "
         "'suspicious_annual_salary', COUNT(*) FILTER (WHERE salary_type = 'annual' AND salary_max < 10000), "
         "'sentence_sized_skills', COUNT(*) FILTER (WHERE required_skills IS NOT NULL AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(required_skills::jsonb) skill WHERE length(skill) > 80))"
@@ -249,6 +261,8 @@ def post_verify(db_url: str, repair_id: str, expected: int, total_before: int) -
     quality["passed"] = (
         quality["repaired"] == expected
         and quality["missing_required"] == 0
+        and quality["missing_location"] == 0
+        and quality["invalid_work_arrangement"] == 0
         and quality["short_description"] == 0
         and quality["suspicious_annual_salary"] == 0
         and quality["sentence_sized_skills"] == 0

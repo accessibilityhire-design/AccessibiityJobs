@@ -8,7 +8,7 @@ import { CheckCircle, Briefcase, Users, DollarSign, Target } from 'lucide-react'
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Accessibility Program Management Skills 2025 - Lead A11y Teams',
+  title: 'Accessibility Program Management Skills - Lead A11y Teams',
   description: 'Master accessibility management: policy development, training programs, vendor management, compliance tracking, and accessibility strategy.',
   path: '/skills/management',
   keywords: ['accessibility management', 'accessibility program manager', 'accessibility strategy', 'compliance management', 'accessibility leadership'],

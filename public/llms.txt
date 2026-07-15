@@ -17,6 +17,7 @@ AccessibilityJobs is a specialized job board focused exclusively on digital acce
 
 ### Job Listings
 - /: Browse all accessibility job listings with filters for remote, hybrid, and onsite positions
+- /remote-accessibility-jobs: Browse current roles that are explicitly marked as remote
 - /jobs/[id]: Individual job posting with full details, requirements, and application information
 
 ### Educational Resources
@@ -73,14 +74,14 @@ AccessibilityJobs is a specialized job board focused exclusively on digital acce
 
 ## Technical Details
 
-- All job listings include JobPosting structured data for Google for Jobs
-- Pages are accessibility-tested and WCAG 2.2 Level AA compliant
-- Mobile-responsive design with excellent Core Web Vitals scores
+- Current, complete single-job pages include evidence-backed JobPosting structured data; expired or geographically incomplete listings do not claim Google Jobs eligibility
+- Public content pages use canonical URLs, descriptive metadata, crawlable sitemap entries, and page-appropriate Schema.org markup
+- The interface is responsive and designed around accessible navigation, semantic headings, keyboard operation, and readable job content
 
 ## Contact
 
 - Website: https://accessibilityjobs.net
-- Email: info@accessibilityjobs.net
+- Email: hello@accessibilityjobs.net
 
 ## Optional
 

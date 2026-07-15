@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, Gift, Building2, Eye, FileText } from 'lucid
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'ANDI Accessibility Tool Guide 2025 - Section 508 Testing Bookmarklet',
+  title: 'ANDI Accessibility Tool Guide - Section 508 Testing Bookmarklet',
   description: 'Complete ANDI guide: free Section 508 accessibility testing bookmarklet, features, usage, federal compliance testing, and best practices.',
   path: '/tools/andi',
   keywords: ['ANDI', 'ANDI accessibility', 'Section 508 testing', 'federal accessibility', 'accessibility bookmarklet', 'SSA ANDI'],

@@ -7,7 +7,7 @@ import { RelatedJobs } from '@/components/RelatedJobs';
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Accessibility Remediation Skills 2025 - Fix & Repair Guide',
+  title: 'Accessibility Remediation Skills - Fix & Repair Guide',
   description: 'Master accessibility remediation: HTML/CSS/JavaScript fixes, ARIA implementation, automated testing integration, and WCAG compliance techniques.',
   path: '/skills/remediation',
   keywords: ['accessibility remediation', 'fix accessibility issues', 'ARIA remediation', 'WCAG compliance fixes'],

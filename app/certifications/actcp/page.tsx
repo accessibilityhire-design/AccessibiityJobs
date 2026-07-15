@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, DollarSign, Monitor, Smartphone, FileText } 
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'ACTCP Certification 2025 - Accessible Technology Certified Professional',
+  title: 'ACTCP Certification - Accessible Technology Certified Professional',
   description: 'ACTCP certification guide: comprehensive accessible technology credential covering web, mobile, documents, and multimedia accessibility.',
   path: '/certifications/actcp',
   keywords: ['ACTCP certification', 'Accessible Technology Certified Professional', 'comprehensive accessibility certification'],

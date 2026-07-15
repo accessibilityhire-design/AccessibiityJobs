@@ -5,17 +5,31 @@ export const seoConfig = {
   siteUrl: 'https://accessibilityjobs.net',
   description: 'The leading job board for digital accessibility professionals. Find accessibility engineer jobs, WCAG specialist positions, a11y roles, and inclusive design careers.',
   ogImage: '/og-image.png',
-  twitterHandle: '@AccessibilityJobs',
   locale: 'en_US',
-  email: 'info@accessibilityjobs.net',
+  email: 'hello@accessibilityjobs.net',
   foundingDate: '2024',
 };
+
+const organizationId = `${seoConfig.siteUrl}/#organization`;
+const websiteId = `${seoConfig.siteUrl}/#website`;
+
+export function safeJsonLd(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, '\\u003c');
+}
+
+function cleanMetadataTitle(title: string): string {
+  return title
+    .replace(/\s*\|\s*AccessibilityJobs.*$/i, '')
+    .replace(/\s*-\s*AccessibilityJobs$/i, '')
+    .trim();
+}
 
 // WebSite structured data with SearchAction for sitelinks search box
 export function generateWebSiteStructuredData() {
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
+    '@id': websiteId,
     name: seoConfig.siteName,
     alternateName: ['Accessibility Jobs', 'A11y Jobs', 'AccessibilityJobs.net'],
     url: seoConfig.siteUrl,
@@ -29,13 +43,7 @@ export function generateWebSiteStructuredData() {
       'query-input': 'required name=search_term_string',
     },
     publisher: {
-      '@type': 'Organization',
-      name: seoConfig.siteName,
-      url: seoConfig.siteUrl,
-      logo: {
-        '@type': 'ImageObject',
-        url: `${seoConfig.siteUrl}/logo.svg`,
-      },
+      '@id': organizationId,
     },
   };
 }
@@ -56,11 +64,12 @@ export function generatePageMetadata({
   ogImage?: string;
   noIndex?: boolean;
 }) {
+  const cleanTitle = cleanMetadataTitle(title);
   const url = `${seoConfig.siteUrl}${path}`;
-  const fullTitle = `${title} | ${seoConfig.siteName}`;
+  const fullTitle = `${cleanTitle} | ${seoConfig.siteName}`;
 
   return {
-    title,
+    title: cleanTitle,
     description,
     keywords: [
       'accessibility jobs',
@@ -81,15 +90,14 @@ export function generatePageMetadata({
       images: [
         {
           url: ogImage || seoConfig.ogImage,
-          width: 1200,
-          height: 630,
-          alt: title,
+          width: 1024,
+          height: 1024,
+          alt: cleanTitle,
         },
       ],
     },
     twitter: {
       card: 'summary_large_image',
-      site: seoConfig.twitterHandle,
       title: fullTitle,
       description,
       images: [ogImage || seoConfig.ogImage],
@@ -118,15 +126,69 @@ export function generatePageMetadata({
 
 // Breadcrumb structured data
 export function generateBreadcrumbStructuredData(items: Array<{ name: string; url: string }>) {
+  const currentUrl = items.at(-1)?.url || '/';
   return {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
+    '@id': `${seoConfig.siteUrl}${currentUrl}#breadcrumb`,
     itemListElement: items.map((item, index) => ({
       '@type': 'ListItem',
       position: index + 1,
       name: item.name,
       item: `${seoConfig.siteUrl}${item.url}`,
     })),
+  };
+}
+
+const COLLECTION_PAGE_PATHS = new Set([
+  '/',
+  '/certifications',
+  '/docaccessible',
+  '/remote-accessibility-jobs',
+  '/resources',
+  '/skills',
+  '/tools',
+]);
+
+function pageTypeForPath(path: string): 'WebPage' | 'AboutPage' | 'ContactPage' | 'CollectionPage' {
+  if (path === '/about') return 'AboutPage';
+  if (path === '/contact') return 'ContactPage';
+  if (COLLECTION_PAGE_PATHS.has(path)) return 'CollectionPage';
+  return 'WebPage';
+}
+
+/**
+ * Generic page + breadcrumb graph for routes whose visible Breadcrumbs
+ * component supplies the exact user-facing hierarchy.
+ */
+export function generateWebPageStructuredData({
+  name,
+  path,
+  breadcrumbs,
+}: {
+  name: string;
+  path: string;
+  breadcrumbs: Array<{ name: string; url: string }>;
+}) {
+  const url = `${seoConfig.siteUrl}${path}`;
+  const breadcrumb = generateBreadcrumbStructuredData(breadcrumbs);
+  const breadcrumbNode = { ...breadcrumb } as Record<string, unknown>;
+  delete breadcrumbNode['@context'];
+
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': pageTypeForPath(path),
+        '@id': `${url}#webpage`,
+        url,
+        name,
+        isPartOf: { '@id': websiteId },
+        breadcrumb: { '@id': `${url}#breadcrumb` },
+        inLanguage: 'en',
+      },
+      breadcrumbNode,
+    ],
   };
 }
 
@@ -198,6 +260,7 @@ export function generateArticleStructuredData({
   return {
     '@context': 'https://schema.org',
     '@type': 'Article',
+    '@id': `${seoConfig.siteUrl}${url}#article`,
     headline: title,
     description,
     url: `${seoConfig.siteUrl}${url}`,
@@ -206,18 +269,14 @@ export function generateArticleStructuredData({
     author: {
       '@type': 'Organization',
       name: author,
+      url: seoConfig.siteUrl,
     },
     publisher: {
-      '@type': 'Organization',
-      name: seoConfig.siteName,
-      logo: {
-        '@type': 'ImageObject',
-        url: `${seoConfig.siteUrl}/logo.svg`,
-      },
+      '@id': organizationId,
     },
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': `${seoConfig.siteUrl}${url}`,
+      '@id': `${seoConfig.siteUrl}${url}#webpage`,
     },
   };
 }

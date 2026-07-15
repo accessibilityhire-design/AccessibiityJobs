@@ -1,13 +1,18 @@
 import json
 import unittest
 
+from bs4 import BeautifulSoup
+
 from run_a11yjobs_daily import (
     REQUIREMENTS_FALLBACK,
     RESPONSIBILITIES_FALLBACK,
+    extract_company_website,
     extract_experience,
     extract_structured_fields,
     normalize_description_text,
+    normalize_work_arrangement,
     parse_description_sections,
+    parse_location_fields,
     parse_salary,
     validate_record,
 )
@@ -159,6 +164,47 @@ Preferred Qualifications
         errors = validate_record(record)
         self.assertIn("Annual salary outside plausible range", errors)
         self.assertIn("required_skills contains sentence-sized item", errors)
+
+
+class LocationQualityTests(unittest.TestCase):
+    def test_us_state_is_not_stored_as_a_country(self):
+        self.assertEqual(parse_location_fields("Seattle, WA"), ("Seattle", "US"))
+
+    def test_region_is_not_duplicated_in_jsonld_city(self):
+        self.assertEqual(
+            parse_location_fields("Atlanta, GA, United States", "Atlanta, GA", None, "United States"),
+            ("Atlanta", "US"),
+        )
+
+    def test_international_country_code_wins_for_known_locality(self):
+        self.assertEqual(parse_location_fields("Bangalore, IN"), ("Bangalore", "IN"))
+
+    def test_hybrid_title_is_not_mislabeled_as_fully_remote(self):
+        self.assertEqual(
+            normalize_work_arrangement("Remote, US", "Accessibility Specialist - Hybrid"),
+            "hybrid",
+        )
+
+    def test_telecommute_schema_marks_a_fully_remote_job(self):
+        self.assertEqual(
+            normalize_work_arrangement("United States", "Accessibility Engineer", job_location_type="TELECOMMUTE"),
+            "remote",
+        )
+
+
+class CompanyWebsiteQualityTests(unittest.TestCase):
+    def test_source_board_link_is_not_an_employer_website(self):
+        soup = BeautifulSoup('<a href="/sponsorship">Company website</a>', "html.parser")
+        self.assertIsNone(
+            extract_company_website(soup, {"sameAs": "https://www.a11yjobs.com/sponsorship"})
+        )
+
+    def test_external_employer_website_is_preserved(self):
+        soup = BeautifulSoup("", "html.parser")
+        self.assertEqual(
+            extract_company_website(soup, {"sameAs": "https://example.com/careers"}),
+            "https://example.com/careers",
+        )
 
 
 if __name__ == "__main__":

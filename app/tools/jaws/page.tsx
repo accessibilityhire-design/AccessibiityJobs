@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, DollarSign, Monitor, Volume2 } from 'lucide-
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'JAWS Screen Reader Guide 2025 - Professional Accessibility Testing',
+  title: 'JAWS Screen Reader Guide - Professional Accessibility Testing',
   description: 'Complete JAWS screen reader guide: features, keyboard shortcuts, testing workflows, pricing, and best practices for accessibility professionals.',
   path: '/tools/jaws',
   keywords: ['JAWS', 'screen reader', 'accessibility testing', 'JAWS screen reader', 'accessibility tools', 'WCAG testing'],

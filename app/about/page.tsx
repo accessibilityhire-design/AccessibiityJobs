@@ -6,7 +6,7 @@ import { generatePageMetadata } from '@/lib/seo-config';
 import { Users, Target, Heart, Briefcase, Award, ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'About Us - AccessibilityJobs | Digital Accessibility Job Board',
+  title: 'About Our Digital Accessibility Job Board',
   description: 'Learn about AccessibilityJobs - a free job board dedicated to connecting accessibility professionals with meaningful opportunities in digital accessibility.',
   path: '/about',
   keywords: ['about accessibilityjobs', 'accessibility job board', 'a11y careers', 'digital accessibility jobs'],

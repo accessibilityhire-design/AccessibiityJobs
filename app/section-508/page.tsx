@@ -6,7 +6,7 @@ import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 
 export const metadata: Metadata = {
-  title: 'Section 508 Compliance 2025 - Federal Accessibility Requirements',
+  title: 'Section 508 Compliance - Federal Accessibility Requirements',
   description: 'Complete Section 508 guide: federal ICT requirements, testing methodology, compliance checklist, and certification for government contractors.',
   keywords: ['Section 508', 'Section 508 compliance', 'federal accessibility', 'ICT standards', 'government contractor compliance'],
   alternates: { canonical: 'https://accessibilityjobs.net/section-508' },

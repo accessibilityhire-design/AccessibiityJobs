@@ -7,7 +7,7 @@ import { RelatedJobs } from '@/components/RelatedJobs';
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'IAAP Certifications 2025 - International Association of Accessibility Professionals',
+  title: 'IAAP Certifications - International Association of Accessibility Professionals',
   description: 'Complete guide to IAAP certifications: CPACC, WAS, membership benefits, and professional development opportunities for accessibility careers.',
   path: '/certifications/iaap',
   keywords: ['IAAP certification', 'IAAP membership', 'accessibility professional certification'],

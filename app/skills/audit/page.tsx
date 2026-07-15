@@ -8,7 +8,7 @@ import { CheckCircle, Search, FileText, Zap, Users, DollarSign } from 'lucide-re
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Accessibility Audit Skills 2025 - WCAG Compliance Evaluation',
+  title: 'Accessibility Audit Skills - WCAG Compliance Evaluation',
   description: 'Master accessibility auditing: manual testing, automated tools, WCAG evaluation, report writing, and compliance documentation.',
   path: '/skills/audit',
   keywords: ['accessibility audit', 'WCAG audit', 'accessibility evaluation', 'compliance testing', 'accessibility auditor skills'],

@@ -8,8 +8,8 @@ import { Award, BookOpen, TrendingUp, Users, CheckCircle, ArrowRight } from 'luc
 import { generatePageMetadata, generateFAQStructuredData } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Accessibility Certifications 2025 - Complete Guide | AccessibilityJobs',
-  description: 'Discover the top accessibility certifications for 2025 including CPACC, WAS, CPWA, and more. Compare requirements, costs, and career benefits to advance your accessibility career.',
+  title: 'Accessibility Certifications - Complete Guide',
+  description: 'Discover leading accessibility certifications including CPACC, WAS, CPWA, and more. Compare requirements, costs, and career benefits to advance your accessibility career.',
   path: '/certifications',
   keywords: [
     'accessibility certifications',
@@ -173,7 +173,7 @@ export default function CertificationsPage() {
       <div className="max-w-6xl mx-auto">
         {/* Page Header */}
         <header className="page-header">
-          <h1>Accessibility Certifications 2025</h1>
+          <h1>Accessibility Certifications</h1>
           <p>
             Advance your career with industry-recognized accessibility certifications.
             Compare options, learn requirements, and choose the right path for your goals.

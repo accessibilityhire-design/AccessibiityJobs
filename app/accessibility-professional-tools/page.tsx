@@ -7,7 +7,7 @@ import { CheckCircle, ExternalLink, Zap, Shield, BarChart3, Monitor, UserCheck }
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Professional Accessibility Tools 2025 - Accessibility.Build & More',
+  title: 'Professional Accessibility Tools - Accessibility.Build & More',
   description: 'Discover professional accessibility tools including Accessibility.Build platform, automated scanning, monitoring, and remediation tools from leading companies.',
   path: '/accessibility-professional-tools',
   keywords: ['accessibility.build', 'accessibility tools', 'professional accessibility tools', 'accessibility scanning', 'accessibility monitoring', 'WCAG compliance tools', 'accessibility remediation'],
@@ -288,4 +288,3 @@ export default function AccessibilityToolsPage() {
     </div>
   );
 }
-

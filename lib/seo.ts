@@ -1,7 +1,17 @@
-import { Job } from './db/schema';
+import type { Job } from './db/schema';
 import { jobValidThrough } from './constants/jobs';
 import { jobPath } from './slug';
-import { hasMeaningfulJobSection, sanitizeJobHtml } from './job-formatter';
+import {
+  extractPlainText,
+  formatCompanyName,
+  formatJobDescription,
+  hasMeaningfulJobSection,
+  sanitizeJobHtml,
+} from './job-formatter';
+
+const SITE_URL = 'https://accessibilityjobs.net';
+const ORGANIZATION_ID = `${SITE_URL}/#organization`;
+const WEBSITE_ID = `${SITE_URL}/#website`;
 
 /**
  * Serialize structured data for a <script type="application/ld+json"> block.
@@ -11,489 +21,439 @@ export function safeJsonLd(data: unknown): string {
   return JSON.stringify(data).replace(/</g, '\\u003c');
 }
 
-/**
- * Enhanced JobPosting Schema for 2025
- * Includes all Google recommended fields for better visibility in Google for Jobs
- */
-export function generateJobStructuredData(job: Job, url: string) {
-  // Parse skills from JSON string if needed
-  let requiredSkills: string[] = [];
-  let preferredSkills: string[] = [];
+function parseJsonArray(value: string | null | undefined): string[] {
+  if (!value) return [];
   try {
-    if (job.requiredSkills) {
-      requiredSkills = typeof job.requiredSkills === 'string'
-        ? JSON.parse(job.requiredSkills)
-        : job.requiredSkills;
-    }
-    if (job.preferredSkills) {
-      preferredSkills = typeof job.preferredSkills === 'string'
-        ? JSON.parse(job.preferredSkills)
-        : job.preferredSkills;
-    }
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
   } catch {
-    // Ignore parsing errors
+    return [];
   }
+}
 
-  // Combine description sections for full description. Sanitize each part —
-  // job content comes from public submissions and scrapes, and Google's
-  // JobPosting.description accepts HTML, so never emit raw untrusted markup.
-  const fullDescription = sanitizeJobHtml(
-    [
-      job.description,
-      hasMeaningfulJobSection(job.keyResponsibilities) && `\n\nKey Responsibilities:\n${job.keyResponsibilities}`,
-      hasMeaningfulJobSection(job.requirements) && `\n\nRequirements:\n${job.requirements}`,
-      hasMeaningfulJobSection(job.niceToHave) && `\n\nNice to Have:\n${job.niceToHave}`,
-    ]
-      .filter(Boolean)
+function validHttpUrl(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const JOB_BOARD_HOSTS = new Set([
+  'a11yjobs.com',
+  'indeed.com',
+  'linkedin.com',
+  'glassdoor.com',
+  'ziprecruiter.com',
+  'monster.com',
+]);
+
+/** Do not present an aggregator or source-board URL as the employer website. */
+export function validCompanyWebsite(value: string | null | undefined): string | undefined {
+  const validUrl = validHttpUrl(value);
+  if (!validUrl) return undefined;
+  const hostname = new URL(validUrl).hostname.toLowerCase().replace(/^www\./, '');
+  if ([...JOB_BOARD_HOSTS].some((host) => hostname === host || hostname.endsWith(`.${host}`))) {
+    return undefined;
+  }
+  return validUrl;
+}
+
+function buildFullDescription(job: Job): string {
+  const sections: Array<{ heading?: string; value: string | null }> = [
+    { value: job.description },
+    {
+      heading: 'Key responsibilities',
+      value: hasMeaningfulJobSection(job.keyResponsibilities) ? job.keyResponsibilities : null,
+    },
+    {
+      heading: 'Requirements',
+      value: hasMeaningfulJobSection(job.requirements) ? job.requirements : null,
+    },
+    {
+      heading: 'Nice to have',
+      value: hasMeaningfulJobSection(job.niceToHave) ? job.niceToHave : null,
+    },
+  ];
+
+  return sanitizeJobHtml(
+    sections
+      .filter((section): section is { heading?: string; value: string } => Boolean(section.value))
+      .map((section) => {
+        const heading = section.heading ? `<h3>${section.heading}</h3>` : '';
+        return `${heading}${formatJobDescription(section.value)}`;
+      })
       .join('')
   );
+}
 
-  // validThrough: applicationDeadline if set, otherwise the shared expiry
-  // window. Expired jobs must not emit JobPosting schema at all — callers
-  // filter them out via the active-jobs query.
-  const createdAtDate = job.createdAt instanceof Date
-    ? job.createdAt
-    : new Date(job.createdAt);
-  const validCreatedAt = isNaN(createdAtDate.getTime()) ? new Date() : createdAtDate;
-  const validThrough = jobValidThrough(job);
+const COUNTRY_ALIASES: Record<string, string> = {
+  us: 'US',
+  usa: 'US',
+  'u.s.': 'US',
+  'u.s.a.': 'US',
+  'united states': 'US',
+  'united states of america': 'US',
+  ca: 'CA',
+  canada: 'CA',
+  uk: 'GB',
+  gb: 'GB',
+  'united kingdom': 'GB',
+  england: 'GB',
+  india: 'IN',
+  in: 'IN',
+  ecuador: 'EC',
+  ec: 'EC',
+  philippines: 'PH',
+  ph: 'PH',
+  sweden: 'SE',
+  se: 'SE',
+};
 
-  // Determine occupational category
-  const occupationalCategory = determineOccupationalCategory(job.title);
+const US_STATE_CODES = new Set([
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL',
+  'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT',
+  'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI',
+  'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC',
+]);
 
-  // Determine industry based on job context
-  const industry = determineIndustry(job.title, job.description);
+const CANADIAN_PROVINCE_CODES = new Set([
+  'AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT',
+]);
 
-  // Build job location with proper structure
-  const isRemote = job.type === 'remote' || job.workArrangement === 'remote';
-  const isHybrid = job.workArrangement === 'hybrid';
+function countryCodesForJob(job: Job): string[] {
+  const codes = new Set<string>();
 
-  const jobLocation: Record<string, unknown> = {
-    '@type': 'Place',
-    address: {
-      '@type': 'PostalAddress',
-      ...(job.city && { addressLocality: job.city }),
-      ...(job.country && { addressCountry: job.country }),
-      ...(job.specificLocation && { streetAddress: job.specificLocation }),
-      // Default country for remote jobs
-      ...(!job.country && isRemote && { addressCountry: 'US' }),
-    },
-  };
+  // Prefer the dedicated country field. The scraper normalizes it, while short
+  // values such as CA and IN are ambiguous inside a free-form location string.
+  for (const token of (job.country || '').split(/[|/]/).map((value) => value.trim()).filter(Boolean)) {
+    const normalized = token.toLowerCase().replace(/\s+/g, ' ').trim();
+    const alias = COUNTRY_ALIASES[normalized];
+    if (alias) {
+      codes.add(alias);
+      continue;
+    }
 
-  // Build base salary if available
-  let baseSalary: Record<string, unknown> | undefined;
-  if (job.salaryMin || job.salaryMax) {
-    const salaryType = job.salaryType?.toLowerCase();
-    baseSalary = {
-      '@type': 'MonetaryAmount',
-      currency: job.currency || 'USD',
-      value: {
-        '@type': 'QuantitativeValue',
-        ...(job.salaryMin && job.salaryMax ? {
-          minValue: job.salaryMin,
-          maxValue: job.salaryMax,
-        } : job.salaryMin ? {
-          value: job.salaryMin,
-        } : {
-          value: job.salaryMax,
-        }),
-        unitText: salaryType === 'hourly' ? 'HOUR' :
-          salaryType === 'daily' ? 'DAY' :
-          salaryType === 'monthly' ? 'MONTH' : 'YEAR',
-      },
-    };
-  } else if (job.salaryRange) {
-    // Try to parse salary range
-    const parsedSalary = parseSalaryRange(job.salaryRange);
-    if (parsedSalary) {
-      baseSalary = {
-        '@type': 'MonetaryAmount',
-        currency: parsedSalary.currency,
-        value: {
-          '@type': 'QuantitativeValue',
-          ...(parsedSalary.min && parsedSalary.max ? {
-            minValue: parsedSalary.min,
-            maxValue: parsedSalary.max,
-          } : {
-            value: parsedSalary.min || parsedSalary.max,
-          }),
-          unitText: 'YEAR',
-        },
-      };
+    const segments = token.split(',').map((part) => part.trim()).filter(Boolean);
+    for (const segment of segments) {
+      const segmentAlias = COUNTRY_ALIASES[segment.toLowerCase()];
+      if (segmentAlias) {
+        codes.add(segmentAlias);
+        continue;
+      }
+      const upper = segment.toUpperCase();
+      if (US_STATE_CODES.has(upper)) codes.add('US');
+      if (CANADIAN_PROVINCE_CODES.has(upper)) codes.add('CA');
     }
   }
 
-  // Extract responsibilities as array
-  const responsibilities = extractResponsibilities(job.keyResponsibilities);
+  if (codes.size > 0) return [...codes];
 
-  // Build qualifications string
-  const qualifications = buildQualifications(job);
+  // Fall back only to unambiguous country names or state/province codes. If a
+  // short token could be both a country and a state (CA or IN), omitting the
+  // JobPosting result is safer than publishing a false eligible location.
+  for (const source of [job.specificLocation, job.location]) {
+    if (!source) continue;
+    for (const segment of source.split(',').map((part) => part.trim()).filter(Boolean)) {
+      const upper = segment.toUpperCase();
+      const alias = COUNTRY_ALIASES[segment.toLowerCase()];
+      if (alias && upper !== 'CA' && upper !== 'IN') codes.add(alias);
+      if (US_STATE_CODES.has(upper) && upper !== 'CA' && upper !== 'IN') codes.add('US');
+      if (CANADIAN_PROVINCE_CODES.has(upper) && upper !== 'CA') codes.add('CA');
+    }
+  }
 
-  // Build job benefits if available
-  const jobBenefits = extractBenefits(job.description);
+  return [...codes];
+}
 
-  // Build applicant location requirements for remote jobs
-  const applicantLocationRequirements = isRemote ? [
-    { '@type': 'Country', name: 'United States' },
-    { '@type': 'Country', name: 'Canada' },
-    { '@type': 'Country', name: 'United Kingdom' },
-  ] : undefined;
+function locationRegion(job: Job, countryCode: string): string | undefined {
+  const source = job.specificLocation || job.location || '';
+  const segments = source
+    .split(',')
+    .map((part) => part.trim().toUpperCase())
+    .filter(Boolean)
+    .reverse();
+  if (countryCode === 'US') return segments.find((segment) => US_STATE_CODES.has(segment));
+  if (countryCode === 'CA') return segments.find((segment) => CANADIAN_PROVINCE_CODES.has(segment));
+  return undefined;
+}
+
+function buildJobLocation(job: Job, isRemote: boolean) {
+  const countryCodes = countryCodesForJob(job);
+
+  if (isRemote) {
+    if (countryCodes.length === 0) return null;
+    return {
+      applicantLocationRequirements: countryCodes.map((code) => ({
+        '@type': 'Country',
+        name: code,
+      })),
+      jobLocationType: 'TELECOMMUTE',
+    };
+  }
+
+  const countryCode = countryCodes[0];
+  if (!countryCode) return null;
+
+  const city = job.city && !/^remote$/i.test(job.city.trim()) ? job.city.trim() : undefined;
+  const region = locationRegion(job, countryCode);
+  return {
+    jobLocation: {
+      '@type': 'Place',
+      address: {
+        '@type': 'PostalAddress',
+        ...(city && { addressLocality: city }),
+        ...(region && { addressRegion: region }),
+        addressCountry: countryCode,
+      },
+    },
+  };
+}
+
+function buildBaseSalary(job: Job): Record<string, unknown> | undefined {
+  const salaryMin = typeof job.salaryMin === 'number' && job.salaryMin > 0 ? job.salaryMin : undefined;
+  const salaryMax = typeof job.salaryMax === 'number' && job.salaryMax > 0 ? job.salaryMax : undefined;
+  if (!salaryMin && !salaryMax) return undefined;
+
+  const units: Record<string, string> = {
+    hourly: 'HOUR',
+    daily: 'DAY',
+    weekly: 'WEEK',
+    monthly: 'MONTH',
+    annual: 'YEAR',
+    yearly: 'YEAR',
+  };
+  const unitText = units[(job.salaryType || '').toLowerCase()];
+  if (!unitText) return undefined;
+
+  const currency = /^[A-Z]{3}$/i.test(job.currency || '')
+    ? (job.currency || 'USD').toUpperCase()
+    : 'USD';
+
+  return {
+    '@type': 'MonetaryAmount',
+    currency,
+    value: {
+      '@type': 'QuantitativeValue',
+      ...(salaryMin && salaryMax
+        ? { minValue: Math.min(salaryMin, salaryMax), maxValue: Math.max(salaryMin, salaryMax) }
+        : { value: salaryMin || salaryMax }),
+      unitText,
+    },
+  };
+}
+
+function mapEmploymentType(value: string): string | string[] {
+  const typeMap: Record<string, string> = {
+    'full-time': 'FULL_TIME',
+    fulltime: 'FULL_TIME',
+    'part-time': 'PART_TIME',
+    parttime: 'PART_TIME',
+    contract: 'CONTRACTOR',
+    contractor: 'CONTRACTOR',
+    temporary: 'TEMPORARY',
+    internship: 'INTERN',
+    intern: 'INTERN',
+    freelance: 'CONTRACTOR',
+    volunteer: 'VOLUNTEER',
+    'per-diem': 'PER_DIEM',
+  };
+
+  const normalized = value.toLowerCase().trim();
+  if (normalized.includes(',') || normalized.includes('/')) {
+    const mapped = normalized
+      .split(/[,/]/)
+      .map((type) => typeMap[type.trim()] || 'OTHER');
+    return [...new Set(mapped)];
+  }
+  return typeMap[normalized] || 'OTHER';
+}
+
+function minimumMonthsOfExperience(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (/^(none|no requirements?|0(?:-0)?)$/.test(normalized)) return 0;
+  const match = normalized.match(/(\d+(?:\.\d+)?)/);
+  if (!match) return undefined;
+  return Math.round(Number(match[1]) * 12);
+}
+
+function educationCredential(value: string | null): string | undefined {
+  if (!value) return undefined;
+  const map: Record<string, string> = {
+    'high-school': 'high school',
+    'high school': 'high school',
+    associate: 'associate degree',
+    bachelor: 'bachelor degree',
+    "bachelor's": 'bachelor degree',
+    master: 'postgraduate degree',
+    "master's": 'postgraduate degree',
+    phd: 'postgraduate degree',
+    doctorate: 'postgraduate degree',
+    'none-required': 'no requirements',
+    none: 'no requirements',
+  };
+  return map[value.toLowerCase().trim()];
+}
+
+/**
+ * Evidence-backed JobPosting JSON-LD. Returns null rather than fabricating a
+ * required Google field when a listing is incomplete or geographically vague.
+ */
+export function generateJobStructuredData(job: Job, url: string) {
+  const title = job.title?.trim();
+  const company = formatCompanyName(job.company);
+  const createdAt = new Date(job.createdAt);
+  const description = buildFullDescription(job);
+  const plainDescription = extractPlainText(description, 10_000);
+  const isRemote = job.workArrangement === 'remote';
+  const location = buildJobLocation(job, isRemote);
+
+  if (
+    !title ||
+    !company ||
+    isNaN(createdAt.getTime()) ||
+    plainDescription.length < 100 ||
+    !location
+  ) {
+    return null;
+  }
+
+  const requiredSkills = parseJsonArray(job.requiredSkills);
+  const preferredSkills = parseJsonArray(job.preferredSkills);
+  const benefits = parseJsonArray(job.benefits);
+  const companyWebsite = validCompanyWebsite(job.companyWebsite);
+  const baseSalary = buildBaseSalary(job);
+  const monthsOfExperience = minimumMonthsOfExperience(job.yearsExperience);
+  const educationRequirements = educationCredential(job.educationLevel);
+  const responsibilities = hasMeaningfulJobSection(job.keyResponsibilities)
+    ? extractPlainText(job.keyResponsibilities, 10_000)
+    : undefined;
+  const qualifications = hasMeaningfulJobSection(job.requirements)
+    ? extractPlainText(job.requirements, 10_000)
+    : undefined;
+  const skills = [...new Set([...requiredSkills, ...preferredSkills])];
+  const validThrough = jobValidThrough(job);
 
   return {
     '@context': 'https://schema.org',
     '@type': 'JobPosting',
-
-    // Core required fields
-    title: job.title,
-    description: fullDescription,
-    datePosted: validCreatedAt.toISOString(),
+    '@id': `${url}#jobposting`,
+    title,
+    description,
+    datePosted: createdAt.toISOString(),
     validThrough: validThrough.toISOString(),
-
-    // Identifier for tracking
     identifier: {
       '@type': 'PropertyValue',
-      name: 'AccessibilityJobs',
+      name: company,
       value: job.id,
     },
-
-    // Hiring organization - enhanced
     hiringOrganization: {
       '@type': 'Organization',
-      name: job.company,
-      ...(job.companyWebsite && {
-        sameAs: job.companyWebsite,
-        url: job.companyWebsite,
-      }),
-      logo: 'https://accessibilityjobs.net/logo.png',
+      name: company,
+      ...(companyWebsite && { sameAs: companyWebsite, url: companyWebsite }),
     },
-
-    // Location handling
-    jobLocation,
-
-    // Employment type - required
-    employmentType: mapEmploymentType((job.employmentType || job.type || 'full-time') as string),
-
-    // Salary - highly recommended
+    ...location,
+    employmentType: mapEmploymentType(job.employmentType || job.type || ''),
     ...(baseSalary && { baseSalary }),
-
-    // Experience requirements
-    ...(job.yearsExperience && {
+    ...(monthsOfExperience !== undefined && {
       experienceRequirements: {
         '@type': 'OccupationalExperienceRequirements',
-        monthsOfExperience: mapExperienceLevel(job.yearsExperience),
+        monthsOfExperience,
       },
     }),
-
-    // Education requirements
-    ...(job.educationLevel && {
+    ...(educationRequirements && {
       educationRequirements: {
         '@type': 'EducationalOccupationalCredential',
-        credentialCategory: mapEducationLevel(job.educationLevel),
+        credentialCategory: educationRequirements,
       },
     }),
-
-    // Occupational category (O*NET code)
-    ...(occupationalCategory && { occupationalCategory }),
-
-    // Industry - new 2025 recommended field
-    ...(industry && { industry }),
-
-    // Remote work handling - enhanced for 2025
-    ...(isRemote && {
-      jobLocationType: 'TELECOMMUTE',
-      applicantLocationRequirements,
-    }),
-
-    // Hybrid work indicator
-    ...(isHybrid && {
-      workHours: 'Flexible - Hybrid',
-      specialCommitments: 'Hybrid work arrangement',
-    }),
-
-    // Skills - array format
-    ...((requiredSkills.length > 0 || preferredSkills.length > 0) && {
-      skills: [...new Set([...requiredSkills, ...preferredSkills])],
-    }),
-
-    // Qualifications - text format
+    ...(job.industry?.trim() && { industry: job.industry.trim() }),
+    ...(skills.length > 0 && { skills: skills.join(', ') }),
     ...(qualifications && { qualifications }),
-
-    // Responsibilities - array format (2025 recommended)
-    ...(responsibilities.length > 0 && {
-      responsibilities,
-    }),
-
-    // Job benefits - 2025 recommended field
-    ...(jobBenefits.length > 0 && {
-      jobBenefits: jobBenefits.join(', '),
-    }),
-
-    // Direct apply — true only if the application is completed on our site.
-    // We route applicants to the original posting or an email address, so
-    // claiming true would violate Google Jobs policy.
+    ...(responsibilities && { responsibilities }),
+    ...(benefits.length > 0 && { jobBenefits: benefits.join('; ') }),
     directApply: false,
-
-    // Canonical URL
     url,
-
-    // Main entity of page reference
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': url,
+      '@id': `${url}#webpage`,
     },
   };
-}
-
-/**
- * Parse salary range string into structured data
- */
-function parseSalaryRange(salaryRange: string): { min?: number; max?: number; currency: string } | null {
-  if (!salaryRange) return null;
-
-  // Common patterns: "$80,000 - $120,000", "$80k-$120k", "80000-120000"
-  const cleanedRange = salaryRange.replace(/,/g, '').toLowerCase();
-
-  // Detect currency
-  let currency = 'USD';
-  if (cleanedRange.includes('£') || cleanedRange.includes('gbp')) currency = 'GBP';
-  if (cleanedRange.includes('€') || cleanedRange.includes('eur')) currency = 'EUR';
-  if (cleanedRange.includes('cad') || cleanedRange.includes('ca$')) currency = 'CAD';
-
-  // Extract numbers
-  const numbers = cleanedRange.match(/\d+(\.\d+)?k?/g);
-  if (!numbers || numbers.length === 0) return null;
-
-  const parseNumber = (s: string): number => {
-    const num = parseFloat(s.replace('k', ''));
-    return s.includes('k') ? num * 1000 : num;
-  };
-
-  if (numbers.length >= 2) {
-    return {
-      min: parseNumber(numbers[0]),
-      max: parseNumber(numbers[1]),
-      currency,
-    };
-  } else if (numbers.length === 1) {
-    return {
-      min: parseNumber(numbers[0]),
-      currency,
-    };
-  }
-
-  return null;
-}
-
-/**
- * Extract responsibilities from text as array
- */
-function extractResponsibilities(text: string | null): string[] {
-  if (!text) return [];
-
-  // Split by common list patterns
-  const lines = text.split(/[\n•\-\*]/).map(s => s.trim()).filter(s => s.length > 10);
-
-  // Limit to top 8 responsibilities
-  return lines.slice(0, 8);
-}
-
-/**
- * Build qualifications string from job data
- */
-function buildQualifications(job: Job): string | undefined {
-  const parts: string[] = [];
-
-  if (job.wcagLevel) {
-    parts.push(`WCAG ${job.wcagLevel} knowledge required`);
-  }
-
-  if (job.yearsExperience) {
-    parts.push(`${job.yearsExperience} years of experience`);
-  }
-
-  if (job.educationLevel && job.educationLevel !== 'none-required') {
-    parts.push(`${job.educationLevel} degree preferred`);
-  }
-
-  return parts.length > 0 ? parts.join('. ') : undefined;
-}
-
-/**
- * Extract benefits mentioned in description
- */
-function extractBenefits(description: string | null): string[] {
-  if (!description) return [];
-
-  const benefitKeywords = [
-    'health insurance', 'dental', 'vision', '401k', '401(k)', 'retirement',
-    'remote work', 'work from home', 'flexible hours', 'pto', 'paid time off',
-    'parental leave', 'maternity leave', 'paternity leave', 'stock options',
-    'equity', 'bonus', 'professional development', 'tuition reimbursement',
-    'gym membership', 'wellness', 'mental health'
-  ];
-
-  const descLower = description.toLowerCase();
-  return benefitKeywords.filter(benefit => descLower.includes(benefit));
-}
-
-/**
- * Determine industry based on job content
- */
-function determineIndustry(title: string, description: string | null): string {
-  const content = `${title} ${description || ''}`.toLowerCase();
-
-  if (content.includes('healthcare') || content.includes('medical') || content.includes('hospital')) {
-    return 'Healthcare';
-  }
-  if (content.includes('fintech') || content.includes('banking') || content.includes('financial')) {
-    return 'Financial Services';
-  }
-  if (content.includes('education') || content.includes('university') || content.includes('school')) {
-    return 'Education';
-  }
-  if (content.includes('government') || content.includes('federal') || content.includes('public sector')) {
-    return 'Government';
-  }
-  if (content.includes('e-commerce') || content.includes('retail') || content.includes('shopping')) {
-    return 'Retail & E-commerce';
-  }
-
-  return 'Technology'; // Default for accessibility roles
-}
-
-function determineOccupationalCategory(title: string): string {
-  const titleLower = title.toLowerCase();
-
-  if (titleLower.includes('engineer') || titleLower.includes('developer')) {
-    return '15-1132.00'; // Software Developers, Applications
-  } else if (titleLower.includes('designer') || titleLower.includes('ux') || titleLower.includes('ui')) {
-    return '27-1024.00'; // Graphic Designers
-  } else if (titleLower.includes('tester') || titleLower.includes('qa')) {
-    return '15-1199.00'; // Computer Occupations, All Other
-  } else if (titleLower.includes('manager') || titleLower.includes('lead')) {
-    return '11-3021.00'; // Computer and Information Systems Managers
-  } else if (titleLower.includes('consultant') || titleLower.includes('specialist')) {
-    return '15-1199.00'; // Computer Occupations, All Other
-  }
-
-  return '15-1199.00'; // Default: Computer Occupations, All Other
-}
-
-function mapEmploymentType(type: string): string | string[] {
-  const typeMap: Record<string, string> = {
-    'full-time': 'FULL_TIME',
-    'fulltime': 'FULL_TIME',
-    'part-time': 'PART_TIME',
-    'parttime': 'PART_TIME',
-    'contract': 'CONTRACTOR',
-    'temporary': 'TEMPORARY',
-    'internship': 'INTERN',
-    'freelance': 'CONTRACTOR',
-  };
-
-  const normalized = type.toLowerCase().trim();
-
-  // Handle multiple employment types
-  if (normalized.includes(',') || normalized.includes('/')) {
-    const types = normalized.split(/[,\/]/).map(t => t.trim());
-    return types.map(t => typeMap[t] || 'FULL_TIME').filter((v, i, a) => a.indexOf(v) === i);
-  }
-
-  return typeMap[normalized] || 'FULL_TIME';
-}
-
-function mapExperienceLevel(yearsExp: string | null): number {
-  if (!yearsExp) return 0;
-
-  const expMap: Record<string, number> = {
-    '0-1': 6,
-    '1-3': 18,
-    '3-5': 36,
-    '5-7': 60,
-    '7-10': 84,
-    '10+': 120,
-  };
-
-  return expMap[yearsExp] || 0;
-}
-
-function mapEducationLevel(level: string | null): string {
-  if (!level) return 'bachelor degree';
-
-  const eduMap: Record<string, string> = {
-    'high-school': 'high school',
-    'associate': 'associate degree',
-    'bachelor': 'bachelor degree',
-    'master': 'master degree',
-    'phd': 'doctoral degree',
-    'none-required': 'no requirements',
-  };
-
-  return eduMap[level.toLowerCase()] || level;
 }
 
 export function generateOrganizationStructuredData() {
   return {
     '@context': 'https://schema.org',
     '@type': 'Organization',
+    '@id': ORGANIZATION_ID,
     name: 'AccessibilityJobs',
-    url: 'https://accessibilityjobs.net',
-    description: 'The leading job board for digital accessibility professionals. Find accessibility engineer jobs, WCAG specialist positions, a11y roles, and digital accessibility careers.',
-    logo: 'https://accessibilityjobs.net/logo.svg',
+    alternateName: ['Accessibility Jobs', 'A11y Jobs', 'AccessibilityJobs.net'],
+    url: SITE_URL,
+    description:
+      'A focused job board for digital accessibility professionals and organizations building inclusive products and services.',
+    logo: {
+      '@type': 'ImageObject',
+      '@id': `${SITE_URL}/#logo`,
+      url: `${SITE_URL}/android-chrome-512x512.png`,
+      contentUrl: `${SITE_URL}/android-chrome-512x512.png`,
+      width: 512,
+      height: 512,
+      caption: 'AccessibilityJobs',
+    },
     foundingDate: '2024',
-    sameAs: [
-      // Add social media links when available
-    ],
     contactPoint: {
       '@type': 'ContactPoint',
-      contactType: 'Customer Service',
-      email: 'info@accessibilityjobs.net',
+      contactType: 'customer support',
+      email: 'hello@accessibilityjobs.net',
+      availableLanguage: 'English',
     },
     areaServed: 'Worldwide',
-    serviceType: 'Job Board',
+    serviceType: 'Job board',
   };
 }
 
-export function generateJobPostingCollection(jobs: Job[], baseUrl: string = 'https://accessibilityjobs.net') {
+export function generateJobCollectionStructuredData(
+  jobs: Job[],
+  options: {
+    url?: string;
+    name?: string;
+    description?: string;
+    total?: number;
+  } = {}
+) {
+  const url = options.url || SITE_URL;
+  const name = options.name || 'Accessibility Jobs';
+  const description = options.description || 'Browse current digital accessibility job openings.';
+
   return {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'Accessibility Jobs - Digital Accessibility Job Board',
-    description: 'Browse hundreds of accessibility jobs including accessibility engineer, WCAG specialist, a11y consultant, and digital accessibility roles.',
-    url: baseUrl,
+    '@id': `${url}#webpage`,
+    name,
+    description,
+    url,
+    isPartOf: { '@id': WEBSITE_ID },
     mainEntity: {
       '@type': 'ItemList',
-      numberOfItems: jobs.length,
+      numberOfItems: options.total ?? jobs.length,
+      itemListOrder: 'https://schema.org/ItemListOrderDescending',
       itemListElement: jobs.map((job, index) => {
-        const createdAtDate = job.createdAt instanceof Date
-          ? job.createdAt
-          : new Date(job.createdAt);
-        const validCreatedAt = isNaN(createdAtDate.getTime()) ? new Date() : createdAtDate;
-
+        const jobUrl = `${SITE_URL}${jobPath(job)}`;
         return {
           '@type': 'ListItem',
           position: index + 1,
           item: {
-            '@type': 'JobPosting',
-            title: job.title,
-            identifier: {
-              '@type': 'PropertyValue',
-              name: 'AccessibilityJobs',
-              value: job.id,
-            },
-            datePosted: validCreatedAt.toISOString(),
-            hiringOrganization: {
-              '@type': 'Organization',
-              name: job.company,
-            },
-            jobLocation: {
-              '@type': 'Place',
-              address: {
-                '@type': 'PostalAddress',
-                addressLocality: job.location || 'Remote',
-              },
-            },
-            employmentType: mapEmploymentType((job.employmentType || job.type || 'full-time') as string),
-            url: `${baseUrl}${jobPath(job)}`,
+            '@type': 'WebPage',
+            '@id': `${jobUrl}#webpage`,
+            url: jobUrl,
+            name: `${job.title} at ${formatCompanyName(job.company)}`,
           },
         };
       }),

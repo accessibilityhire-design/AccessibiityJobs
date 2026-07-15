@@ -6,12 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Mail, Clock, MessageSquare, CheckCircle } from 'lucide-react';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 export default function ContactPage() {
   const [state, handleSubmit] = useForm('xzzoevkp');
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <Breadcrumbs items={[{ label: 'Contact', href: '/contact' }]} />
       <div className="max-w-3xl mx-auto">
         {/* Page Header */}
         <header className="page-header">

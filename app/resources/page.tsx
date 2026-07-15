@@ -7,7 +7,7 @@ import { ExternalLink, BookOpen, Users, Video, FileText } from 'lucide-react';
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Accessibility Resources 2025 - Free Learning & Community',
+  title: 'Accessibility Resources - Free Learning & Community',
   description: 'Curated accessibility resources: free courses, tutorials, communities, forums, blogs, newsletters, government resources, and professional development.',
   path: '/resources',
   keywords: ['accessibility resources', 'accessibility training', 'WCAG tutorials', 'accessibility community', 'free accessibility courses', 'accessibility learning', 'a11y resources', 'accessibility education'],

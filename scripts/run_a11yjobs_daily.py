@@ -43,6 +43,22 @@ WCAG_LEVELS = {"wcag-2.0", "wcag-2.1", "wcag-2.2", "wcag-3.0"}
 CURRENCIES = {"USD", "EUR", "GBP", "CAD", "AUD", "INR", "JPY", "CNY"}
 SALARY_TYPES = {"annual", "monthly", "hourly", "daily", "project"}
 TRAVEL_REQUIREMENTS = {"none", "occasional", "regular", "frequent"}
+US_STATE_CODES = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL",
+    "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT",
+    "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+    "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
+}
+COUNTRY_CODE_ALIASES = {
+    "us": "US", "usa": "US", "u.s.": "US", "u.s.a.": "US",
+    "united states": "US", "united states of america": "US",
+    "ca": "CA", "canada": "CA",
+    "uk": "GB", "gb": "GB", "united kingdom": "GB", "england": "GB",
+    "in": "IN", "india": "IN",
+    "ec": "EC", "ecuador": "EC",
+    "ph": "PH", "philippines": "PH",
+    "se": "SE", "sweden": "SE",
+}
 
 REQUIRED_FIELDS = [
     "title",
@@ -211,13 +227,72 @@ def normalize_employment_type(text: str) -> str:
     return "full-time"
 
 
-def normalize_work_arrangement(text: str) -> str:
-    lower = text.lower() if text else ""
-    if "remote" in lower:
+def normalize_work_arrangement(
+    location: str,
+    title: str = "",
+    description: str = "",
+    job_location_type: str = "",
+) -> str:
+    primary = f"{location} {title}".lower()
+    description_lower = description.lower() if description else ""
+    if "hybrid" in primary:
+        return "hybrid"
+    if str(job_location_type).upper() == "TELECOMMUTE" or "remote" in primary:
         return "remote"
-    if "hybrid" in lower or "telecommute" in lower:
+    if re.search(r"\b(?:100%|fully|entirely)\s+remote\b|\bremote\s+(?:position|role)\b", description_lower):
+        return "remote"
+    if re.search(r"\bhybrid\s+(?:position|role|schedule|work)\b", description_lower):
         return "hybrid"
     return "onsite"
+
+
+def normalize_country_code(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    normalized = re.sub(r"\s+", " ", str(value)).strip()
+    return COUNTRY_CODE_ALIASES.get(normalized.lower(), normalized)
+
+
+def parse_location_fields(
+    location_text: str,
+    jsonld_city: Optional[str] = None,
+    jsonld_region: Optional[str] = None,
+    jsonld_country: Optional[str] = None,
+) -> Tuple[Optional[str], Optional[str]]:
+    city = str(jsonld_city).strip() if jsonld_city else None
+    if city and "," in city:
+        # Some sources place a complete ``city, region`` label in
+        # addressLocality. Store only the locality; the region remains in the
+        # full location string and is emitted separately in JobPosting schema.
+        city = city.split(",", 1)[0].strip() or None
+    country = normalize_country_code(jsonld_country)
+    parts = [part.strip() for part in re.split(r"[,|]", location_text or "") if part.strip()]
+
+    if not city and parts and parts[0].lower() != "remote":
+        city = parts[0]
+
+    if not country and parts:
+        final = parts[-1]
+        upper = final.upper()
+        if upper in US_STATE_CODES:
+            # Prefer explicit country aliases for well-known international
+            # localities that also collide with US state abbreviations.
+            if upper == "IN" and city and city.lower() in {"bangalore", "bengaluru", "mumbai", "delhi", "pune", "hyderabad", "chennai"}:
+                country = "IN"
+            elif upper == "CA" and city and city.lower() in {"toronto", "vancouver", "montreal", "ottawa", "calgary"}:
+                country = "CA"
+            else:
+                country = "US"
+        else:
+            country = normalize_country_code(final)
+
+    # A structured region can safely resolve the country when the source did
+    # not provide addressCountry.
+    region = str(jsonld_region).strip().upper() if jsonld_region else ""
+    if not country and region in US_STATE_CODES:
+        country = "US"
+
+    return city, country
 
 
 def determine_job_level(title: str, description: str) -> Optional[str]:
@@ -1341,18 +1416,26 @@ def extract_apply_url(soup: BeautifulSoup, page_url: str, jsonld: Dict[str, Any]
 
 
 def extract_company_website(soup: BeautifulSoup, hiring_org: Any) -> Optional[str]:
+    source_host = (urlparse(BASE_URL).hostname or "").lower().removeprefix("www.")
+
+    def is_employer_url(value: Any) -> bool:
+        if not isinstance(value, str) or not url_is_valid(value):
+            return False
+        hostname = (urlparse(value).hostname or "").lower().removeprefix("www.")
+        return bool(hostname and hostname != source_host and not hostname.endswith("." + source_host))
+
     company_website = None
     if isinstance(hiring_org, dict):
         company_website = hiring_org.get("sameAs") or hiring_org.get("url")
     if isinstance(company_website, list):
         company_website = company_website[0] if company_website else None
-    if company_website and url_is_valid(company_website):
+    if is_employer_url(company_website):
         return company_website
 
     for a in soup.find_all("a", href=True):
         href = urljoin(BASE_URL, a.get("href", ""))
         link_text = clean_text(a.get_text(" ", strip=True)).lower()
-        if not url_is_valid(href):
+        if not is_employer_url(href):
             continue
         if "apply" in link_text:
             continue
@@ -1474,19 +1557,25 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     company = html.unescape(company).strip()
 
     location_text = extract_label_value(soup, r"location") or ""
+    jsonld_city = None
+    jsonld_region = None
+    jsonld_country = None
     job_location = jsonld.get("jobLocation")
     location_candidates = job_location if isinstance(job_location, list) else [job_location]
     for candidate in location_candidates:
         if isinstance(candidate, dict):
             loc = candidate.get("address", {})
             if isinstance(loc, dict):
-                location_parts = [loc.get("addressLocality"), loc.get("addressRegion"), loc.get("addressCountry")]
-                parsed_location = ", ".join([p for p in location_parts if p])
+                jsonld_city = loc.get("addressLocality")
+                jsonld_region = loc.get("addressRegion")
+                jsonld_country = loc.get("addressCountry")
+                if isinstance(jsonld_country, dict):
+                    jsonld_country = jsonld_country.get("name")
+                location_parts = [loc.get("addressLocality"), loc.get("addressRegion"), jsonld_country]
+                parsed_location = ", ".join([str(p) for p in location_parts if isinstance(p, str) and p])
                 if parsed_location:
                     location_text = parsed_location
                     break
-
-    work_arrangement = normalize_work_arrangement(location_text)
 
     employment_raw = jsonld.get("employmentType") or extract_label_value(soup, r"job type") or ""
     if isinstance(employment_raw, list):
@@ -1510,6 +1599,12 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
 
     apply_url = extract_apply_url(soup, url, jsonld)
     description = extract_best_description(soup, jsonld)
+    work_arrangement = normalize_work_arrangement(
+        location_text,
+        title,
+        description,
+        str(jsonld.get("jobLocationType") or ""),
+    )
 
     # The visible description/responsibilities/requirements DO drop the
     # universal trailing EEO/legal boilerplate — it carries no decision
@@ -1528,16 +1623,15 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
 
     job_level = determine_job_level(title, description)
 
-    city = None
-    country = None
+    city, country = parse_location_fields(
+        location_text,
+        str(jsonld_city) if jsonld_city else None,
+        str(jsonld_region) if jsonld_region else None,
+        str(jsonld_country) if jsonld_country else None,
+    )
     specific_location = None
     if location_text:
         specific_location = location_text
-        parts = re.split(r"[,|]", location_text)
-        if parts:
-            city = parts[0].strip() if parts[0].strip() else None
-        if len(parts) >= 2:
-            country = parts[-1].strip() if parts[-1].strip() else None
 
     contact_email = extract_contact_email(description) or None
 

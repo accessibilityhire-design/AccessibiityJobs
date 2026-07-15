@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { Job } from '@/lib/db/schema';
-import { generateOrganizationStructuredData, generateJobPostingCollection, safeJsonLd } from '@/lib/seo';
+import { generateJobCollectionStructuredData, generateOrganizationStructuredData, safeJsonLd } from '@/lib/seo';
 import { generateWebSiteStructuredData } from '@/lib/seo-config';
 import { JobFilters } from '@/components/JobFilters';
 import { JobsView } from '@/components/JobsView';
@@ -11,9 +11,9 @@ import { ArrowUpRight, ShieldCheck, Sparkles, Gauge } from 'lucide-react';
 
 import { generatePageMetadata } from '@/lib/seo-config';
 
-export const metadata: Metadata = generatePageMetadata({
+const HOME_METADATA: Metadata = generatePageMetadata({
   title: 'Accessibility Jobs - Find Digital Accessibility Careers | AccessibilityJobs',
-  description: 'Search live accessibility jobs including accessibility engineer, WCAG specialist, a11y consultant, digital accessibility roles, and inclusive design positions. Remote, hybrid, and onsite opportunities.',
+  description: 'Search live accessibility jobs for WCAG specialists, a11y engineers, consultants, testers, and inclusive designers. Find remote, hybrid, and onsite roles.',
   path: '/',
   keywords: [
     'accessibility jobs',
@@ -32,6 +32,30 @@ export const metadata: Metadata = generatePageMetadata({
     'accessibility job board',
   ],
 });
+
+type HomeSearchParams = {
+  type?: string;
+  search?: string;
+  employment?: string;
+  level?: string;
+  page?: string;
+};
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<HomeSearchParams>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const isFilteredOrPaginated = Object.values(params).some((value) => Boolean(value));
+  if (!isFilteredOrPaginated) return HOME_METADATA;
+
+  return {
+    ...HOME_METADATA,
+    alternates: { canonical: 'https://accessibilityjobs.net' },
+    robots: { index: false, follow: true },
+  };
+}
 
 export const revalidate = 60;
 
@@ -74,7 +98,12 @@ export default async function HomePage({
   if (filter.level !== 'all') activeParams.level = filter.level;
 
   const organizationData = generateOrganizationStructuredData();
-  const jobCollectionData = generateJobPostingCollection(pageJobs.slice(0, 10));
+  const jobCollectionData = generateJobCollectionStructuredData(pageJobs, {
+    url: 'https://accessibilityjobs.net',
+    name: 'Accessibility Jobs',
+    description: 'Browse current digital accessibility jobs across engineering, design, testing, auditing, and consulting.',
+    total: totalCount,
+  });
 
   const companyRail = Array.from(new Set(pageJobs.map((j) => j.company))).slice(0, 12);
 

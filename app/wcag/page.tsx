@@ -7,7 +7,7 @@ import { generatePageMetadata, generateFAQStructuredData } from '@/lib/seo-confi
 import { BookOpen, CheckCircle, AlertTriangle, Sparkles, ExternalLink, ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'WCAG Guidelines 2025 - Web Content Accessibility Guidelines Complete Guide',
+  title: 'WCAG Guidelines - Web Content Accessibility Guidelines Complete Guide',
   description: 'Comprehensive WCAG guide: 2.0, 2.1, 2.2 comparison, Level AA requirements, common violations, compliance checklist, and WCAG 3.0 preview. Learn everything about web accessibility standards.',
   path: '/wcag',
   keywords: ['WCAG', 'WCAG 2.2', 'web accessibility guidelines', 'WCAG compliance', 'WCAG Level AA', 'WCAG 2.1', 'WCAG 3.0', 'accessibility standards', 'WCAG checklist', 'WCAG requirements', 'web accessibility', 'POUR principles'],

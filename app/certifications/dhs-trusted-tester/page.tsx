@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, Building2, Calendar } from 'lucide-react';
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'DHS Trusted Tester Certification 2025 - Free Federal Accessibility Certification',
+  title: 'DHS Trusted Tester Certification - Free Federal Accessibility Certification',
   description: 'Complete DHS Trusted Tester certification guide: free training, Section 508 compliance testing, federal contractor requirements, and career opportunities.',
   path: '/certifications/dhs-trusted-tester',
   keywords: ['DHS Trusted Tester', 'Section 508 certification', 'federal accessibility testing', 'government contractor certification'],
@@ -116,4 +116,3 @@ export default function DHSTrustedTesterPage() {
     </div>
   );
 }
-

@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { generatePageMetadata } from '@/lib/seo-config';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 export const metadata: Metadata = generatePageMetadata({
   title: 'Accessibility Statement - AccessibilityJobs',
@@ -11,6 +12,7 @@ export const metadata: Metadata = generatePageMetadata({
 export default function AccessibilityStatementPage() {
   return (
     <div className="container mx-auto px-4 py-12">
+      <Breadcrumbs items={[{ label: 'Accessibility Statement', href: '/accessibility-statement' }]} />
       <div className="max-w-4xl mx-auto">
         <div className="mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-2">Accessibility Statement</h1>
@@ -247,4 +249,3 @@ export default function AccessibilityStatementPage() {
     </div>
   );
 }
-

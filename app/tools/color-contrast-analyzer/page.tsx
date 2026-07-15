@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, Gift, Palette, Eye, Target } from 'lucide-re
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Color Contrast Analyzer Guide 2025 - WCAG Color Contrast Testing',
+  title: 'Color Contrast Analyzer Guide - WCAG Color Contrast Testing',
   description: 'Complete Color Contrast Analyzer guide: free desktop tool for WCAG color contrast testing, ratio calculation, color blindness simulation, and accessibility compliance.',
   path: '/tools/color-contrast-analyzer',
   keywords: ['Color Contrast Analyzer', 'color contrast checker', 'WCAG contrast', 'accessibility color testing', 'contrast ratio calculator'],

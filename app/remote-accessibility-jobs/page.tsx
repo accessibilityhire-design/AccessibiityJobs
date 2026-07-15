@@ -2,13 +2,14 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { JobsView } from '@/components/JobsView';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { queryJobs, parseJobsSearchParams } from '@/lib/jobs-query';
-import { generatePageMetadata, generateBreadcrumbStructuredData } from '@/lib/seo-config';
-import { safeJsonLd } from '@/lib/seo';
+import { generatePageMetadata } from '@/lib/seo-config';
+import { generateJobCollectionStructuredData, safeJsonLd } from '@/lib/seo';
 
 export const revalidate = 300;
 
-export const metadata: Metadata = generatePageMetadata({
+const REMOTE_JOBS_METADATA: Metadata = generatePageMetadata({
   title: 'Remote Accessibility Jobs — Work From Anywhere',
   description:
     'Browse remote digital accessibility jobs: accessibility engineers, WCAG auditors, a11y consultants, and inclusive design roles you can do from anywhere.',
@@ -22,6 +23,20 @@ export const metadata: Metadata = generatePageMetadata({
     'remote accessibility consultant',
   ],
 });
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}): Promise<Metadata> {
+  const { page } = await searchParams;
+  if (!page) return REMOTE_JOBS_METADATA;
+  return {
+    ...REMOTE_JOBS_METADATA,
+    alternates: { canonical: 'https://accessibilityjobs.net/remote-accessibility-jobs' },
+    robots: { index: false, follow: true },
+  };
+}
 
 export default async function RemoteJobsPage({
   searchParams,
@@ -38,18 +53,23 @@ export default async function RemoteJobsPage({
     console.error('Failed to fetch remote jobs:', error);
   }
 
-  const breadcrumbData = generateBreadcrumbStructuredData([
-    { name: 'Home', url: '/' },
-    { name: 'Remote Accessibility Jobs', url: '/remote-accessibility-jobs' },
-  ]);
+  const collectionData = generateJobCollectionStructuredData(result?.jobs || [], {
+    url: 'https://accessibilityjobs.net/remote-accessibility-jobs',
+    name: 'Remote Accessibility Jobs',
+    description: 'Current remote digital accessibility roles across engineering, testing, design, auditing, and consulting.',
+    total: result?.total || 0,
+  });
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbData) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionData) }}
       />
       <section className="container mx-auto px-4 py-14 md:py-20">
+        <Breadcrumbs
+          items={[{ label: 'Remote Accessibility Jobs', href: '/remote-accessibility-jobs' }]}
+        />
         <div className="max-w-3xl">
           <span className="eyebrow">Remote-first</span>
           <h1 className="display-lg mt-2 text-[var(--ink)]">

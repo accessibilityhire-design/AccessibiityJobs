@@ -15,7 +15,7 @@ import { generatePageMetadata, generateFAQStructuredData, generateArticleStructu
 import { seoConfig } from '@/lib/seo-config';
 
 const pageMetadata = generatePageMetadata({
-  title: 'Accessibility Career Guide 2025 - Jobs, Salaries, Education & Certifications by Country',
+  title: 'Accessibility Career Guide - Jobs, Salaries, Education & Certifications by Country',
   description: 'Complete guide to accessibility careers: job titles, salary ranges by country (USA, India, Europe), education requirements, certifications, companies hiring, and career paths in digital accessibility.',
   path: '/accessibility-career-guide',
   keywords: ['accessibility jobs', 'accessibility careers', 'accessibility specialist salary', 'accessibility jobs remote', 'accessibility jobs seattle', 'accessibility jobs san francisco', 'accessibility jobs salary', 'accessibility jobs usa', 'accessibility jobs india', 'accessibility jobs europe', 'accessibility jobs uk', 'accessibility jobs germany', 'accessibility education', 'accessibility certifications', 'accessibility jobs bangalore', 'accessibility jobs london', 'accessibility career path', 'how to become accessibility specialist', 'accessibility jobs without degree'],
@@ -1160,7 +1160,7 @@ export default function AccessibilityCareerGuidePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(generateArticleStructuredData({
-            title: 'Accessibility Career Guide 2025 - Jobs, Salaries, Education & Certifications by Country',
+            title: 'Accessibility Career Guide - Jobs, Salaries, Education & Certifications by Country',
             description: 'Complete guide to accessibility careers: job titles, salary ranges by country (USA, India, Europe), education requirements, certifications, companies hiring, and career paths in digital accessibility.',
             url: '/accessibility-career-guide',
             datePublished: '2025-01-01T00:00:00Z',
@@ -1222,4 +1222,3 @@ export default function AccessibilityCareerGuidePage() {
     </div>
   );
 }
-

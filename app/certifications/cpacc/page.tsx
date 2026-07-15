@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, DollarSign, Clock, ArrowRight, Award, User }
 import { generateFAQStructuredData, generateHowToStructuredData, generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'CPACC Certification Guide 2025 - How to Get Certified',
+  title: 'CPACC Certification Guide - How to Get Certified',
   description: 'Complete CPACC certification guide: 8-12 week study plan, exam format (100 questions, $450), study resources, career benefits (+25% salary). Start your accessibility career.',
   path: '/certifications/cpacc',
   keywords: ['CPACC certification', 'CPACC exam', 'IAAP CPACC', 'accessibility certification', 'how to get CPACC', 'CPACC study guide', 'CPACC salary', 'accessibility career'],

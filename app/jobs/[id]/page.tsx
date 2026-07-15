@@ -12,8 +12,8 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { generateJobStructuredData, safeJsonLd } from '@/lib/seo';
-import { generateBreadcrumbStructuredData } from '@/lib/seo-config';
+import { generateJobStructuredData, safeJsonLd, validCompanyWebsite } from '@/lib/seo';
+import { generateWebPageStructuredData } from '@/lib/seo-config';
 import { formatJobDescription, formatCompanyName, extractPlainText, hasMeaningfulJobSection } from '@/lib/job-formatter';
 import { extractJobId, jobPath } from '@/lib/slug';
 import { isJobExpired } from '@/lib/constants/jobs';
@@ -111,10 +111,10 @@ function colorFromString(input: string) {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id: rawParam } = await params;
   const id = extractJobId(rawParam);
-  if (!id) return { title: 'Job Not Found' };
+  if (!id) return { title: 'Job Not Found', robots: { index: false, follow: false } };
 
   const jobData = await getJob(id);
-  if (!jobData) return { title: 'Job Not Found' };
+  if (!jobData) return { title: 'Job Not Found', robots: { index: false, follow: false } };
 
   // Canonicalize here, before the shell streams, so crawlers get a real
   // 308 instead of a meta-refresh on old /jobs/<uuid> links.
@@ -129,7 +129,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const expired = isJobExpired(jobData);
 
   return {
-    title: `${jobData.title} at ${formatCompanyName(jobData.company)} | AccessibilityJobs`,
+    title: `${jobData.title} at ${formatCompanyName(jobData.company)}`,
     description: cleanDescription,
     keywords: [
       'accessibility jobs',
@@ -149,15 +149,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       images: [
         {
           url: '/og-image.png',
-          width: 1200,
-          height: 630,
+          width: 1024,
+          height: 1024,
           alt: `${jobData.title} at ${formatCompanyName(jobData.company)} — AccessibilityJobs`,
         },
       ],
     },
     twitter: {
       card: 'summary_large_image',
-      site: '@AccessibilityJobs',
       title: `${jobData.title} at ${formatCompanyName(jobData.company)}`,
       description: cleanDescription,
       images: ['/og-image.png'],
@@ -202,6 +201,7 @@ export default async function JobDetailPage({ params }: PageProps) {
   const location = job.specificLocation || job.city || job.location || 'Location not specified';
   const workArrangement = job.workArrangement || job.type || 'full-time';
   const sourceConfig = getSourceConfig(job.jobSource);
+  const companyWebsite = validCompanyWebsite(job.companyWebsite);
 
   const showYearsSuffix = !!(job.yearsExperience && !/year/i.test(job.yearsExperience));
   const wcagDisplay = job.wcagLevel
@@ -214,26 +214,30 @@ export default async function JobDetailPage({ params }: PageProps) {
   const initial = (companyName || 'J').charAt(0).toUpperCase();
 
   const canonicalUrl = `https://accessibilityjobs.net${canonicalPath}`;
-  const breadcrumbData = generateBreadcrumbStructuredData([
-    { name: 'Home', url: '/' },
-    { name: 'Jobs', url: '/#roles' },
-    { name: job.title, url: canonicalPath },
-  ]);
+  const jobStructuredData = expired ? null : generateJobStructuredData(job, canonicalUrl);
+  const pageStructuredData = generateWebPageStructuredData({
+    name: `${job.title} at ${companyName}`,
+    path: canonicalPath,
+    breadcrumbs: [
+      { name: 'Home', url: '/' },
+      { name: job.title, url: canonicalPath },
+    ],
+  });
 
   return (
     <>
       {/* Expired listings must not emit JobPosting schema (Google policy) */}
-      {!expired && (
+      {jobStructuredData && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: safeJsonLd(generateJobStructuredData(job, canonicalUrl)),
+            __html: safeJsonLd(jobStructuredData),
           }}
         />
       )}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbData) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(pageStructuredData) }}
       />
 
       {/* ================= HERO ================= */}
@@ -514,29 +518,29 @@ export default async function JobDetailPage({ params }: PageProps) {
                           </a>
                         }
                       />
-                      {job.companyWebsite && (
+                      {companyWebsite && (
                         <KeyValue
                           icon={<Globe className="h-4 w-4" />}
                           label="Website"
                           value={
                             <a
-                              href={job.companyWebsite}
+                              href={companyWebsite}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-[var(--ink)] hover:underline break-all"
                             >
-                              {job.companyWebsite.replace(/^https?:\/\//, '')}
+                              {companyWebsite.replace(/^https?:\/\//, '')}
                             </a>
                           }
                         />
                       )}
                     </div>
                   </>
-                ) : job.companyWebsite ? (
+                ) : companyWebsite ? (
                   <>
                     <Button variant="ink" size="lg" className="w-full" asChild>
                       <a
-                        href={job.companyWebsite}
+                        href={companyWebsite}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Apply for ${job.title} on company website`}

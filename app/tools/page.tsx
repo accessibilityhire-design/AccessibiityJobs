@@ -8,7 +8,7 @@ import { generatePageMetadata, generateFAQStructuredData } from '@/lib/seo-confi
 import { RelatedJobs } from '@/components/RelatedJobs';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Accessibility Testing Tools 2025 - Complete Toolkit Guide',
+  title: 'Accessibility Testing Tools - Complete Toolkit Guide',
   description: 'Comprehensive guide to accessibility testing tools: JAWS, NVDA, axe DevTools, WAVE, Lighthouse. Compare features, pricing, and find the right tools for your WCAG testing workflow.',
   path: '/tools',
   keywords: ['accessibility testing tools', 'screen readers', 'JAWS', 'NVDA', 'axe DevTools', 'WAVE', 'accessibility automation', 'accessibility tools', 'a11y tools', 'WCAG testing tools', 'accessibility audit tools'],

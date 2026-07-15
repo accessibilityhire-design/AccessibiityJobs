@@ -7,7 +7,7 @@ import { RelatedJobs } from '@/components/RelatedJobs';
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'CPWA Certification 2025 - Certified Professional in Web Accessibility',
+  title: 'CPWA Certification - Certified Professional in Web Accessibility',
   description: 'CPWA certification guide: advanced web accessibility credential, requirements, study resources, and career advancement for experienced professionals.',
   path: '/certifications/cpwa',
   keywords: ['CPWA certification', 'Certified Professional Web Accessibility', 'advanced accessibility certification'],

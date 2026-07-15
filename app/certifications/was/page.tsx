@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, DollarSign, Clock, Code } from 'lucide-react
 import { generateFAQStructuredData, generateHowToStructuredData, generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'WAS Certification 2025 - Web Accessibility Specialist Guide',
+  title: 'WAS Certification - Web Accessibility Specialist Guide',
   description: 'Complete WAS certification guide: 4-6 month study plan, hands-on exam format ($450), technical requirements, and $15K+ salary boost. For developers.',
   path: '/certifications/was',
   keywords: ['WAS certification', 'Web Accessibility Specialist', 'IAAP WAS', 'accessibility developer certification', 'accessibility engineer'],

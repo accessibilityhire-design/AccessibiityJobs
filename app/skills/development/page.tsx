@@ -8,7 +8,7 @@ import { CheckCircle, Code, Users, DollarSign, Zap } from 'lucide-react';
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Accessible Development Skills 2025 - Build Inclusive Apps',
+  title: 'Accessible Development Skills - Build Inclusive Apps',
   description: 'Master accessible development: semantic HTML, ARIA patterns, focus management, React/Angular/Vue accessibility, and WCAG implementation.',
   path: '/skills/development',
   keywords: ['accessible development', 'accessibility developer', 'ARIA development', 'semantic HTML', 'React accessibility', 'accessibility coding'],

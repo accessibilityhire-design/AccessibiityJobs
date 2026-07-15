@@ -6,7 +6,7 @@ import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 
 export const metadata: Metadata = {
-  title: 'ADA Compliance 2025 - Americans with Disabilities Act Web Accessibility',
+  title: 'ADA Compliance - Americans with Disabilities Act Web Accessibility',
   description: 'Complete ADA compliance guide: Title III requirements, web accessibility legal obligations, recent lawsuits, compliance strategies, and WCAG standards.',
   keywords: ['ADA compliance', 'ADA web accessibility', 'ADA Title III', 'website accessibility law', 'ADA lawsuit prevention'],
   alternates: { canonical: 'https://accessibilityjobs.net/ada' },

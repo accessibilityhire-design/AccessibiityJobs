@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, Building2, Calendar, DollarSign } from 'luci
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Section 508 Trusted Tester Certification 2025 - Federal Accessibility Testing',
+  title: 'Section 508 Trusted Tester Certification - Federal Accessibility Testing',
   description: 'Section 508 Trusted Tester certification: free federal training, compliance testing methodology, and career opportunities in government accessibility.',
   path: '/certifications/section-508-trusted-tester',
   keywords: ['Section 508 certification', 'Trusted Tester', 'federal accessibility', 'government compliance testing'],

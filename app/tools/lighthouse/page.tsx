@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, Gift, Zap, BarChart3, Chrome } from 'lucide-
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Lighthouse Accessibility Guide 2025 - Chrome DevTools Performance & A11y',
+  title: 'Lighthouse Accessibility Guide - Chrome DevTools Performance & A11y',
   description: 'Complete Lighthouse guide: Chrome DevTools accessibility auditing, performance testing, WCAG compliance, scoring, and best practices.',
   path: '/tools/lighthouse',
   keywords: ['Lighthouse', 'Chrome Lighthouse', 'accessibility audit', 'performance testing', 'Lighthouse accessibility', 'Chrome DevTools'],

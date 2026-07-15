@@ -8,7 +8,7 @@ import { CheckCircle, TestTube, Users, DollarSign, Keyboard } from 'lucide-react
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Accessibility Testing Skills 2025 - Screen Readers & Assistive Tech',
+  title: 'Accessibility Testing Skills - Screen Readers & Assistive Tech',
   description: 'Master accessibility testing: JAWS, NVDA, VoiceOver, keyboard testing, color contrast, and assistive technology evaluation.',
   path: '/skills/testing',
   keywords: ['accessibility testing', 'screen reader testing', 'keyboard navigation testing', 'assistive technology testing', 'accessibility tester skills'],

@@ -8,7 +8,7 @@ import { generatePageMetadata, generateFAQStructuredData } from '@/lib/seo-confi
 import { RelatedJobs } from '@/components/RelatedJobs';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Accessibility Skills 2025 - Complete Career Roadmap',
+  title: 'Accessibility Skills - Complete Career Roadmap',
   description: 'Master accessibility skills for remediation, auditing, testing, development, design, and management. Career paths, certifications, and learning resources for accessibility professionals.',
   path: '/skills',
   keywords: ['accessibility skills', 'accessibility career', 'WCAG skills', 'accessibility developer skills', 'accessibility auditor skills', 'accessibility testing skills', 'accessibility design skills', 'accessibility management skills', 'a11y career path'],

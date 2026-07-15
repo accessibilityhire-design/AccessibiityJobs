@@ -1,0 +1,53 @@
+/** Canonical public routes that should be discoverable through the sitemap. */
+export const PUBLIC_SEO_PAGES = [
+  { path: '/', changeFrequency: 'daily', priority: 1 },
+  { path: '/remote-accessibility-jobs', changeFrequency: 'daily', priority: 0.9 },
+  { path: '/about', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/post-job', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/contact', changeFrequency: 'monthly', priority: 0.5 },
+
+  { path: '/certifications', changeFrequency: 'monthly', priority: 0.9 },
+  { path: '/certifications/cpacc', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/certifications/was', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/certifications/cpwa', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/certifications/iaap', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/certifications/section-508-trusted-tester', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/certifications/dhs-trusted-tester', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/certifications/actcp', changeFrequency: 'monthly', priority: 0.7 },
+
+  { path: '/tools', changeFrequency: 'monthly', priority: 0.9 },
+  { path: '/tools/jaws', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/tools/nvda', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/tools/voiceover', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/tools/axe-devtools', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/tools/wave', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/tools/lighthouse', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/tools/andi', changeFrequency: 'monthly', priority: 0.6 },
+  { path: '/tools/color-contrast-analyzer', changeFrequency: 'monthly', priority: 0.6 },
+
+  { path: '/skills', changeFrequency: 'monthly', priority: 0.9 },
+  { path: '/skills/remediation', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/skills/audit', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/skills/testing', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/skills/development', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/skills/design', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/skills/management', changeFrequency: 'monthly', priority: 0.7 },
+
+  { path: '/wcag', changeFrequency: 'monthly', priority: 0.9 },
+  { path: '/section-508', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/ada', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/resources', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/accessibility-career-guide', changeFrequency: 'monthly', priority: 0.9 },
+  { path: '/accessibility-professional-tools', changeFrequency: 'monthly', priority: 0.8 },
+
+  { path: '/docaccessible', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/docaccessible/document-accessibility-checklist', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/docaccessible/why-html-for-accessible-docs', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/docaccessible/when-to-remediate-pdfs', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/docaccessible/document-accessibility-onboarding-playbook', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/docaccessible/compliance-sources-and-evidence-pack', changeFrequency: 'monthly', priority: 0.7 },
+
+  { path: '/privacy-policy', changeFrequency: 'yearly', priority: 0.3 },
+  { path: '/terms-of-service', changeFrequency: 'yearly', priority: 0.3 },
+  { path: '/accessibility-statement', changeFrequency: 'yearly', priority: 0.4 },
+] as const;

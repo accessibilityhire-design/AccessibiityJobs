@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, Gift, Smartphone, Monitor, Volume2 } from 'l
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'VoiceOver Screen Reader Guide 2025 - macOS/iOS Accessibility Testing',
+  title: 'VoiceOver Screen Reader Guide - macOS/iOS Accessibility Testing',
   description: 'Complete VoiceOver guide: built-in macOS/iOS screen reader, features, keyboard shortcuts, testing workflows, and best practices for accessibility professionals.',
   path: '/tools/voiceover',
   keywords: ['VoiceOver', 'screen reader', 'macOS accessibility', 'iOS accessibility', 'Apple accessibility testing', 'VoiceOver testing'],

@@ -8,7 +8,7 @@ import { CheckCircle, ExternalLink, Gift, Zap, Shield, Code } from 'lucide-react
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'axe DevTools Guide 2025 - Automated Accessibility Testing Browser Extension',
+  title: 'axe DevTools Guide - Automated Accessibility Testing Browser Extension',
   description: 'Complete axe DevTools guide: browser extension for automated WCAG testing, features, usage, CI/CD integration, and best practices for developers.',
   path: '/tools/axe-devtools',
   keywords: ['axe DevTools', 'axe accessibility', 'automated accessibility testing', 'WCAG testing', 'browser extension', 'accessibility automation'],

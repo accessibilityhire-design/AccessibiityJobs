@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { generatePageMetadata } from '@/lib/seo-config';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 export const metadata: Metadata = generatePageMetadata({
   title: 'Terms of Service',
@@ -10,6 +11,7 @@ export const metadata: Metadata = generatePageMetadata({
 export default function TermsOfServicePage() {
   return (
     <div className="container mx-auto px-4 py-12">
+      <Breadcrumbs items={[{ label: 'Terms of Service', href: '/terms-of-service' }]} />
       <article className="max-w-4xl mx-auto prose prose-gray lg:prose-lg">
         <h1>Terms of Service</h1>
         <p className="text-gray-600">Last updated: November 15, 2025</p>
@@ -134,4 +136,3 @@ export default function TermsOfServicePage() {
     </div>
   );
 }
-

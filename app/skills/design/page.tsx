@@ -8,7 +8,7 @@ import { CheckCircle, Palette, Users, DollarSign, Figma } from 'lucide-react';
 import { generatePageMetadata } from '@/lib/seo-config';
 
 export const metadata: Metadata = generatePageMetadata({
-  title: 'Accessible Design Skills 2025 - Inclusive UX/UI Design',
+  title: 'Accessible Design Skills - Inclusive UX/UI Design',
   description: 'Master accessible design: inclusive design principles, color contrast, typography, Figma/Sketch accessibility plugins, and user research with PWD.',
   path: '/skills/design',
   keywords: ['accessible design', 'inclusive design', 'accessibility UX', 'WCAG design', 'color contrast design', 'accessibility designer skills'],
