@@ -28,7 +28,7 @@ export const jobs = pgTable('jobs', {
   salaryMin: integer('salary_min'),
   salaryMax: integer('salary_max'),
   currency: varchar('currency', { length: 10 }).default('USD'),
-  salaryType: varchar('salary_type', { length: 50 }), // annual, monthly, hourly, daily, project
+  salaryType: varchar('salary_type', { length: 50 }), // annual, monthly, weekly, hourly, daily, project
   equityOffered: boolean('equity_offered').default(false),
   bonusStructure: varchar('bonus_structure', { length: 255 }),
   
@@ -59,7 +59,8 @@ export const jobs = pgTable('jobs', {
   ptoDetails: varchar('pto_details', { length: 255 }),
   
   // Application Details
-  contactEmail: varchar('contact_email', { length: 255 }).notNull(),
+  // Imported jobs may have a direct application URL without a published email.
+  contactEmail: varchar('contact_email', { length: 255 }),
   applicationDeadline: timestamp('application_deadline'),
   expectedStartDate: varchar('expected_start_date', { length: 100 }),
   visaSponsorship: boolean('visa_sponsorship').default(false),
@@ -75,7 +76,7 @@ export const jobs = pgTable('jobs', {
   salaryRange: varchar('salary_range', { length: 100 }), // Kept for backward compatibility
   
   // Job Source Tracking
-  jobSource: varchar('job_source', { length: 50 }), // linkedin, indeed, a11yjobs, ziprecruiter, direct
+  jobSource: varchar('job_source', { length: 50 }), // a11yjobs, indeed, linkedin, glassdoor, google, zip_recruiter, direct
   sourceUrl: varchar('source_url', { length: 500 }), // Original job posting URL
   
   // Meta

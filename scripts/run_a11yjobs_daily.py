@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""
-Fetch new jobs from a11yjobs.com, enrich, validate, and insert into DB.
-Writes candidate/insert-ready datasets and a detailed insert report.
+"""Fetch, reconcile, validate, and insert new accessibility jobs.
+
+The pipeline combines the curated A11yJobs feed with JobSpy-backed searches
+across Indeed, LinkedIn, Glassdoor, Google Jobs, and ZipRecruiter. Direct
+employer or ATS pages are preferred when available, while aggregator-only
+records require corroboration from another source before insertion.
 """
 
 import csv
@@ -12,6 +15,7 @@ import re
 import sys
 import time
 import subprocess
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -25,9 +29,41 @@ BASE_URL = "https://www.a11yjobs.com"
 LIST_URL = f"{BASE_URL}/"
 
 OUTPUT_DIR = "/Users/khushwantparihar/AccessibiityJobs/scripts/output"
-CANDIDATES_JSON = os.path.join(OUTPUT_DIR, "a11yjobs_jobs_candidates_final_with_nan.json")
-CANDIDATES_CSV = os.path.join(OUTPUT_DIR, "a11yjobs_jobs_candidates_final_table.csv")
-INSERT_READY_JSON = os.path.join(OUTPUT_DIR, "a11yjobs_jobs_insert_ready_final.json")
+CANDIDATES_JSON = os.path.join(OUTPUT_DIR, "multisource_jobs_candidates_final_with_nan.json")
+CANDIDATES_CSV = os.path.join(OUTPUT_DIR, "multisource_jobs_candidates_final_table.csv")
+INSERT_READY_JSON = os.path.join(OUTPUT_DIR, "multisource_jobs_insert_ready_final.json")
+
+JOBSPY_SOURCES = ["indeed", "linkedin"]
+SUPPORTED_JOBSPY_SOURCES = ["indeed", "linkedin", "glassdoor", "google", "zip_recruiter"]
+JOBSPY_SEARCH_TERMS = [
+    "digital accessibility",
+    "accessibility engineer",
+    "accessibility specialist",
+    "accessibility consultant",
+]
+JOBSPY_MARKETS = [
+    ("United States", "USA"),
+    ("United Kingdom", "UK"),
+    ("India", "India"),
+    ("Canada", "Canada"),
+]
+SOURCE_PRIORITY = {
+    "direct": 0,
+    "a11yjobs": 1,
+    "indeed": 2,
+    "linkedin": 3,
+    "glassdoor": 4,
+    "google": 5,
+    "zip_recruiter": 6,
+}
+JOB_BOARD_HOSTS = {
+    "a11yjobs.com",
+    "indeed.com",
+    "linkedin.com",
+    "glassdoor.com",
+    "google.com",
+    "ziprecruiter.com",
+}
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -41,7 +77,7 @@ EXPERIENCE_LEVELS = {"0-1", "1-3", "3-5", "5-7", "7-10", "10+"}
 EDUCATION_LEVELS = {"none-required", "high-school", "associate", "bachelor", "master", "phd"}
 WCAG_LEVELS = {"wcag-2.0", "wcag-2.1", "wcag-2.2", "wcag-3.0"}
 CURRENCIES = {"USD", "EUR", "GBP", "CAD", "AUD", "INR", "JPY", "CNY"}
-SALARY_TYPES = {"annual", "monthly", "hourly", "daily", "project"}
+SALARY_TYPES = {"annual", "monthly", "weekly", "hourly", "daily", "project"}
 TRAVEL_REQUIREMENTS = {"none", "occasional", "regular", "frequent"}
 US_STATE_CODES = {
     "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL",
@@ -68,7 +104,6 @@ REQUIRED_FIELDS = [
     "description",
     "key_responsibilities",
     "requirements",
-    "contact_email",
     "status",
 ]
 
@@ -893,6 +928,7 @@ def format_salary_evidence(
     unit = {
         "annual": "year",
         "monthly": "month",
+        "weekly": "week",
         "hourly": "hour",
         "daily": "day",
         "project": "project",
@@ -946,6 +982,9 @@ def validate_salary(min_val: Optional[int], max_val: Optional[int], salary_type:
     elif salary_type == "monthly":
         if min_val < 100 or max_val > 200000:
             return "Monthly salary outside plausible range"
+    elif salary_type == "weekly":
+        if min_val < 100 or max_val > 50000:
+            return "Weekly salary outside plausible range"
     elif salary_type == "annual":
         if min_val < 10000 or max_val > 2000000:
             return "Annual salary outside plausible range"
@@ -1720,6 +1759,390 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     return job_data
 
 
+def is_missing_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip() or value.strip().lower() in {"nan", "none", "null", "nat"}
+    try:
+        return bool(value != value)
+    except Exception:
+        return False
+
+
+def clean_optional_text(value: Any) -> Optional[str]:
+    if is_missing_value(value):
+        return None
+    return html.unescape(str(value)).strip()
+
+
+def safe_number(value: Any) -> Optional[int]:
+    if is_missing_value(value):
+        return None
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def hostname_without_www(url: Optional[str]) -> str:
+    if not url or not url_is_valid(url):
+        return ""
+    return (urlparse(url).hostname or "").lower().removeprefix("www.")
+
+
+def is_job_board_url(url: Optional[str]) -> bool:
+    hostname = hostname_without_www(url)
+    return any(hostname == host or hostname.endswith("." + host) for host in JOB_BOARD_HOSTS)
+
+
+def is_direct_job_url(url: Optional[str]) -> bool:
+    return bool(url and url_is_valid(url) and not is_job_board_url(url))
+
+
+def accessibility_relevance_score(title: str, description: str) -> int:
+    title_lower = title.lower()
+    description_lower = description.lower()
+    title_markers = [
+        "accessibility", "a11y", "wcag", "section 508", "inclusive design",
+        "assistive technology", "digital inclusion",
+    ]
+    description_markers = [
+        "accessibility", "a11y", "wcag", "aria", "section 508",
+        "screen reader", "assistive technology", "inclusive design",
+        "accessibility testing", "accessibility audit", "accessibility remediation",
+    ]
+    title_hits = sum(1 for marker in title_markers if marker in title_lower)
+    description_hits = sum(1 for marker in description_markers if marker in description_lower)
+    return title_hits * 5 + min(description_hits, 8)
+
+
+def is_accessibility_focused_job(title: str, description: str) -> bool:
+    title_lower = title.lower()
+    strong_title = bool(re.search(
+        r"\b(?:accessibility|a11y|wcag|section\s*508|inclusive\s+design|assistive\s+technology|digital\s+inclusion)\b",
+        title_lower,
+    ))
+    return strong_title or accessibility_relevance_score(title, description) >= 4
+
+
+def jobspy_record_to_job(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    title = clean_optional_text(raw.get("title")) or ""
+    company = clean_optional_text(raw.get("company")) or ""
+    description = normalize_description_text(clean_optional_text(raw.get("description")) or "")
+    description = trim_legal_boilerplate(description)
+    if not title or not company or len(_plain_markdown(description)) < 100:
+        return None
+    if not is_accessibility_focused_job(title, description):
+        return None
+
+    source = (clean_optional_text(raw.get("site")) or "jobspy").lower().replace("ziprecruiter", "zip_recruiter")
+    discovery_url = clean_optional_text(raw.get("job_url"))
+    direct_url = clean_optional_text(raw.get("job_url_direct"))
+    if not is_direct_job_url(direct_url):
+        direct_url = None
+    source_url = direct_url or discovery_url
+    if not source_url or not url_is_valid(source_url):
+        return None
+
+    location_text = clean_optional_text(raw.get("location")) or ""
+    city, country = parse_location_fields(location_text)
+    is_remote = bool(raw.get("is_remote")) if not is_missing_value(raw.get("is_remote")) else False
+    work_arrangement = normalize_work_arrangement(
+        location_text,
+        title,
+        description,
+        "TELECOMMUTE" if is_remote else "",
+    )
+
+    job_type = (clean_optional_text(raw.get("job_type")) or "").lower()
+    employment_map = {
+        "fulltime": "full-time",
+        "full-time": "full-time",
+        "parttime": "part-time",
+        "part-time": "part-time",
+        "contract": "contract",
+        "temporary": "freelance",
+        "internship": "internship",
+    }
+    employment_type = employment_map.get(job_type, normalize_employment_type(job_type))
+
+    date_text = clean_optional_text(raw.get("date_posted"))
+    date_posted = parse_date_text(date_text) if date_text else None
+    if not date_posted:
+        return None
+
+    salary_min = safe_number(raw.get("min_amount"))
+    salary_max = safe_number(raw.get("max_amount"))
+    salary_type = {
+        "yearly": "annual",
+        "annual": "annual",
+        "monthly": "monthly",
+        "weekly": "weekly",
+        "daily": "daily",
+        "hourly": "hourly",
+    }.get((clean_optional_text(raw.get("interval")) or "").lower())
+    currency = (clean_optional_text(raw.get("currency")) or "").upper() or None
+    if validate_salary(salary_min, salary_max, salary_type):
+        salary_min, salary_max, currency, salary_type = None, None, None, None
+
+    sections = parse_description_sections(description)
+    if not sections.get("description"):
+        return None
+    structured = extract_structured_fields(description, sections)
+    benefit_flags = structured["benefit_flags"]
+
+    company_website = clean_optional_text(raw.get("company_url_direct"))
+    if not is_direct_job_url(company_website):
+        candidate_company_url = clean_optional_text(raw.get("company_url"))
+        company_website = candidate_company_url if is_direct_job_url(candidate_company_url) else None
+
+    email_value = raw.get("emails")
+    if isinstance(email_value, (list, tuple)):
+        contact_email = next((clean_optional_text(item) for item in email_value if clean_optional_text(item)), None)
+    else:
+        contact_email = clean_optional_text(email_value)
+    if not contact_email:
+        contact_email = extract_contact_email(description)
+    if contact_email and not valid_email(contact_email):
+        contact_email = None
+
+    salary_range = format_salary_evidence(salary_min, salary_max, currency, salary_type)
+    created_at = f"{date_posted.isoformat()}T00:00:00Z"
+    updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    return {
+        "title": title[:255],
+        "company": company[:255],
+        "company_website": company_website,
+        "company_size": clean_optional_text(raw.get("company_num_employees")),
+        "industry": clean_optional_text(raw.get("company_industry")),
+        "job_level": determine_job_level(title, description),
+        "employment_type": employment_type,
+        "department": clean_optional_text(raw.get("job_function")),
+        "work_arrangement": work_arrangement,
+        "timezone": None,
+        "country": country,
+        "city": city,
+        "specific_location": location_text or None,
+        "relocation_assistance": None,
+        "salary_min": salary_min,
+        "salary_max": salary_max,
+        "currency": currency,
+        "salary_type": salary_type,
+        "equity_offered": None,
+        "bonus_structure": None,
+        "years_experience": structured["years_experience"],
+        "education_level": structured["education_level"],
+        "required_certifications": json.dumps(structured["required_certifications"], ensure_ascii=False) if structured["required_certifications"] else None,
+        "preferred_certifications": None,
+        "required_skills": json.dumps(structured["required_skills"][:15], ensure_ascii=False) if structured["required_skills"] else None,
+        "preferred_skills": json.dumps(structured["preferred_skills"][:15], ensure_ascii=False) if structured["preferred_skills"] else None,
+        "wcag_level": structured["wcag_level"],
+        "accessibility_focus": json.dumps(structured["accessibility_focus"], ensure_ascii=False) if structured["accessibility_focus"] else None,
+        "assistive_tech_experience": json.dumps(structured["assistive_tech_experience"], ensure_ascii=False) if structured["assistive_tech_experience"] else None,
+        "description": sections["description"],
+        "key_responsibilities": sections["key_responsibilities"],
+        "requirements": sections["requirements"],
+        "nice_to_have": sections["nice_to_have"],
+        "benefits": json.dumps(structured["benefits"], ensure_ascii=False) if structured["benefits"] else None,
+        "professional_development": benefit_flags.get("professional_development"),
+        "health_insurance": benefit_flags.get("health_insurance"),
+        "retirement": benefit_flags.get("retirement"),
+        "pto_details": None,
+        "contact_email": contact_email,
+        "application_deadline": None,
+        "expected_start_date": None,
+        "visa_sponsorship": None,
+        "security_clearance": None,
+        "travel_required": None,
+        "additional_notes": f"discovered_via={source}",
+        "location": location_text or None,
+        "type": work_arrangement,
+        "salary_range": salary_range,
+        "job_source": source,
+        "source_url": source_url,
+        "status": "approved",
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "date_posted": date_posted.isoformat(),
+        "apply_url": direct_url,
+        "valid_through": None,
+        "_discovery_url": discovery_url,
+        "_market": clean_optional_text(raw.get("_market")),
+        "relevance_score": accessibility_relevance_score(title, description),
+    }
+
+
+def scrape_jobspy_jobs(cutoff_date: date) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    try:
+        from jobspy import scrape_jobs
+    except ImportError as exc:
+        return [], {"status": "unavailable", "error": f"python-jobspy is not installed: {exc}"}
+
+    results_per_source = max(1, int(os.getenv("MULTISOURCE_RESULTS_PER_SOURCE", "6")))
+    requested_sources = [
+        source.strip() for source in os.getenv("MULTISOURCE_SOURCES", ",".join(JOBSPY_SOURCES)).split(",")
+        if source.strip() in SUPPORTED_JOBSPY_SOURCES
+    ]
+    requested_terms = [
+        term.strip() for term in os.getenv("MULTISOURCE_SEARCH_TERMS", "|".join(JOBSPY_SEARCH_TERMS)).split("|")
+        if term.strip()
+    ]
+    requested_market_names = {
+        market.strip().lower() for market in os.getenv(
+            "MULTISOURCE_MARKETS",
+            "|".join(location for location, _ in JOBSPY_MARKETS),
+        ).split("|") if market.strip()
+    }
+    requested_markets = [
+        market for market in JOBSPY_MARKETS if market[0].lower() in requested_market_names
+    ]
+    if not requested_sources or not requested_terms or not requested_markets:
+        return [], {"status": "failed", "error": "Multi-source configuration selected no sources, terms, or markets"}
+    today_utc = datetime.now(timezone.utc).date()
+    hours_old = min(720, max(48, ((today_utc - cutoff_date).days + 2) * 24))
+    raw_rows: List[Dict[str, Any]] = []
+    errors: List[str] = []
+
+    for location, indeed_country in requested_markets:
+        for search_term in requested_terms:
+            try:
+                frame = scrape_jobs(
+                    site_name=requested_sources,
+                    search_term=search_term,
+                    google_search_term=f"{search_term} jobs in {location} since {cutoff_date.isoformat()}",
+                    location=location,
+                    results_wanted=results_per_source,
+                    hours_old=hours_old,
+                    country_indeed=indeed_country,
+                    description_format="markdown",
+                    linkedin_fetch_description=True,
+                    verbose=0,
+                )
+            except Exception as exc:
+                errors.append(f"{location} | {search_term} | {type(exc).__name__}: {exc}")
+                continue
+            if frame is None or frame.empty:
+                continue
+            for row in frame.to_dict("records"):
+                row["_market"] = location
+                raw_rows.append(row)
+
+    seen_urls = set()
+    mapped_jobs: List[Dict[str, Any]] = []
+    rejected_irrelevant = 0
+    raw_source_counts = dict(sorted(Counter(
+        (clean_optional_text(row.get("site")) or "unknown").lower().replace("ziprecruiter", "zip_recruiter")
+        for row in raw_rows
+    ).items()))
+    for row in raw_rows:
+        row_url = clean_optional_text(row.get("job_url_direct")) or clean_optional_text(row.get("job_url"))
+        if row_url and row_url in seen_urls:
+            continue
+        if row_url:
+            seen_urls.add(row_url)
+        mapped = jobspy_record_to_job(row)
+        if mapped:
+            mapped_jobs.append(mapped)
+        else:
+            rejected_irrelevant += 1
+
+    source_counts = dict(sorted(Counter(job.get("job_source") or "unknown" for job in mapped_jobs).items()))
+    source_health = {
+        source: "returned_rows" if raw_source_counts.get(source, 0) else "no_results_or_blocked"
+        for source in requested_sources
+    }
+    return mapped_jobs, {
+        "status": "completed" if mapped_jobs or not errors else "failed",
+        "raw_rows": len(raw_rows),
+        "mapped_accessibility_jobs": len(mapped_jobs),
+        "rejected_or_invalid": rejected_irrelevant,
+        "raw_source_counts": raw_source_counts,
+        "sources_requested": requested_sources,
+        "markets_requested": [location for location, _ in requested_markets],
+        "search_terms": requested_terms,
+        "source_counts": source_counts,
+        "source_health": source_health,
+        "errors": errors[:20],
+    }
+
+
+def candidate_quality_score(job: Dict[str, Any]) -> int:
+    score = 100 - SOURCE_PRIORITY.get(str(job.get("job_source") or ""), 20)
+    if is_direct_job_url(job.get("source_url")):
+        score += 100
+    if job.get("company_website"):
+        score += 15
+    if job.get("salary_min") is not None and job.get("salary_max") is not None:
+        score += 10
+    if job.get("specific_location") and job.get("country"):
+        score += 10
+    score += min(30, len(_plain_markdown(job.get("description") or "")) // 250)
+    score += int(job.get("relevance_score") or 0)
+    return score
+
+
+def consolidate_source_candidates(jobs: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for job in jobs:
+        key = f"{normalize_text(job.get('title') or '')}::{normalize_text(job.get('company') or '')}"
+        groups.setdefault(key, []).append(job)
+
+    consolidated: List[Dict[str, Any]] = []
+    duplicates: List[Dict[str, Any]] = []
+    for group in groups.values():
+        ranked = sorted(group, key=candidate_quality_score, reverse=True)
+        winner = dict(ranked[0])
+        evidence: List[Dict[str, str]] = []
+        seen_evidence = set()
+        for item in ranked:
+            source = str(item.get("job_source") or "unknown")
+            url = str(item.get("_discovery_url") or item.get("source_url") or "")
+            evidence_key = (source, url)
+            if evidence_key not in seen_evidence:
+                seen_evidence.add(evidence_key)
+                evidence.append({"source": source, "url": url})
+        unique_sources = sorted({item["source"] for item in evidence})
+        winner["source_evidence"] = evidence
+        winner["evidence_source_count"] = len(unique_sources)
+        evidence_note = "source_evidence=" + json.dumps(evidence, ensure_ascii=True, separators=(",", ":"))
+        existing_note = winner.get("additional_notes")
+        winner["additional_notes"] = f"{existing_note}; {evidence_note}" if existing_note else evidence_note
+        winner.pop("_market", None)
+        winner.pop("_discovery_url", None)
+        consolidated.append(winner)
+
+        for duplicate in ranked[1:]:
+            duplicates.append({
+                "source_url": duplicate.get("source_url") or "",
+                "title": duplicate.get("title") or "",
+                "company": duplicate.get("company") or "",
+                "reason": "cross_source_title_company",
+                "kept_source": winner.get("job_source") or "",
+                "duplicate_source": duplicate.get("job_source") or "",
+            })
+
+    consolidated.sort(key=candidate_quality_score, reverse=True)
+    return consolidated, duplicates
+
+
+def external_content_matches_job(content: str, job: Dict[str, Any]) -> bool:
+    plain = _plain_markdown(content).lower()
+    title_tokens = [
+        token for token in re.findall(r"[a-z0-9]+", (job.get("title") or "").lower())
+        if len(token) >= 4 and token not in {"with", "from", "that", "this", "senior", "junior"}
+    ]
+    title_matches = sum(1 for token in set(title_tokens) if token in plain)
+    required_title_matches = 1 if len(set(title_tokens)) <= 2 else 2
+    company_tokens = [
+        token for token in re.findall(r"[a-z0-9]+", (job.get("company") or "").lower())
+        if len(token) >= 3 and token not in {"the", "and", "inc", "llc", "ltd"}
+    ]
+    company_matches = not company_tokens or any(token in plain for token in set(company_tokens))
+    return title_matches >= required_title_matches and company_matches
+
+
 def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]:
     apply_url = job.get("apply_url")
     content = ""
@@ -1727,18 +2150,24 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
 
     if apply_url:
         text, source_used = fetch_external_text(session, apply_url)
-        if text:
+        if text and external_content_matches_job(text, job):
             content = text
+            job["direct_evidence_verified"] = is_direct_job_url(apply_url)
+        elif text:
+            source_used = "mismatch"
 
     if not content:
         links = search_alternate_urls(session, job.get("title") or "", job.get("company") or "")
         for link in links:
             text, source_used = fetch_external_text(session, link)
-            if text:
+            if text and external_content_matches_job(text, job):
                 content = text
                 if not apply_url:
                     job["apply_url"] = link
+                job["direct_evidence_verified"] = is_direct_job_url(link)
                 break
+            if text:
+                source_used = "mismatch"
 
     if content:
         content = normalize_external_content(content)
@@ -1796,7 +2225,12 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
         if not job.get("assistive_tech_experience") and structured["assistive_tech_experience"]:
             job["assistive_tech_experience"] = json.dumps(structured["assistive_tech_experience"], ensure_ascii=False)
 
-    job["additional_notes"] = f"enrichment_source={source_used}" if source_used != "none" else None
+    if "direct_evidence_verified" not in job:
+        job["direct_evidence_verified"] = False
+    if source_used != "none":
+        enrichment_note = f"enrichment_source={source_used}"
+        existing_note = job.get("additional_notes")
+        job["additional_notes"] = f"{existing_note}; {enrichment_note}" if existing_note else enrichment_note
     return job
 
 
@@ -1918,6 +2352,14 @@ def validate_record(record: Dict[str, Any]) -> List[str]:
     if record.get("contact_email") and not valid_email(record["contact_email"]):
         errors.append("Invalid contact_email")
 
+    if not record.get("source_url") and not record.get("contact_email"):
+        errors.append("Missing application route")
+
+    if "source_evidence" in record:
+        evidence_count = int(record.get("evidence_source_count") or 0)
+        if not record.get("direct_evidence_verified") and evidence_count < 2:
+            errors.append("Job lacks verified direct employer evidence or two independent sources")
+
     salary_error = validate_salary(record.get("salary_min"), record.get("salary_max"), record.get("salary_type"))
     if salary_error:
         errors.append(salary_error)
@@ -1944,28 +2386,11 @@ def write_csv(path: str, rows: List[Dict[str, Any]], headers: List[str]) -> int:
     return len(rows)
 
 
-def derive_email_from_url(url: Optional[str]) -> Optional[str]:
-    if not url:
-        return None
-    try:
-        parsed = urlparse(url)
-        host = parsed.hostname
-        if not host:
-            return None
-        domain = host.replace("www.", "")
-        return f"careers@{domain}"
-    except Exception:
-        return None
-
-
 def process_candidate_job(job: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
     local_session = requests.Session()
     local_session.headers.update(HEADERS)
 
     job = enrich_job(local_session, dict(job))
-
-    if not job.get("contact_email"):
-        job["contact_email"] = derive_email_from_url(job.get("company_website") or job.get("apply_url"))
 
     candidate = build_candidate_record(job)
     insert_candidate = convert_nan_to_insert_ready(candidate)
@@ -2001,26 +2426,29 @@ def main() -> int:
             print(f"⚠️ Ignoring invalid A11YJOBS_CUTOFF_OVERRIDE: {cutoff_override}")
     print(f"📅 cutoff_date: {cutoff_date.isoformat()}")
 
-    soup = fetch_page(session, LIST_URL)
-    if not soup:
-        raise RuntimeError("Failed to fetch a11yjobs listing page")
-
     today_utc = datetime.now(timezone.utc).date()
-    job_link_hints = extract_job_link_hints(soup, today_utc)
+    source_errors: List[str] = []
+    soup = fetch_page(session, LIST_URL)
+    job_link_hints: Dict[str, Optional[date]] = {}
+    if soup:
+        job_link_hints = extract_job_link_hints(soup, today_utc)
 
-    next_link = soup.find("a", attrs={"rel": "next"})
-    page_count = 1
-    while next_link and page_count < 5:
-        next_url = urljoin(BASE_URL, next_link.get("href", ""))
-        next_soup = fetch_page(session, next_url)
-        if not next_soup:
-            break
-        next_hints = extract_job_link_hints(next_soup, today_utc)
-        for link, hint_date in next_hints.items():
-            if link not in job_link_hints or (job_link_hints[link] is None and hint_date is not None):
-                job_link_hints[link] = hint_date
-        next_link = next_soup.find("a", attrs={"rel": "next"})
-        page_count += 1
+        next_link = soup.find("a", attrs={"rel": "next"})
+        page_count = 1
+        while next_link and page_count < 5:
+            next_url = urljoin(BASE_URL, next_link.get("href", ""))
+            next_soup = fetch_page(session, next_url)
+            if not next_soup:
+                source_errors.append(f"a11yjobs page {page_count + 1} could not be fetched")
+                break
+            next_hints = extract_job_link_hints(next_soup, today_utc)
+            for link, hint_date in next_hints.items():
+                if link not in job_link_hints or (job_link_hints[link] is None and hint_date is not None):
+                    job_link_hints[link] = hint_date
+            next_link = next_soup.find("a", attrs={"rel": "next"})
+            page_count += 1
+    else:
+        source_errors.append("a11yjobs listing page could not be fetched")
 
     job_links = sorted(job_link_hints.keys())
     links_after_listing_prefilter = [
@@ -2028,29 +2456,40 @@ def main() -> int:
         if job_link_hints.get(link) is None or job_link_hints[link] > cutoff_date
     ]
 
-    raw_jobs: List[Dict[str, Any]] = []
+    a11yjobs_jobs: List[Dict[str, Any]] = []
     for link in links_after_listing_prefilter:
         job = parse_job_detail(session, link, listing_hint_date=job_link_hints.get(link))
         if job:
-            raw_jobs.append(job)
+            a11yjobs_jobs.append(job)
         time.sleep(0.2)
 
-    latest_a11yjobs_date = None
+    print("🔎 Collecting additional job boards with JobSpy")
+    jobspy_jobs, jobspy_report = scrape_jobspy_jobs(cutoff_date)
+    source_errors.extend(jobspy_report.get("errors") or [])
+    if not soup and jobspy_report.get("status") in {"failed", "unavailable"}:
+        raise RuntimeError("All source families failed before candidate generation")
+
+    raw_jobs = a11yjobs_jobs + jobspy_jobs
+    source_counts_found = dict(sorted(Counter(job.get("job_source") or "unknown" for job in raw_jobs).items()))
+
+    latest_source_date = None
     for job in raw_jobs:
         if job.get("date_posted"):
             dp = parse_date_text(job["date_posted"])
-            if dp and (latest_a11yjobs_date is None or dp > latest_a11yjobs_date):
-                latest_a11yjobs_date = dp
+            if dp and (latest_source_date is None or dp > latest_source_date):
+                latest_source_date = dp
 
-    if latest_a11yjobs_date:
-        print(f"📌 latest_a11yjobs_date: {latest_a11yjobs_date.isoformat()}")
+    if latest_source_date:
+        print(f"📌 latest_source_date: {latest_source_date.isoformat()}")
     else:
-        print("📌 latest_a11yjobs_date: NaN")
+        print("📌 latest_source_date: NaN")
 
-    new_jobs = [
+    newer_source_jobs = [
         job for job in raw_jobs
         if job.get("date_posted") and parse_date_text(job["date_posted"]) and parse_date_text(job["date_posted"]) > cutoff_date
     ]
+    source_counts_newer = dict(sorted(Counter(job.get("job_source") or "unknown" for job in newer_source_jobs).items()))
+    new_jobs, cross_source_duplicates = consolidate_source_candidates(newer_source_jobs)
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -2075,12 +2514,18 @@ def main() -> int:
     if not new_jobs:
         write_json(CANDIDATES_JSON, {
             "cutoff_date": cutoff_date.isoformat(),
-            "latest_a11yjobs_date": latest_a11yjobs_date.isoformat() if latest_a11yjobs_date else None,
+            "latest_source_date": latest_source_date.isoformat() if latest_source_date else None,
+            "source_counts_found": source_counts_found,
+            "source_counts_newer": source_counts_newer,
+            "jobspy_report": jobspy_report,
+            "source_errors": source_errors,
             "jobs": [],
         })
         write_json(INSERT_READY_JSON, {
             "cutoff_date": cutoff_date.isoformat(),
-            "latest_a11yjobs_date": latest_a11yjobs_date.isoformat() if latest_a11yjobs_date else None,
+            "latest_source_date": latest_source_date.isoformat() if latest_source_date else None,
+            "source_counts_found": source_counts_found,
+            "source_counts_newer": source_counts_newer,
             "jobs": [],
         })
         write_csv(CANDIDATES_CSV, [], csv_headers)
@@ -2088,8 +2533,12 @@ def main() -> int:
         total_after = fetch_total_count(db_url)
         print("\nFinal Report")
         print(f"cutoff_date: {cutoff_date.isoformat()}")
-        print(f"links_found: {len(job_links)}")
-        print(f"links_after_listing_prefilter: {len(links_after_listing_prefilter)}")
+        print(f"a11yjobs_links_found: {len(job_links)}")
+        print(f"a11yjobs_links_after_listing_prefilter: {len(links_after_listing_prefilter)}")
+        print(f"source_counts_found: {json.dumps(source_counts_found, sort_keys=True)}")
+        print(f"source_counts_newer: {json.dumps(source_counts_newer, sort_keys=True)}")
+        print(f"jobspy_report: {json.dumps(jobspy_report, sort_keys=True)}")
+        print(f"source_errors: {len(source_errors)}")
         print(f"filtered_newer_jobs: 0")
         print("deduped_candidates: 0")
         print("duplicates_removed: 0")
@@ -2110,10 +2559,9 @@ def main() -> int:
     candidates_with_nan: List[Dict[str, Any]] = []
     insert_ready: List[Dict[str, Any]] = []
     failures: List[Dict[str, Any]] = []
-    duplicates: List[Dict[str, Any]] = []
+    duplicates: List[Dict[str, Any]] = list(cross_source_duplicates)
 
     seen_source_urls = set()
-    seen_title_company = set()
 
     jobs_for_enrichment: List[Dict[str, Any]] = []
 
@@ -2121,23 +2569,12 @@ def main() -> int:
         source_url = job.get("source_url") or ""
         title = job.get("title") or ""
         company = job.get("company") or ""
-        title_company_key = f"{normalize_text(title)}::{normalize_text(company)}"
-
         if source_url in seen_source_urls:
             duplicates.append({
                 "source_url": source_url,
                 "title": title,
                 "company": company,
                 "reason": "batch_source_url",
-            })
-            continue
-
-        if title_company_key in seen_title_company:
-            duplicates.append({
-                "source_url": source_url,
-                "title": title,
-                "company": company,
-                "reason": "batch_title_company",
             })
             continue
 
@@ -2161,7 +2598,6 @@ def main() -> int:
             continue
 
         seen_source_urls.add(source_url)
-        seen_title_company.add(title_company_key)
         jobs_for_enrichment.append(job)
 
     if jobs_for_enrichment:
@@ -2178,14 +2614,23 @@ def main() -> int:
 
     write_json(CANDIDATES_JSON, {
         "cutoff_date": cutoff_date.isoformat(),
-        "latest_a11yjobs_date": latest_a11yjobs_date.isoformat() if latest_a11yjobs_date else None,
+        "latest_source_date": latest_source_date.isoformat() if latest_source_date else None,
+        "source_counts_found": source_counts_found,
+        "source_counts_newer": source_counts_newer,
+        "jobspy_report": jobspy_report,
+        "source_errors": source_errors,
+        "duplicates": duplicates,
+        "validation_failures": failures,
         "jobs": candidates_with_nan,
     })
     csv_row_count = write_csv(CANDIDATES_CSV, candidates_with_nan, csv_headers)
 
     write_json(INSERT_READY_JSON, {
         "cutoff_date": cutoff_date.isoformat(),
-        "latest_a11yjobs_date": latest_a11yjobs_date.isoformat() if latest_a11yjobs_date else None,
+        "latest_source_date": latest_source_date.isoformat() if latest_source_date else None,
+        "source_counts_found": source_counts_found,
+        "source_counts_newer": source_counts_newer,
+        "source_counts_insert_ready": dict(sorted(Counter(row.get("job_source") or "unknown" for row in insert_ready).items())),
         "jobs": insert_ready,
     })
 
@@ -2343,7 +2788,8 @@ def main() -> int:
             "AND title IS NOT NULL AND company IS NOT NULL "
             "AND employment_type IS NOT NULL AND work_arrangement IS NOT NULL "
             "AND description IS NOT NULL AND key_responsibilities IS NOT NULL "
-            "AND requirements IS NOT NULL AND contact_email IS NOT NULL "
+            "AND requirements IS NOT NULL "
+            "AND (source_url IS NOT NULL OR contact_email IS NOT NULL) "
             f"LIMIT {sample_count};"
         )
         sample_ok = psql_scalar(db_url, sample_sql)
@@ -2352,9 +2798,15 @@ def main() -> int:
 
     print("\nFinal Report")
     print(f"cutoff_date: {cutoff_date.isoformat()}")
-    print(f"links_found: {len(job_links)}")
-    print(f"links_after_listing_prefilter: {len(links_after_listing_prefilter)}")
-    print(f"filtered_newer_jobs: {len(new_jobs)}")
+    print(f"latest_source_date: {latest_source_date.isoformat() if latest_source_date else 'NaN'}")
+    print(f"a11yjobs_links_found: {len(job_links)}")
+    print(f"a11yjobs_links_after_listing_prefilter: {len(links_after_listing_prefilter)}")
+    print(f"source_counts_found: {json.dumps(source_counts_found, sort_keys=True)}")
+    print(f"source_counts_newer: {json.dumps(source_counts_newer, sort_keys=True)}")
+    print(f"source_counts_insert_ready: {json.dumps(dict(sorted(Counter(row.get('job_source') or 'unknown' for row in insert_ready).items())), sort_keys=True)}")
+    print(f"source_errors: {len(source_errors)}")
+    print(f"filtered_newer_jobs: {len(newer_source_jobs)}")
+    print(f"consolidated_candidates: {len(new_jobs)}")
     print(f"deduped_candidates: {len(insert_ready)}")
     print(f"duplicates_removed: {len(duplicates)}")
     print(f"validation_failures: {len(failures)}")

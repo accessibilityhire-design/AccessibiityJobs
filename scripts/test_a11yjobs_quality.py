@@ -9,6 +9,9 @@ from run_a11yjobs_daily import (
     extract_company_website,
     extract_experience,
     extract_structured_fields,
+    consolidate_source_candidates,
+    external_content_matches_job,
+    jobspy_record_to_job,
     normalize_description_text,
     normalize_work_arrangement,
     parse_description_sections,
@@ -211,6 +214,104 @@ class CompanyWebsiteQualityTests(unittest.TestCase):
             extract_company_website(soup, {"sameAs": "https://example.com/careers"}),
             "https://example.com/careers",
         )
+
+
+class MultiSourceQualityTests(unittest.TestCase):
+    def test_jobspy_mapping_rejects_unrelated_search_result(self):
+        record = {
+            "site": "indeed",
+            "title": "Workplace Manager",
+            "company": "Example Company",
+            "job_url": "https://www.indeed.com/viewjob?jk=123",
+            "date_posted": "2026-07-15",
+            "description": "This facilities role manages leases, vendors, office access, budgets, and construction projects for a large corporate workplace.",
+        }
+        self.assertIsNone(jobspy_record_to_job(record))
+
+    def test_jobspy_mapping_prefers_direct_employer_url(self):
+        description = """We are hiring an Accessibility Engineer to improve inclusive digital products for customers with disabilities. The role owns accessibility quality across our web platform.
+
+Responsibilities
+
+- Test interfaces with JAWS, NVDA, and VoiceOver.
+- Partner with engineers to remediate WCAG defects.
+
+Requirements
+
+- Strong knowledge of WCAG 2.2, ARIA, HTML, CSS, and JavaScript.
+- Experience conducting manual accessibility testing.
+"""
+        record = {
+            "site": "indeed",
+            "title": "Accessibility Engineer",
+            "company": "Example Company",
+            "job_url": "https://www.indeed.com/viewjob?jk=123",
+            "job_url_direct": "https://careers.example.com/jobs/123",
+            "company_url": "https://www.indeed.com/cmp/example",
+            "company_url_direct": "https://www.example.com",
+            "location": "New York, NY, US",
+            "date_posted": "2026-07-15",
+            "job_type": "fulltime",
+            "description": description,
+        }
+        mapped = jobspy_record_to_job(record)
+        self.assertIsNotNone(mapped)
+        assert mapped is not None
+        self.assertEqual(mapped["source_url"], "https://careers.example.com/jobs/123")
+        self.assertEqual(mapped["job_source"], "indeed")
+        self.assertIsNone(mapped["contact_email"])
+
+    def test_cross_source_dedupe_keeps_direct_evidence_and_counts_sources(self):
+        common = {
+            "title": "Accessibility Engineer",
+            "company": "Example Company",
+            "description": "Accessibility engineering role with WCAG, ARIA, JAWS, and NVDA responsibilities. " * 3,
+            "country": "US",
+            "specific_location": "New York, NY, US",
+            "relevance_score": 10,
+        }
+        direct = {
+            **common,
+            "job_source": "indeed",
+            "source_url": "https://careers.example.com/jobs/123",
+            "_discovery_url": "https://www.indeed.com/viewjob?jk=123",
+        }
+        board = {
+            **common,
+            "job_source": "linkedin",
+            "source_url": "https://www.linkedin.com/jobs/view/123",
+            "_discovery_url": "https://www.linkedin.com/jobs/view/123",
+        }
+        consolidated, duplicates = consolidate_source_candidates([board, direct])
+        self.assertEqual(len(consolidated), 1)
+        self.assertEqual(consolidated[0]["source_url"], direct["source_url"])
+        self.assertEqual(consolidated[0]["evidence_source_count"], 2)
+        self.assertEqual(len(duplicates), 1)
+
+    def test_validation_allows_application_url_without_fabricated_email(self):
+        record = {
+            "title": "Accessibility Engineer",
+            "company": "Example Company",
+            "employment_type": "full-time",
+            "work_arrangement": "remote",
+            "description": "A source-backed accessibility engineering overview with enough detail for a candidate to understand the role and team. " * 2,
+            "key_responsibilities": RESPONSIBILITIES_FALLBACK,
+            "requirements": REQUIREMENTS_FALLBACK,
+            "contact_email": None,
+            "source_url": "https://careers.example.com/jobs/123",
+            "status": "approved",
+            "source_evidence": [{"source": "indeed", "url": "https://www.indeed.com/viewjob?jk=123"}],
+            "evidence_source_count": 1,
+            "direct_evidence_verified": True,
+        }
+        self.assertEqual(validate_record(record), [])
+
+    def test_external_evidence_must_match_title_and_company(self):
+        job = {"title": "Accessibility Engineer", "company": "Example Company"}
+        matching = "Example Company is hiring an Accessibility Engineer to lead WCAG and screen reader testing."
+        unrelated = "Different Corporation is hiring a Facilities Manager to coordinate office construction."
+        self.assertTrue(external_content_matches_job(matching, job))
+        self.assertFalse(external_content_matches_job(unrelated, job))
 
 
 if __name__ == "__main__":

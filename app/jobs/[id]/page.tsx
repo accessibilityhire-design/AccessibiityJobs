@@ -45,6 +45,8 @@ const SOURCE_CONFIG: Record<
 > = {
   linkedin:     { label: 'LinkedIn' },
   indeed:       { label: 'Indeed' },
+  glassdoor:    { label: 'Glassdoor' },
+  google:       { label: 'Google Jobs' },
   zip_recruiter:{ label: 'ZipRecruiter' },
   ziprecruiter: { label: 'ZipRecruiter' },
   a11yjobs:     { label: 'A11yJobs' },

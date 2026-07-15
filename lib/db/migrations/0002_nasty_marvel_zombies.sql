@@ -1,0 +1,1 @@
+ALTER TABLE "jobs" ALTER COLUMN "contact_email" DROP NOT NULL;

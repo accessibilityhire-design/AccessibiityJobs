@@ -15,6 +15,13 @@
       "when": 1783550057765,
       "tag": "0001_old_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784112499524,
+      "tag": "0002_nasty_marvel_zombies",
+      "breakpoints": true
     }
   ]
 }

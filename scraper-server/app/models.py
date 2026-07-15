@@ -4,7 +4,7 @@ Pydantic models for job data
 
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 
 
 class JobBase(BaseModel):
@@ -81,7 +81,7 @@ class JobBase(BaseModel):
     salary_range: Optional[str] = Field(None, max_length=100)
     
     # Job Source Tracking
-    job_source: Optional[str] = Field(None, max_length=50)  # linkedin, indeed, a11yjobs, ziprecruiter, direct
+    job_source: Optional[str] = Field(None, max_length=50)  # a11yjobs, indeed, linkedin, glassdoor, google, zip_recruiter, direct
     source_url: Optional[str] = Field(None, max_length=500)  # Original job posting URL
     
     # Meta
@@ -95,12 +95,11 @@ class JobCreate(JobBase):
 
 class Job(JobBase):
     """Model for a job from database"""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class ScrapeStatus(BaseModel):
@@ -119,7 +118,7 @@ class ScrapeResult(BaseModel):
     jobs_skipped: int
     jobs_failed: int
     duration_seconds: float
-    errors: List[str] = []
+    errors: List[str] = Field(default_factory=list)
 
 
 class HealthResponse(BaseModel):
