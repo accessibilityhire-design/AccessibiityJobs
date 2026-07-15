@@ -30,6 +30,8 @@ Keep these requirements true for every scheduled run:
 
 Secrets must never be printed. The runner masks the database URL, and the agent must preserve that behavior.
 
+The automation keeps a small operational memory at `$CODEX_HOME/automations/daily-a11yjobs-supabase-ingestion/memory.md`. Read it at the start of each run and update it at the end with the timestamp, cutoff, source counts, insert totals, database total, verification result, blocker if any, and useful next-run context. Never store credentials or source-page content in this file.
+
 ## Daily workflow
 
 ### 1. Start with the database cutoff
@@ -121,6 +123,8 @@ Each scheduled run reports:
 - production visibility result
 - any code change, test result, commit, and push made during recovery
 
+After reporting, the same summary is appended to the automation memory so a later run can distinguish a clean no-op, a completed insertion, and a blocked attempt.
+
 A run with zero newer jobs is a successful no-op when the cutoff, source fetch, artifact refresh, database count, and post-insert checks all pass.
 
 ## Failure and recovery rules
@@ -149,7 +153,7 @@ Review the first few scheduled runs in Codex Scheduled. Update the prompt if sou
 ## Exact scheduled agent prompt
 
 ```text
-Run the production daily A11yJobs to Supabase ingestion for /Users/khushwantparihar/AccessibiityJobs. Work autonomously and continue until the run is either fully verified or stopped by a real safety blocker. Read docs/CODEX_DAILY_JOB_AUTOMATION.md before acting and follow it as the operating contract.
+Run the production daily A11yJobs to Supabase ingestion for /Users/khushwantparihar/AccessibiityJobs. Work autonomously and continue until the run is either fully verified or stopped by a real safety blocker. Read docs/CODEX_DAILY_JOB_AUTOMATION.md and $CODEX_HOME/automations/daily-a11yjobs-supabase-ingestion/memory.md before acting. Follow the guide as the operating contract and use memory only as prior-run context, never as a replacement for live cutoff or source checks.
 
 Use the repository's canonical workflow. Do not start if another scripts/run_a11yjobs_daily.py process is active. Load DATABASE_URL from .env.local first, then .env, and never print any credential.
 
@@ -165,5 +169,5 @@ After a successful insert, verify accessibilityjobs.net after its cache window. 
 
 If a durable parser defect blocks accurate ingestion, make only a narrow source-backed code fix. Keep validation strict. Run the focused Python quality tests plus npm run lint, npm run audit:seo, and npm run build. Commit and push only if all required checks pass. Routine database insertion and refreshed output artifacts do not require a code commit.
 
-Finish with an exact report containing cutoff date, newest source date, source counts, artifact counts, inserted and rejected job details, duplicate and validation reasons, database before and after totals, run ID verification, artifact paths, live-site visibility, tests, and any commit or push. A verified zero-new-job run is a successful no-op. If blocked, identify the precise blocker and confirm that no unsafe write occurred.
+Finish with an exact report containing cutoff date, newest source date, source counts, artifact counts, inserted and rejected job details, duplicate and validation reasons, database before and after totals, run ID verification, artifact paths, live-site visibility, tests, and any commit or push. A verified zero-new-job run is a successful no-op. If blocked, identify the precise blocker and confirm that no unsafe write occurred. Append a concise timestamped summary to $CODEX_HOME/automations/daily-a11yjobs-supabase-ingestion/memory.md with the outcome, counts, database total, verification state, blocker, and next-run context. Never write credentials to memory.
 ```
