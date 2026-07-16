@@ -1,5 +1,6 @@
 import json
 import unittest
+from unittest.mock import Mock
 
 from bs4 import BeautifulSoup
 
@@ -11,6 +12,8 @@ from run_a11yjobs_daily import (
     extract_structured_fields,
     consolidate_source_candidates,
     external_content_matches_job,
+    extract_contact_email,
+    fetch_external_text,
     jobspy_record_to_job,
     normalize_description_text,
     normalize_work_arrangement,
@@ -57,6 +60,26 @@ The salary range provided for this role depends on experience.
         self.assertTrue(sections["requirements"].startswith("- 7+ years"))
         self.assertIn("basic requirements to apply", sections["nice_to_have"])
         self.assertNotIn("salary range", sections["nice_to_have"].lower())
+
+    def test_what_youll_bring_is_a_requirements_heading(self):
+        source = """About this team and role
+
+We build an accessibility engine used by assistive technology across several platforms, and this role improves that engine for users with disabilities.
+
+What You'll Do
+
+- Improve the accessibility engine architecture and performance.
+- Debug cross-platform assistive technology issues.
+
+What You'll Bring
+
+- Demonstrated proficiency with C++ systems programming.
+- Knowledge of web accessibility and ARIA.
+"""
+        sections = parse_description_sections(source)
+
+        self.assertIn("Improve the accessibility engine", sections["key_responsibilities"])
+        self.assertIn("Demonstrated proficiency with C++", sections["requirements"])
 
     def test_no_substantial_overview_keeps_full_posting_once(self):
         source = """Accessibility QA
@@ -312,6 +335,37 @@ Requirements
         unrelated = "Different Corporation is hiring a Facilities Manager to coordinate office construction."
         self.assertTrue(external_content_matches_job(matching, job))
         self.assertFalse(external_content_matches_job(unrelated, job))
+
+    def test_external_fetch_follows_a11yjobs_apply_go_to_direct_ats(self):
+        apply_page = (
+            '<html><body><h1>Accessibility Engineer at Example Company</h1>'
+            '<p>This confirmation page contains enough source-backed job context for fetching.</p>'
+            '<a href="/jobs/example/apply/go">Continue to apply</a>'
+            '<p>Applicants continue to the employer system to complete their application.</p></body></html>'
+        )
+        ats_page = (
+            '<html><body><h1>Accessibility Engineer</h1><p>Example Company is hiring an '
+            'accessibility engineer to test web and mobile products with assistive technology. '
+            'The role includes WCAG reviews, engineering collaboration, and documented remediation.</p>'
+            '<p>Apply through this employer applicant tracking system.</p></body></html>'
+        )
+        apply_response = Mock(status_code=200, text=apply_page, url="https://www.a11yjobs.com/jobs/example/apply")
+        ats_response = Mock(status_code=200, text=ats_page, url="https://job-boards.greenhouse.io/example/jobs/123")
+        session = Mock()
+        session.get.side_effect = [apply_response, ats_response]
+
+        text, source, resolved_url = fetch_external_text(
+            session,
+            "https://www.a11yjobs.com/jobs/example/apply",
+        )
+
+        self.assertEqual(text, ats_page)
+        self.assertEqual(source, "direct")
+        self.assertEqual(resolved_url, "https://job-boards.greenhouse.io/example/jobs/123")
+
+    def test_contact_email_ignores_accommodation_only_address(self):
+        text = "Contact hiringaccommodation@example.com to request an interview accommodation."
+        self.assertIsNone(extract_contact_email(text))
 
 
 if __name__ == "__main__":

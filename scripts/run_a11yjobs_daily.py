@@ -517,6 +517,7 @@ _SECTION_PATTERNS = [
             r"core skills?(?:\s*&\s*knowledge)?|knowledge,? skills?(?:\s*(?:and|&)\s*abilities)?|"
             r"specific skills? required|required education and experience|competencies|"
             r"tools?\s*&\s*technologies|your education|what you['’]?ll need|what you will need|"
+            r"what you['’]?ll bring|what you will bring|what you bring|"
             r"who you are|what we['’]?re looking for)$",
             re.I,
         ),
@@ -1061,8 +1062,13 @@ def extract_jsonld_jobposting(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
 def extract_contact_email(text: str) -> Optional[str]:
     if not text:
         return None
-    match = re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", text)
-    return match[0] if match else None
+    matches = re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", text)
+    for email in matches:
+        local_part = email.split("@", 1)[0].lower()
+        if any(marker in local_part for marker in ("accommodation", "no-reply", "noreply")):
+            continue
+        return email
+    return None
 
 
 # Word-bounded, not a bare substring check: "ADA" as a plain substring
@@ -1378,23 +1384,23 @@ def normalize_external_content(text: str) -> str:
     return normalize_description_text(strip_html(text))
 
 
-def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[str], str]:
+def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[str], str, Optional[str]]:
     if not url or not url_is_valid(url):
-        return None, "invalid"
+        return None, "invalid", None
 
-    def try_fetch(fetch_url: str) -> Optional[str]:
+    def try_fetch(fetch_url: str) -> Tuple[Optional[str], Optional[str]]:
         try:
             response = session.get(fetch_url, timeout=5)
             if response.status_code >= 400:
-                return None
+                return None, None
             text = response.text
             if not text or len(text) < 200:
-                return None
-            return text
+                return None, None
+            return text, response.url
         except Exception:
-            return None
+            return None, None
 
-    text = try_fetch(url)
+    text, resolved_url = try_fetch(url)
     blocked_markers = [
         "enable javascript",
         "access denied",
@@ -1405,15 +1411,39 @@ def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[s
         "service interruption",
         "check back later",
     ]
-    if text and not any(marker in text.lower() for marker in blocked_markers):
-        return text, "direct"
+    visible_text = normalize_external_content(text) if text else ""
+    is_blocked = any(marker in visible_text.lower() for marker in blocked_markers)
+
+    # A11yJobs renders an intermediate confirmation page at /apply and exposes
+    # the employer or ATS redirect at /apply/go. Follow that source-backed link
+    # so evidence classification uses the final destination rather than the
+    # aggregator confirmation page.
+    if text and not is_blocked and hostname_without_www(resolved_url or url) == "a11yjobs.com":
+        soup = BeautifulSoup(text, "html.parser")
+        go_link = next(
+            (
+                urljoin(resolved_url or url, anchor.get("href", ""))
+                for anchor in soup.find_all("a", href=True)
+                if re.search(r"/apply/go(?:[/?#]|$)", anchor.get("href", ""))
+            ),
+            None,
+        )
+        if go_link:
+            external_text, external_url = try_fetch(go_link)
+            external_visible = normalize_external_content(external_text) if external_text else ""
+            external_blocked = any(marker in external_visible.lower() for marker in blocked_markers)
+            if external_text and not external_blocked:
+                return external_text, "direct", external_url
+
+    if text and not is_blocked:
+        return text, "direct", resolved_url
 
     jina_url = f"https://r.jina.ai/http://{url.replace('https://', '').replace('http://', '')}"
-    text = try_fetch(jina_url)
+    text, _ = try_fetch(jina_url)
     if text:
-        return text, "jina"
+        return text, "jina", url
 
-    return None, "failed"
+    return None, "failed", None
 
 
 def search_alternate_urls(session: requests.Session, title: str, company: str) -> List[str]:
@@ -2149,22 +2179,25 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
     source_used = "none"
 
     if apply_url:
-        text, source_used = fetch_external_text(session, apply_url)
+        text, source_used, resolved_url = fetch_external_text(session, apply_url)
         if text and external_content_matches_job(text, job):
             content = text
-            job["direct_evidence_verified"] = is_direct_job_url(apply_url)
+            evidence_url = resolved_url or apply_url
+            job["apply_url"] = evidence_url
+            job["direct_evidence_verified"] = is_direct_job_url(evidence_url)
         elif text:
             source_used = "mismatch"
 
     if not content:
         links = search_alternate_urls(session, job.get("title") or "", job.get("company") or "")
         for link in links:
-            text, source_used = fetch_external_text(session, link)
+            text, source_used, resolved_url = fetch_external_text(session, link)
             if text and external_content_matches_job(text, job):
                 content = text
+                evidence_url = resolved_url or link
                 if not apply_url:
-                    job["apply_url"] = link
-                job["direct_evidence_verified"] = is_direct_job_url(link)
+                    job["apply_url"] = evidence_url
+                job["direct_evidence_verified"] = is_direct_job_url(evidence_url)
                 break
             if text:
                 source_used = "mismatch"
