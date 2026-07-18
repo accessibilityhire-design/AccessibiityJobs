@@ -12,6 +12,7 @@ from run_a11yjobs_daily import (
     extract_structured_fields,
     consolidate_source_candidates,
     external_content_matches_job,
+    external_content_has_job_detail,
     extract_contact_email,
     fetch_external_text,
     jobspy_record_to_job,
@@ -20,6 +21,7 @@ from run_a11yjobs_daily import (
     parse_description_sections,
     parse_location_fields,
     parse_salary,
+    reconcile_external_jobposting,
     validate_record,
 )
 
@@ -133,22 +135,34 @@ class SalaryQualityTests(unittest.TestCase):
         text = "The salary range depends on experience. Requires 7+ years and Section 508 knowledge."
         self.assertEqual(parse_salary(text), (None, None, None, None))
 
-    def test_currency_range_is_parsed(self):
+    def test_bare_dollar_range_keeps_currency_unknown(self):
         self.assertEqual(
             parse_salary("The pay range is $88,000.00 - $158,000.00 per year"),
-            (88000, 158000, "USD", "annual"),
+            (88000, 158000, None, "annual"),
         )
 
     def test_monthly_salary_is_not_mislabeled_annual(self):
         self.assertEqual(
             parse_salary("Monthly Salary: $4,942.10 - $7,500.00"),
-            (4942, 7500, "USD", "monthly"),
+            (4942, 7500, None, "monthly"),
+        )
+
+    def test_explicit_usd_range_is_preserved(self):
+        self.assertEqual(
+            parse_salary("The pay range is USD 88,000 - 158,000 per year"),
+            (88000, 158000, "USD", "annual"),
         )
 
     def test_benefit_number_is_not_salary(self):
         self.assertEqual(
             parse_salary("Compensation varies. Benefits include a 401(k) retirement plan."),
             (None, None, None, None),
+        )
+
+    def test_bare_dollar_does_not_guess_usd_for_international_posting(self):
+        self.assertEqual(
+            parse_salary("Salary - $154,231 pa - $178,369 pa annually"),
+            (154231, 178369, None, "annual"),
         )
 
 
@@ -221,6 +235,16 @@ class LocationQualityTests(unittest.TestCase):
         self.assertEqual(
             normalize_work_arrangement("United States", "Accessibility Engineer", job_location_type="TELECOMMUTE"),
             "remote",
+        )
+
+    def test_parenthetical_hybrid_in_description_is_respected(self):
+        self.assertEqual(
+            normalize_work_arrangement(
+                "Parramatta, Australia",
+                "Manager Product Design and Delivery",
+                "Location - Parramatta (Hybrid)",
+            ),
+            "hybrid",
         )
 
 
@@ -366,6 +390,60 @@ Requirements
     def test_contact_email_ignores_accommodation_only_address(self):
         text = "Contact hiringaccommodation@example.com to request an interview accommodation."
         self.assertIsNone(extract_contact_email(text))
+
+    def test_application_shell_is_not_treated_as_job_description(self):
+        shell = """<html><body><h1>Begin application - University of Alabama</h1>
+        <p>Email address:</p><p>New applicants: use the same email address.</p>
+        <p>Existing applicants: sign in to apply and continue.</p></body></html>"""
+        self.assertFalse(external_content_has_job_detail(shell))
+
+    def test_direct_jobposting_reconciles_employer_facts(self):
+        job = {
+            "title": "Accessibility Coordinator",
+            "employment_type": "full-time",
+            "work_arrangement": "onsite",
+            "location": "Edmonton, Canada",
+            "salary_min": 62000,
+            "salary_max": 93000,
+            "currency": "USD",
+            "salary_type": "annual",
+        }
+        direct = {
+            "@type": "JobPosting",
+            "title": "Accessibility Coordinator",
+            "datePosted": "2026-07-16",
+            "validThrough": "2026-10-14",
+            "employmentType": "FULL_TIME",
+            "jobLocationType": "TELECOMMUTE",
+            "baseSalary": {
+                "@type": "MonetaryAmount",
+                "currency": "CAD",
+                "value": {
+                    "@type": "QuantitativeValue",
+                    "minValue": 62464,
+                    "maxValue": 93167,
+                    "unitText": "YEAR",
+                },
+            },
+            "description": "A source-backed accessibility role with WCAG responsibilities and required qualifications for inclusive digital services.",
+        }
+        self.assertEqual(reconcile_external_jobposting(job, direct), [])
+        self.assertEqual(job["currency"], "CAD")
+        self.assertEqual(job["work_arrangement"], "remote")
+        self.assertEqual(job["date_posted"], "2026-07-16")
+        self.assertEqual(job["application_deadline"], "2026-10-14T00:00:00Z")
+
+    def test_direct_part_time_title_conflict_is_rejected(self):
+        job = {"title": "508 Compliance Specialist", "employment_type": "full-time"}
+        conflicts = reconcile_external_jobposting(
+            job,
+            {
+                "@type": "JobPosting",
+                "title": "508 Compliance Specialist - (P/T- 1099)",
+                "employmentType": "Full-time Remote",
+            },
+        )
+        self.assertTrue(any("part-time/1099" in conflict for conflict in conflicts))
 
 
 if __name__ == "__main__":

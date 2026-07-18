@@ -276,7 +276,12 @@ def normalize_work_arrangement(
         return "remote"
     if re.search(r"\b(?:100%|fully|entirely)\s+remote\b|\bremote\s+(?:position|role)\b", description_lower):
         return "remote"
-    if re.search(r"\bhybrid\s+(?:position|role|schedule|work)\b", description_lower):
+    if re.search(
+        r"\bhybrid\s+(?:position|role|schedule|work)\b|"
+        r"\(\s*hybrid\s*\)|\blocation\b.{0,80}\bhybrid\b",
+        description_lower,
+        re.S,
+    ):
         return "hybrid"
     return "onsite"
 
@@ -846,7 +851,7 @@ def parse_salary(text: Optional[str]) -> Tuple[Optional[int], Optional[int], Opt
         currency = "JPY"
     elif currency_token == "CNY":
         currency = "CNY"
-    elif currency_token in {"$", "USD"}:
+    elif currency_token == "USD":
         currency = "USD"
 
     salary_type = None
@@ -2173,6 +2178,147 @@ def external_content_matches_job(content: str, job: Dict[str, Any]) -> bool:
     return title_matches >= required_title_matches and company_matches
 
 
+def extract_external_jobposting(content: str) -> Optional[Dict[str, Any]]:
+    """Return direct-page JobPosting data without trusting visible page chrome."""
+    if not content or not re.search(r"<script|@type", content, re.I):
+        return None
+    return extract_jsonld_jobposting(BeautifulSoup(content, "html.parser"))
+
+
+def external_content_has_job_detail(
+    content: str,
+    jsonld: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """Distinguish a job description from a login/application form shell."""
+    structured_description = ""
+    if jsonld:
+        structured_description = normalize_description_text(
+            strip_html(html.unescape(str(jsonld.get("description") or "")))
+        )
+    if len(_plain_markdown(structured_description)) >= 100:
+        return True
+
+    visible = normalize_external_content(content)
+    lowered = visible.lower()
+    shell_markers = (
+        "begin application",
+        "new applicants:",
+        "existing applicants:",
+        "email address:",
+        "forgot password",
+        "sign in to apply",
+    )
+    detail_markers = (
+        "responsibilities",
+        "qualifications",
+        "requirements",
+        "job summary",
+        "position overview",
+        "what you'll do",
+        "what you’ll do",
+        "experience required",
+        "wcag",
+        "section 508",
+    )
+    detail_count = sum(1 for marker in detail_markers if marker in lowered)
+    if any(marker in lowered for marker in shell_markers) and detail_count < 2:
+        return False
+    return len(_plain_markdown(visible)) >= 300 and detail_count >= 2
+
+
+def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -> List[str]:
+    """Prefer explicit employer/ATS JobPosting facts and report disagreements."""
+    conflicts: List[str] = []
+    external_title = clean_text(html.unescape(str(jsonld.get("title") or "")))
+    current_title = clean_text(str(job.get("title") or ""))
+    employment_raw = jsonld.get("employmentType")
+    if isinstance(employment_raw, list):
+        employment_raw = " ".join(str(value) for value in employment_raw)
+    employment_text = clean_text(str(employment_raw or ""))
+
+    if external_title and current_title:
+        current_norm = normalize_text(current_title)
+        external_norm = normalize_text(external_title)
+        if current_norm not in external_norm and external_norm not in current_norm:
+            current_tokens = set(re.findall(r"[a-z0-9]+", current_title.lower()))
+            external_tokens = set(re.findall(r"[a-z0-9]+", external_title.lower()))
+            overlap = len(current_tokens & external_tokens) / max(1, len(current_tokens | external_tokens))
+            if overlap < 0.5:
+                conflicts.append(
+                    f"Direct title disagrees with source title: {external_title}"
+                )
+
+    if re.search(r"\b(?:p\s*/\s*t|part[ -]?time|1099)\b", external_title, re.I) and re.search(
+        r"\bfull[ -]?time\b", employment_text, re.I
+    ):
+        conflicts.append("Direct title says part-time/1099 but structured employmentType says full-time")
+
+    if conflicts:
+        return conflicts
+
+    description = normalize_description_text(
+        strip_html(html.unescape(str(jsonld.get("description") or "")))
+    )
+    if employment_text:
+        job["employment_type"] = normalize_employment_type(employment_text)
+        job["type"] = job["employment_type"]
+
+    job["work_arrangement"] = normalize_work_arrangement(
+        str(job.get("location") or ""),
+        external_title or current_title,
+        description,
+        str(jsonld.get("jobLocationType") or ""),
+    )
+
+    job_location = jsonld.get("jobLocation")
+    locations = job_location if isinstance(job_location, list) else [job_location]
+    for location in locations:
+        if not isinstance(location, dict):
+            continue
+        address = location.get("address")
+        if not isinstance(address, dict):
+            continue
+        locality = clean_optional_text(address.get("addressLocality"))
+        region = clean_optional_text(address.get("addressRegion"))
+        country_value = address.get("addressCountry")
+        if isinstance(country_value, dict):
+            country_value = country_value.get("name")
+        country_text = clean_optional_text(country_value)
+        parts = [part for part in (locality, region, country_text) if part]
+        if parts:
+            location_text = ", ".join(parts)
+            city, country = parse_location_fields(location_text, locality, region, country_text)
+            job["location"] = location_text
+            job["specific_location"] = location_text
+            job["city"] = city
+            job["country"] = country
+        break
+
+    salary_min, salary_max, currency, salary_type = parse_jsonld_salary(jsonld)
+    if not validate_salary(salary_min, salary_max, salary_type) and currency in CURRENCIES:
+        # Do not replace a complete range with a single structured amount.
+        if salary_min != salary_max or not (job.get("salary_min") or job.get("salary_max")):
+            job["salary_min"] = salary_min
+            job["salary_max"] = salary_max
+            job["currency"] = currency
+            job["salary_type"] = salary_type
+            job["salary_range"] = format_salary_evidence(
+                salary_min, salary_max, currency, salary_type
+            )
+
+    posted = parse_date_text(str(jsonld.get("datePosted") or ""))
+    if posted:
+        job["date_posted"] = posted.isoformat()
+        job["created_at"] = f"{posted.isoformat()}T00:00:00Z"
+
+    valid_through = parse_date_text(str(jsonld.get("validThrough") or ""))
+    if valid_through:
+        job["valid_through"] = valid_through.isoformat()
+        job["application_deadline"] = f"{valid_through.isoformat()}T00:00:00Z"
+
+    return conflicts
+
+
 def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]:
     apply_url = job.get("apply_url")
     content = ""
@@ -2203,9 +2349,21 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
                 source_used = "mismatch"
 
     if content:
-        content = normalize_external_content(content)
+        external_jsonld = extract_external_jobposting(content)
+        conflicts = reconcile_external_jobposting(job, external_jsonld) if external_jsonld else []
+        if conflicts:
+            job["evidence_conflicts"] = conflicts
+            job["direct_evidence_verified"] = False
+
+        has_job_detail = external_content_has_job_detail(content, external_jsonld)
+        structured_description = ""
+        if external_jsonld:
+            structured_description = normalize_description_text(
+                strip_html(html.unescape(str(external_jsonld.get("description") or "")))
+            )
+        content = structured_description if len(_plain_markdown(structured_description)) >= 100 else normalize_external_content(content)
         external_sections = parse_description_sections(content)
-        if (
+        if has_job_detail and (
             not job.get("description")
             or len(job.get("description") or "") < 100
             or len(job.get("key_responsibilities") or "") < 50
@@ -2392,6 +2550,9 @@ def validate_record(record: Dict[str, Any]) -> List[str]:
         evidence_count = int(record.get("evidence_source_count") or 0)
         if not record.get("direct_evidence_verified") and evidence_count < 2:
             errors.append("Job lacks verified direct employer evidence or two independent sources")
+
+    for conflict in record.get("evidence_conflicts") or []:
+        errors.append(f"Source evidence conflict: {conflict}")
 
     salary_error = validate_salary(record.get("salary_min"), record.get("salary_max"), record.get("salary_type"))
     if salary_error:
