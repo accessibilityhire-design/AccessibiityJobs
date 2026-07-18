@@ -211,6 +211,22 @@ Preferred Qualifications
         self.assertIn("Annual salary outside plausible range", errors)
         self.assertIn("required_skills contains sentence-sized item", errors)
 
+    def test_validation_rejects_placeholder_sections(self):
+        record = {
+            "title": "Accessibility Engineer",
+            "company": "Example Company",
+            "employment_type": "full-time",
+            "work_arrangement": "remote",
+            "description": "A source-backed accessibility engineering overview with enough detail for candidates to understand the role and its purpose. " * 2,
+            "key_responsibilities": RESPONSIBILITIES_FALLBACK,
+            "requirements": REQUIREMENTS_FALLBACK,
+            "source_url": "https://careers.example.com/jobs/123",
+            "status": "approved",
+        }
+        errors = validate_record(record)
+        self.assertIn("key_responsibilities is placeholder text", errors)
+        self.assertIn("requirements is placeholder text", errors)
+
 
 class LocationQualityTests(unittest.TestCase):
     def test_us_state_is_not_stored_as_a_country(self):
@@ -342,8 +358,8 @@ Requirements
             "employment_type": "full-time",
             "work_arrangement": "remote",
             "description": "A source-backed accessibility engineering overview with enough detail for a candidate to understand the role and team. " * 2,
-            "key_responsibilities": RESPONSIBILITIES_FALLBACK,
-            "requirements": REQUIREMENTS_FALLBACK,
+            "key_responsibilities": "Test web and mobile interfaces with assistive technology and document source-backed remediation guidance for product teams.",
+            "requirements": "Demonstrated knowledge of WCAG, semantic HTML, ARIA, and manual screen-reader testing across production interfaces.",
             "contact_email": None,
             "source_url": "https://careers.example.com/jobs/123",
             "status": "approved",

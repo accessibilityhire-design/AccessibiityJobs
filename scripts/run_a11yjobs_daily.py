@@ -2514,6 +2514,7 @@ def validate_record(record: Dict[str, Any]) -> List[str]:
 
     for field_name, value in [("key_responsibilities", key_resp), ("requirements", requirements)]:
         if is_placeholder_section(value):
+            errors.append(f"{field_name} is placeholder text")
             continue
         plain_value = _plain_markdown(value)
         if re.match(r"^(?:[,;:]|to apply\b|and\s+|or\s+)", plain_value, re.I):
