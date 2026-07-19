@@ -85,6 +85,9 @@ US_STATE_CODES = {
     "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
     "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
 }
+CANADIAN_PROVINCE_CODES = {
+    "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
+}
 COUNTRY_CODE_ALIASES = {
     "us": "US", "usa": "US", "u.s.": "US", "u.s.a.": "US",
     "united states": "US", "united states of america": "US",
@@ -305,7 +308,15 @@ def parse_location_fields(
         # addressLocality. Store only the locality; the region remains in the
         # full location string and is emitted separately in JobPosting schema.
         city = city.split(",", 1)[0].strip() or None
-    country = normalize_country_code(jsonld_country)
+    structured_country = str(jsonld_country).strip().upper() if jsonld_country else ""
+    if structured_country in US_STATE_CODES and structured_country not in {"CA", "IN"}:
+        # Some ATS feeds put addressRegion in addressCountry. Preserve the
+        # deterministic country while never storing the subdivision as one.
+        country = "US"
+    elif structured_country in CANADIAN_PROVINCE_CODES:
+        country = "CA"
+    else:
+        country = normalize_country_code(jsonld_country)
     parts = [part.strip() for part in re.split(r"[,|]", location_text or "") if part.strip()]
 
     if not city and parts and parts[0].lower() != "remote":

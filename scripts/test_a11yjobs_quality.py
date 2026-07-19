@@ -238,6 +238,18 @@ class LocationQualityTests(unittest.TestCase):
             ("Atlanta", "US"),
         )
 
+    def test_structured_us_state_is_not_stored_as_country(self):
+        self.assertEqual(
+            parse_location_fields("Rochester, MN", "Rochester", "MN", "MN"),
+            ("Rochester", "US"),
+        )
+
+    def test_structured_canadian_province_is_not_stored_as_country(self):
+        self.assertEqual(
+            parse_location_fields("Edmonton, AB", "Edmonton", "AB", "AB"),
+            ("Edmonton", "CA"),
+        )
+
     def test_international_country_code_wins_for_known_locality(self):
         self.assertEqual(parse_location_fields("Bangalore, IN"), ("Bangalore", "IN"))
 
