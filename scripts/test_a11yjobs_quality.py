@@ -83,6 +83,28 @@ What You'll Bring
         self.assertIn("Improve the accessibility engine", sections["key_responsibilities"])
         self.assertIn("Demonstrated proficiency with C++", sections["requirements"])
 
+    def test_amazon_job_section_headings_are_classified(self):
+        source = """About the Role
+
+This accessibility specialist defines enablement strategy and builds sustainable accessibility practices across several technical communities and product teams.
+
+Key job responsibilities
+
+- Create accessibility playbooks and training modules.
+- Advise teams on assistive technology interoperability.
+
+Basic Qualifications
+
+- Significant experience in digital accessibility evaluation and implementation.
+- Expert knowledge of WCAG 2.2 across web, mobile, and documents.
+"""
+        sections = parse_description_sections(source)
+
+        self.assertIn("Create accessibility playbooks", sections["key_responsibilities"])
+        self.assertIn("Expert knowledge of WCAG 2.2", sections["requirements"])
+        self.assertNotEqual(sections["key_responsibilities"], RESPONSIBILITIES_FALLBACK)
+        self.assertNotEqual(sections["requirements"], REQUIREMENTS_FALLBACK)
+
     def test_no_substantial_overview_keeps_full_posting_once(self):
         source = """Accessibility QA
 
