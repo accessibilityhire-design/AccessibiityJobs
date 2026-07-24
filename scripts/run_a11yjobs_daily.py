@@ -309,7 +309,10 @@ def parse_location_fields(
         # full location string and is emitted separately in JobPosting schema.
         city = city.split(",", 1)[0].strip() or None
     structured_country = str(jsonld_country).strip().upper() if jsonld_country else ""
-    if structured_country in US_STATE_CODES and structured_country not in {"CA", "IN"}:
+    if (
+        structured_country in US_STATE_CODES
+        and structured_country not in {"CA", "IN"}
+    ) or structured_country in {"DISTRICT OF COLUMBIA", "DISTRIC OF COLUMBIA"}:
         # Some ATS feeds put addressRegion in addressCountry. Preserve the
         # deterministic country while never storing the subdivision as one.
         country = "US"
@@ -334,13 +337,18 @@ def parse_location_fields(
                 country = "CA"
             else:
                 country = "US"
+        elif upper in {"DISTRICT OF COLUMBIA", "DISTRIC OF COLUMBIA"}:
+            country = "US"
         else:
             country = normalize_country_code(final)
 
     # A structured region can safely resolve the country when the source did
     # not provide addressCountry.
     region = str(jsonld_region).strip().upper() if jsonld_region else ""
-    if not country and region in US_STATE_CODES:
+    if not country and (
+        region in US_STATE_CODES
+        or region in {"DISTRICT OF COLUMBIA", "DISTRIC OF COLUMBIA"}
+    ):
         country = "US"
 
     return city, country
@@ -348,8 +356,6 @@ def parse_location_fields(
 
 def determine_job_level(title: str, description: str) -> Optional[str]:
     title_lower = title.lower()
-    desc_lower = description.lower() if description else ""
-
     if any(kw in title_lower for kw in ["c-level", "chief", "vp", "vice president"]):
         return "c-level"
     if any(kw in title_lower for kw in ["director"]):
@@ -365,10 +371,6 @@ def determine_job_level(title: str, description: str) -> Optional[str]:
     if any(kw in title_lower for kw in ["junior", "jr.", "entry", "associate", "intern"]):
         return "entry"
 
-    if "senior" in desc_lower or "lead" in desc_lower:
-        return "senior"
-    if "junior" in desc_lower or "entry" in desc_lower:
-        return "entry"
     return None
 
 
@@ -1128,7 +1130,7 @@ def extract_skills(text: str) -> List[str]:
 # in caps in real postings, so exact-case, word-bounded matching is safe.
 _CERTIFICATION_PATTERNS = [
     (cert, re.compile(r"\b" + re.escape(cert) + r"\b"))
-    for cert in ["CPACC", "WAS", "CPWA", "IAAP", "DHS Trusted Tester", "Section 508 Trusted Tester", "ADS", "CPABE"]
+    for cert in ["CPACC", "WAS", "CPWA", "DHS Trusted Tester", "Section 508 Trusted Tester", "ADS", "CPABE"]
 ]
 
 
@@ -1266,10 +1268,18 @@ def extract_structured_fields(full_text: str, sections: Dict[str, Optional[str]]
     preferred_skills = [skill for skill in extract_skills(preferred_text) if skill not in required_skills]
     benefits, benefit_flags = extract_benefits(full_text)
 
+    preferred_certifications = extract_certifications(preferred_text)
+    required_certifications = [
+        cert
+        for cert in extract_certifications(required_context)
+        if cert not in preferred_certifications
+    ]
+
     return {
         "required_skills": required_skills,
         "preferred_skills": preferred_skills,
-        "required_certifications": extract_certifications(full_text),
+        "required_certifications": required_certifications,
+        "preferred_certifications": preferred_certifications,
         "years_experience": extract_experience(full_text),
         "education_level": extract_education(full_text),
         "benefits": benefits,
@@ -1737,6 +1747,7 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     required_skills_list = structured["required_skills"]
     preferred_skills_list = structured["preferred_skills"]
     required_certifications_list = structured["required_certifications"]
+    preferred_certifications_list = structured["preferred_certifications"]
 
     company_website = extract_company_website(soup, hiring_org)
 
@@ -1767,7 +1778,7 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
         "years_experience": structured["years_experience"],
         "education_level": structured["education_level"],
         "required_certifications": json.dumps(required_certifications_list, ensure_ascii=False) if required_certifications_list else None,
-        "preferred_certifications": None,
+        "preferred_certifications": json.dumps(preferred_certifications_list, ensure_ascii=False) if preferred_certifications_list else None,
         "required_skills": json.dumps(required_skills_list[:15], ensure_ascii=False) if required_skills_list else None,
         "preferred_skills": json.dumps(preferred_skills_list[:15], ensure_ascii=False) if preferred_skills_list else None,
         "wcag_level": structured["wcag_level"],
@@ -1981,7 +1992,7 @@ def jobspy_record_to_job(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "years_experience": structured["years_experience"],
         "education_level": structured["education_level"],
         "required_certifications": json.dumps(structured["required_certifications"], ensure_ascii=False) if structured["required_certifications"] else None,
-        "preferred_certifications": None,
+        "preferred_certifications": json.dumps(structured["preferred_certifications"], ensure_ascii=False) if structured["preferred_certifications"] else None,
         "required_skills": json.dumps(structured["required_skills"][:15], ensure_ascii=False) if structured["required_skills"] else None,
         "preferred_skills": json.dumps(structured["preferred_skills"][:15], ensure_ascii=False) if structured["preferred_skills"] else None,
         "wcag_level": structured["wcag_level"],
@@ -2196,6 +2207,18 @@ def extract_external_jobposting(content: str) -> Optional[Dict[str, Any]]:
     return extract_jsonld_jobposting(BeautifulSoup(content, "html.parser"))
 
 
+def extract_external_company_name(content: str) -> Optional[str]:
+    """Return a direct page's branded employer name when explicitly present."""
+    soup = BeautifulSoup(content, "html.parser")
+    site_name = soup.find(
+        "meta",
+        attrs={"property": re.compile(r"^og:site_name$", re.I)},
+    )
+    if site_name and site_name.get("content"):
+        return clean_text(html.unescape(str(site_name["content"])))
+    return None
+
+
 def external_content_has_job_detail(
     content: str,
     jsonld: Optional[Dict[str, Any]] = None,
@@ -2266,6 +2289,19 @@ def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -
 
     if conflicts:
         return conflicts
+
+    hiring_org = jsonld.get("hiringOrganization")
+    if isinstance(hiring_org, dict):
+        external_company = clean_text(
+            html.unescape(str(hiring_org.get("name") or ""))
+        )
+        current_company = clean_text(str(job.get("company") or ""))
+        if (
+            external_company
+            and current_company
+            and normalize_text(external_company) == normalize_text(current_company)
+        ):
+            job["company"] = external_company
 
     description = normalize_description_text(
         strip_html(html.unescape(str(jsonld.get("description") or "")))
@@ -2365,6 +2401,18 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
         if conflicts:
             job["evidence_conflicts"] = conflicts
             job["direct_evidence_verified"] = False
+        external_company = extract_external_company_name(content)
+        current_company = clean_text(str(job.get("company") or ""))
+        if (
+            external_company
+            and current_company
+            and normalize_text(external_company) == normalize_text(current_company)
+        ):
+            job["company"] = external_company
+        job["job_level"] = determine_job_level(
+            str(job.get("title") or ""),
+            content,
+        )
 
         has_job_detail = external_content_has_job_detail(content, external_jsonld)
         structured_description = ""
@@ -2413,9 +2461,10 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
             job["required_skills"] = json.dumps(items[:15], ensure_ascii=False) if items else None
             if preferred_items:
                 job["preferred_skills"] = json.dumps(preferred_items[:15], ensure_ascii=False)
-        if not job.get("required_certifications"):
-            certs = structured["required_certifications"]
-            job["required_certifications"] = json.dumps(certs, ensure_ascii=False) if certs else None
+        required_certs = structured["required_certifications"]
+        preferred_certs = structured["preferred_certifications"]
+        job["required_certifications"] = json.dumps(required_certs, ensure_ascii=False) if required_certs else None
+        job["preferred_certifications"] = json.dumps(preferred_certs, ensure_ascii=False) if preferred_certs else None
         if not job.get("years_experience"):
             job["years_experience"] = structured["years_experience"]
         if not job.get("education_level"):

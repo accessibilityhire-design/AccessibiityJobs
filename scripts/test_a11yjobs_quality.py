@@ -14,8 +14,10 @@ from run_a11yjobs_daily import (
     external_content_matches_job,
     external_content_has_job_detail,
     extract_contact_email,
+    extract_external_company_name,
     fetch_external_text,
     jobspy_record_to_job,
+    determine_job_level,
     normalize_description_text,
     normalize_work_arrangement,
     parse_description_sections,
@@ -213,6 +215,46 @@ Preferred Qualifications
         self.assertIn("USWDS", structured["preferred_skills"])
         self.assertTrue(all(len(skill) <= 80 for skill in structured["required_skills"]))
 
+    def test_preferred_certifications_are_not_marked_required(self):
+        source = """Role overview with enough context to explain a serious accessibility position and the product it supports.
+
+Responsibilities
+
+- Lead accessibility evaluations for websites and applications.
+
+Required Qualifications
+
+- Deep knowledge of WCAG and assistive technology.
+
+Preferred Qualifications
+
+- IAAP certifications such as WAS, CPWA, or ADS.
+"""
+        sections = parse_description_sections(source)
+        structured = extract_structured_fields(source, sections)
+
+        self.assertEqual(structured["required_certifications"], [])
+        self.assertEqual(
+            structured["preferred_certifications"],
+            ["ADS", "CPWA", "WAS"],
+        )
+
+    def test_direct_page_brand_name_preserves_source_spacing(self):
+        self.assertEqual(
+            extract_external_company_name(
+                '<meta property="og:site_name" content="Tier4 Group">'
+            ),
+            "Tier4 Group",
+        )
+
+    def test_responsibility_word_lead_does_not_infer_seniority(self):
+        self.assertIsNone(
+            determine_job_level(
+                "Digital Accessibility Specialist",
+                "Lead accessibility evaluations and facilitate discussions.",
+            )
+        )
+
     def test_validation_rejects_sentence_sized_skill_and_implausible_annual_salary(self):
         record = {
             "title": "Accessibility Engineer",
@@ -264,6 +306,28 @@ class LocationQualityTests(unittest.TestCase):
         self.assertEqual(
             parse_location_fields("Rochester, MN", "Rochester", "MN", "MN"),
             ("Rochester", "US"),
+        )
+
+    def test_district_of_columbia_is_not_stored_as_country(self):
+        self.assertEqual(
+            parse_location_fields(
+                "Washinton, Distric of Columbia",
+                "Washinton",
+                None,
+                "Distric of Columbia",
+            ),
+            ("Washinton", "US"),
+        )
+
+    def test_district_of_columbia_region_resolves_to_us(self):
+        self.assertEqual(
+            parse_location_fields(
+                "Washinton, Distric of Columbia",
+                "Washinton",
+                "Distric of Columbia",
+                None,
+            ),
+            ("Washinton", "US"),
         )
 
     def test_structured_canadian_province_is_not_stored_as_country(self):
