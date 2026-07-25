@@ -16,6 +16,7 @@ from run_a11yjobs_daily import (
     extract_contact_email,
     extract_external_company_name,
     fetch_external_text,
+    enrich_job,
     jobspy_record_to_job,
     determine_job_level,
     normalize_description_text,
@@ -24,6 +25,7 @@ from run_a11yjobs_daily import (
     parse_location_fields,
     parse_salary,
     reconcile_external_jobposting,
+    convert_nan_to_insert_ready,
     validate_record,
 )
 
@@ -308,6 +310,12 @@ class LocationQualityTests(unittest.TestCase):
             ("Rochester", "US"),
         )
 
+    def test_region_only_location_does_not_invent_city(self):
+        self.assertEqual(
+            parse_location_fields("Texas, United States"),
+            (None, "US"),
+        )
+
     def test_district_of_columbia_is_not_stored_as_country(self):
         self.assertEqual(
             parse_location_fields(
@@ -422,6 +430,38 @@ Requirements
         self.assertEqual(mapped["job_source"], "indeed")
         self.assertIsNone(mapped["contact_email"])
 
+    def test_jobspy_mapping_uses_explicit_description_salary_as_fallback(self):
+        description = """The Digital Accessibility Specialist leads source-backed
+accessibility assessments and remediation across web and mobile systems.
+
+Responsibilities
+
+- Conduct manual and automated accessibility evaluations.
+
+Requirements
+
+- Three years of WCAG and Section 508 experience.
+
+Hiring Range is $57,542.40 - $63,296.64 USD Annual.
+"""
+        mapped = jobspy_record_to_job({
+            "site": "linkedin",
+            "title": "Digital Accessibility Specialist",
+            "company": "Example College",
+            "job_url": "https://www.linkedin.com/jobs/view/123",
+            "location": "Texas, United States",
+            "date_posted": "2026-07-23",
+            "job_type": "fulltime",
+            "description": description,
+        })
+        self.assertIsNotNone(mapped)
+        assert mapped is not None
+        self.assertEqual(mapped["salary_min"], 57542)
+        self.assertEqual(mapped["salary_max"], 63297)
+        self.assertEqual(mapped["currency"], "USD")
+        self.assertEqual(mapped["salary_type"], "annual")
+        self.assertIsNone(mapped["city"])
+
     def test_cross_source_dedupe_keeps_direct_evidence_and_counts_sources(self):
         common = {
             "title": "Accessibility Engineer",
@@ -500,6 +540,41 @@ Requirements
         self.assertEqual(text, ats_page)
         self.assertEqual(source, "direct")
         self.assertEqual(resolved_url, "https://job-boards.greenhouse.io/example/jobs/123")
+
+    def test_verified_direct_enrichment_promotes_public_source_url(self):
+        ats_url = "https://job-boards.greenhouse.io/example/jobs/123"
+        ats_page = (
+            '<html><body><h1>Accessibility Engineer</h1><p>Example Company is '
+            'hiring an Accessibility Engineer to test products with WCAG and '
+            'assistive technology. This detailed employer posting supports the '
+            'role identity and application destination.</p></body></html>'
+        )
+        response = Mock(status_code=200, text=ats_page, url=ats_url)
+        session = Mock()
+        session.get.return_value = response
+        job = {
+            "title": "Accessibility Engineer",
+            "company": "Example Company",
+            "source_url": "https://www.a11yjobs.com/jobs/example",
+            "apply_url": ats_url,
+            "description": "A" * 120,
+            "key_responsibilities": "Test accessible products.",
+            "requirements": "Know WCAG.",
+        }
+
+        enriched = enrich_job(session, job)
+
+        self.assertTrue(enriched["direct_evidence_verified"])
+        self.assertEqual(enriched["source_url"], ats_url)
+
+    def test_unknown_booleans_remain_null_in_insert_ready_rows(self):
+        cleaned = convert_nan_to_insert_ready({
+            "title": "Accessibility Engineer",
+            "health_insurance": "NaN",
+            "retirement": True,
+        })
+        self.assertIsNone(cleaned["health_insurance"])
+        self.assertTrue(cleaned["retirement"])
 
     def test_contact_email_ignores_accommodation_only_address(self):
         text = "Contact hiringaccommodation@example.com to request an interview accommodation."

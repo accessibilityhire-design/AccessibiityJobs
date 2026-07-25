@@ -85,6 +85,18 @@ US_STATE_CODES = {
     "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
     "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
 }
+US_STATE_NAMES = {
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+    "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho",
+    "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana",
+    "maine", "maryland", "massachusetts", "michigan", "minnesota",
+    "mississippi", "missouri", "montana", "nebraska", "nevada",
+    "new hampshire", "new jersey", "new mexico", "new york",
+    "north carolina", "north dakota", "ohio", "oklahoma", "oregon",
+    "pennsylvania", "rhode island", "south carolina", "south dakota",
+    "tennessee", "texas", "utah", "vermont", "virginia", "washington",
+    "west virginia", "wisconsin", "wyoming", "district of columbia",
+}
 CANADIAN_PROVINCE_CODES = {
     "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
 }
@@ -350,6 +362,12 @@ def parse_location_fields(
         or region in {"DISTRICT OF COLUMBIA", "DISTRIC OF COLUMBIA"}
     ):
         country = "US"
+
+    # A region-only label such as "Texas, United States" does not identify a
+    # city. Preserve the complete location and country while leaving city
+    # unknown instead of publishing the state name as a locality.
+    if country == "US" and city and city.lower() in US_STATE_NAMES:
+        city = None
 
     return city, country
 
@@ -866,6 +884,12 @@ def parse_salary(text: Optional[str]) -> Tuple[Optional[int], Optional[int], Opt
         currency = "CNY"
     elif currency_token == "USD":
         currency = "USD"
+    elif currency_token == "$":
+        # A dollar sign alone is ambiguous. Preserve a currency only when the
+        # same source window explicitly names which dollar currency it means.
+        explicit_dollar_currency = re.search(r"\b(?:USD|CAD|AUD)\b", chosen_window, re.I)
+        if explicit_dollar_currency:
+            currency = explicit_dollar_currency.group(0).upper()
 
     salary_type = None
     if re.search(r"/\s*(?:hr|hour)\b|per\s+hour\b|\bhourly\b", window_lower):
@@ -1942,6 +1966,11 @@ def jobspy_record_to_job(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     currency = (clean_optional_text(raw.get("currency")) or "").upper() or None
     if validate_salary(salary_min, salary_max, salary_type):
         salary_min, salary_max, currency, salary_type = None, None, None, None
+    if salary_min is None and salary_max is None:
+        parsed_min, parsed_max, parsed_currency, parsed_type = parse_salary(description)
+        if not validate_salary(parsed_min, parsed_max, parsed_type):
+            salary_min, salary_max = parsed_min, parsed_max
+            currency, salary_type = parsed_currency, parsed_type
 
     sections = parse_description_sections(description)
     if not sections.get("description"):
@@ -2482,6 +2511,11 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
         enrichment_note = f"enrichment_source={source_used}"
         existing_note = job.get("additional_notes")
         job["additional_notes"] = f"{existing_note}; {enrichment_note}" if existing_note else enrichment_note
+    if job.get("direct_evidence_verified") and is_direct_job_url(job.get("apply_url")):
+        # The database has a single outbound source_url column. Once the
+        # employer/ATS page is verified, use it as the public apply target;
+        # the discovery board remains preserved in source_evidence.
+        job["source_url"] = job["apply_url"]
     return job
 
 
@@ -2496,22 +2530,10 @@ def build_candidate_record(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def convert_nan_to_insert_ready(record: Dict[str, Any]) -> Dict[str, Any]:
-    boolean_fields = {
-        "relocation_assistance",
-        "equity_offered",
-        "professional_development",
-        "health_insurance",
-        "retirement",
-        "visa_sponsorship",
-        "security_clearance",
-    }
     cleaned: Dict[str, Any] = {}
     for key, value in record.items():
         if value == "NaN":
-            if key in boolean_fields:
-                cleaned[key] = False
-            else:
-                cleaned[key] = None
+            cleaned[key] = None
         else:
             cleaned[key] = value
     return cleaned
