@@ -539,7 +539,7 @@ _SECTION_PATTERNS = [
         "responsibilities",
         re.compile(
             r"^(?:(?:key job|key|core|primary|role) responsibilities|responsibilities|duties|"
-            r"duties and responsibilities|essential functions|job role and responsibilit(?:y|ies)|"
+            r"job duties|duties and responsibilities|essential functions|job role and responsibilit(?:y|ies)|"
             r"what you['’]?ll do|what you will do|what you['’]?ll own|your impact)$",
             re.I,
         ),
@@ -554,7 +554,7 @@ _SECTION_PATTERNS = [
             r"specific skills? required|required education and experience|competencies|"
             r"tools?\s*&\s*technologies|your education|what you['’]?ll need|what you will need|"
             r"what you['’]?ll bring|what you will bring|what you bring|"
-            r"who you are|what we['’]?re looking for)$",
+            r"who you are|what we['’]?re looking for|what we are looking for|required)$",
             re.I,
         ),
     ),

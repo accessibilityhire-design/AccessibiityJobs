@@ -109,6 +109,31 @@ Basic Qualifications
         self.assertNotEqual(sections["key_responsibilities"], RESPONSIBILITIES_FALLBACK)
         self.assertNotEqual(sections["requirements"], REQUIREMENTS_FALLBACK)
 
+    def test_job_duties_and_spelled_out_looking_for_headings_are_classified(self):
+        source = """About the Role
+
+This accessibility testing role validates localized web, app, and document
+content with assistive technology for users in multiple language markets.
+
+Job Duties
+
+- Test localized content with screen readers and document findings.
+- Validate WCAG and PDF/UA requirements for each assignment.
+
+What We Are Looking For
+
+Required
+
+- Demonstrated hands-on accessibility testing experience.
+- Working knowledge of WCAG 2.2 and EN 301 549.
+"""
+        sections = parse_description_sections(source)
+
+        self.assertIn("Test localized content", sections["key_responsibilities"])
+        self.assertIn("hands-on accessibility testing", sections["requirements"])
+        self.assertNotEqual(sections["key_responsibilities"], RESPONSIBILITIES_FALLBACK)
+        self.assertNotEqual(sections["requirements"], REQUIREMENTS_FALLBACK)
+
     def test_no_substantial_overview_keeps_full_posting_once(self):
         source = """Accessibility QA
 
