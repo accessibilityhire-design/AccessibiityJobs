@@ -291,7 +291,13 @@ def normalize_work_arrangement(
         return "remote"
     if re.search(r"\b(?:100%|fully|entirely)\s+remote\b|\bremote\s+(?:position|role)\b", description_lower):
         return "remote"
-    if re.search(
+    future_hybrid_only = bool(re.search(
+        r"\b(?:potential(?:ly)?|possible|future|eventual)\s+hybrid\b|"
+        r"\bhybrid\b.{0,40}\b(?:as the role matures|in the future)\b",
+        description_lower,
+        re.S,
+    ))
+    if not future_hybrid_only and re.search(
         r"\bhybrid\s+(?:position|role|schedule|work)\b|"
         r"\(\s*hybrid\s*\)|\blocation\b.{0,80}\bhybrid\b",
         description_lower,
@@ -386,7 +392,7 @@ def determine_job_level(title: str, description: str) -> Optional[str]:
         return "senior"
     if any(kw in title_lower for kw in ["mid", "intermediate"]):
         return "mid"
-    if any(kw in title_lower for kw in ["junior", "jr.", "entry", "associate", "intern"]):
+    if any(kw in title_lower for kw in ["junior", "jr.", "entry", "early career", "associate", "intern"]):
         return "entry"
 
     return None

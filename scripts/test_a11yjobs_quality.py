@@ -282,6 +282,12 @@ Preferred Qualifications
             )
         )
 
+    def test_early_career_title_maps_to_entry_level(self):
+        self.assertEqual(
+            determine_job_level("Accessibility Project Manager (Early Career)", ""),
+            "entry",
+        )
+
     def test_validation_rejects_sentence_sized_skill_and_implausible_annual_salary(self):
         record = {
             "title": "Accessibility Engineer",
@@ -392,6 +398,16 @@ class LocationQualityTests(unittest.TestCase):
                 "Location - Parramatta (Hybrid)",
             ),
             "hybrid",
+        )
+
+    def test_potential_future_hybrid_option_is_not_currently_hybrid(self):
+        self.assertEqual(
+            normalize_work_arrangement(
+                "Rochester, MN, US",
+                "Project Coordinator - Accessibility",
+                "Location: Field-based with office work as needed - potential hybrid remote option as role matures",
+            ),
+            "onsite",
         )
 
 
