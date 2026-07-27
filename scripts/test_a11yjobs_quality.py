@@ -1,5 +1,6 @@
 import json
 import unittest
+from datetime import date
 from unittest.mock import Mock
 
 from bs4 import BeautifulSoup
@@ -13,10 +14,12 @@ from run_a11yjobs_daily import (
     consolidate_source_candidates,
     external_content_matches_job,
     external_content_has_job_detail,
+    exclude_post_enrichment_cutoff_rows,
     extract_contact_email,
     extract_external_company_name,
     fetch_external_text,
     enrich_job,
+    is_direct_job_url,
     jobspy_record_to_job,
     determine_job_level,
     normalize_description_text,
@@ -427,6 +430,43 @@ class CompanyWebsiteQualityTests(unittest.TestCase):
 
 
 class MultiSourceQualityTests(unittest.TestCase):
+    def test_observed_aggregators_are_not_direct_employer_evidence(self):
+        self.assertFalse(
+            is_direct_job_url("https://haystackapp.io/jobs/example-job")
+        )
+        self.assertFalse(
+            is_direct_job_url("https://jobmesh.io/job/example-job")
+        )
+        self.assertTrue(
+            is_direct_job_url("https://jobs.lever.co/example-company/example-job")
+        )
+
+    def test_authoritative_enriched_date_at_cutoff_is_excluded(self):
+        newer_rows, failures = exclude_post_enrichment_cutoff_rows(
+            [
+                {
+                    "date_posted": "2026-07-24",
+                    "title": "Accessibility Specialist",
+                    "company": "Example Company",
+                    "source_url": "https://example.com/jobs/1",
+                },
+                {
+                    "date_posted": "2026-07-25",
+                    "title": "Accessibility Engineer",
+                    "company": "Example Company",
+                    "source_url": "https://example.com/jobs/2",
+                },
+            ],
+            date(2026, 7, 24),
+        )
+
+        self.assertEqual([row["date_posted"] for row in newer_rows], ["2026-07-25"])
+        self.assertEqual(len(failures), 1)
+        self.assertIn(
+            "not strictly later than cutoff_date 2026-07-24",
+            failures[0]["errors"][0],
+        )
+
     def test_jobspy_mapping_rejects_unrelated_search_result(self):
         record = {
             "site": "indeed",

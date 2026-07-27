@@ -63,6 +63,8 @@ JOB_BOARD_HOSTS = {
     "glassdoor.com",
     "google.com",
     "ziprecruiter.com",
+    "haystackapp.io",
+    "jobmesh.io",
 }
 
 HEADERS = {
@@ -2655,6 +2657,31 @@ def validate_record(record: Dict[str, Any]) -> List[str]:
     return errors
 
 
+def exclude_post_enrichment_cutoff_rows(
+    rows: List[Dict[str, Any]], cutoff_date: date
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Exclude rows whose authoritative enriched date is no longer newer."""
+    eligible: List[Dict[str, Any]] = []
+    failures: List[Dict[str, Any]] = []
+
+    for row in rows:
+        posted = parse_date_text(row.get("date_posted") or "")
+        if posted and posted <= cutoff_date:
+            failures.append({
+                "source_url": row.get("source_url") or "",
+                "title": row.get("title") or "",
+                "company": row.get("company") or "",
+                "errors": [
+                    f"date_posted {posted.isoformat()} is not strictly later than "
+                    f"cutoff_date {cutoff_date.isoformat()} after source enrichment"
+                ],
+            })
+            continue
+        eligible.append(row)
+
+    return eligible, failures
+
+
 def write_json(path: str, payload: Any) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=True, indent=2, default=str)
@@ -2894,6 +2921,11 @@ def main() -> int:
                     failures.append(failure)
                 elif insert_candidate:
                     insert_ready.append(insert_candidate)
+
+    insert_ready, cutoff_failures = exclude_post_enrichment_cutoff_rows(
+        insert_ready, cutoff_date
+    )
+    failures.extend(cutoff_failures)
 
     write_json(CANDIDATES_JSON, {
         "cutoff_date": cutoff_date.isoformat(),
