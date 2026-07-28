@@ -109,6 +109,8 @@ const COUNTRY_ALIASES: Record<string, string> = {
   england: 'GB',
   india: 'IN',
   in: 'IN',
+  australia: 'AU',
+  au: 'AU',
   ecuador: 'EC',
   ec: 'EC',
   philippines: 'PH',

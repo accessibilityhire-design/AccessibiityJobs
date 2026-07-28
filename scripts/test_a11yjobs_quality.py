@@ -156,6 +156,39 @@ Core Skills & Knowledge
         self.assertEqual(sections["key_responsibilities"], RESPONSIBILITIES_FALLBACK)
         self.assertEqual(sections["requirements"], REQUIREMENTS_FALLBACK)
 
+    def test_requirements_stop_before_benefits_and_application_boilerplate(self):
+        source = """The opportunity
+
+This digital accessibility role supports staff and students who use assistive
+technologies and need equitable access to learning and working environments.
+
+What you'll do
+
+- Provide assistive technology advice, training, and technical support.
+
+What we're looking for
+
+- Demonstrated knowledge of digital accessibility and assistive technologies.
+
+What's in it for you?
+
+- 17% superannuation
+
+How to apply
+
+Submit a cover letter and CV through the application system.
+
+Accessibility and inclusion
+
+Contact the recruitment team if you need an adjustment.
+"""
+        sections = parse_description_sections(source)
+
+        self.assertIn("Demonstrated knowledge", sections["requirements"])
+        self.assertNotIn("superannuation", sections["requirements"])
+        self.assertNotIn("How to apply", sections["requirements"])
+        self.assertNotIn("recruitment team", sections["requirements"])
+
     def test_bullet_continuations_are_rejoined(self):
         source = """Must-Have Qualifications
 
@@ -217,6 +250,12 @@ class SalaryQualityTests(unittest.TestCase):
         self.assertEqual(
             parse_salary("Salary - $154,231 pa - $178,369 pa annually"),
             (154231, 178369, None, "annual"),
+        )
+
+    def test_salary_range_without_interval_is_omitted(self):
+        self.assertEqual(
+            parse_salary("Salary of $107,312 to $115,686 plus superannuation"),
+            (None, None, None, None),
         )
 
 
@@ -401,6 +440,17 @@ class LocationQualityTests(unittest.TestCase):
                 "Location - Parramatta (Hybrid)",
             ),
             "hybrid",
+        )
+
+    def test_structured_australia_country_is_normalized(self):
+        self.assertEqual(
+            parse_location_fields(
+                "Fisher Library Stack (F04), Australia",
+                "Fisher Library Stack (F04)",
+                None,
+                "Australia",
+            ),
+            ("Fisher Library Stack (F04)", "AU"),
         )
 
     def test_potential_future_hybrid_option_is_not_currently_hybrid(self):
@@ -670,6 +720,7 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
     def test_direct_jobposting_reconciles_employer_facts(self):
         job = {
             "title": "Accessibility Coordinator",
+            "company": "Community Group | Example University",
             "employment_type": "full-time",
             "work_arrangement": "onsite",
             "location": "Edmonton, Canada",
@@ -681,6 +732,10 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         direct = {
             "@type": "JobPosting",
             "title": "Accessibility Coordinator",
+            "hiringOrganization": {
+                "@type": "Organization",
+                "name": "Example University",
+            },
             "datePosted": "2026-07-16",
             "validThrough": "2026-10-14",
             "employmentType": "FULL_TIME",
@@ -698,6 +753,7 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
             "description": "A source-backed accessibility role with WCAG responsibilities and required qualifications for inclusive digital services.",
         }
         self.assertEqual(reconcile_external_jobposting(job, direct), [])
+        self.assertEqual(job["company"], "Example University")
         self.assertEqual(job["currency"], "CAD")
         self.assertEqual(job["work_arrangement"], "remote")
         self.assertEqual(job["date_posted"], "2026-07-16")

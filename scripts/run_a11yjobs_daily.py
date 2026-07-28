@@ -108,6 +108,7 @@ COUNTRY_CODE_ALIASES = {
     "ca": "CA", "canada": "CA",
     "uk": "GB", "gb": "GB", "united kingdom": "GB", "england": "GB",
     "in": "IN", "india": "IN",
+    "au": "AU", "australia": "AU",
     "ec": "EC", "ecuador": "EC",
     "ph": "PH", "philippines": "PH",
     "se": "SE", "sweden": "SE",
@@ -578,6 +579,8 @@ _SECTION_PATTERNS = [
         "ignore",
         re.compile(
             r"^(?:benefits?|why join us|what we offer|compensation|salary|pay range|location|"
+            r"what['’]?s in it for you\??|how to apply|accessibility and inclusion|"
+            r"pre-employment checks|sponsorship\s*/\s*work rights(?: for .+)?|"
             r"travel expectations?|hiring journey|hiring process|application process|posting end date|"
             r"company snapshot|our core principles|use of ai in hiring|seniority level|employment type|"
             r"job function|industries|we value equal opportunity|applicants with disabilities|"
@@ -910,11 +913,10 @@ def parse_salary(text: Optional[str]) -> Tuple[Optional[int], Optional[int], Opt
         salary_type = "annual"
     elif "project" in window_lower:
         salary_type = "project"
-    elif min(chosen_numbers) >= 10000:
-        salary_type = "annual"
 
-    # Small values without an explicit unit are not safely distinguishable
-    # from years, dates or benefit figures, so omit them instead of guessing.
+    # Values without an explicit interval are incomplete compensation
+    # evidence, regardless of their magnitude. Omit them instead of guessing
+    # that a large number is annual pay.
     if not salary_type:
         return None, None, None, None
 
@@ -2332,12 +2334,10 @@ def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -
         external_company = clean_text(
             html.unescape(str(hiring_org.get("name") or ""))
         )
-        current_company = clean_text(str(job.get("company") or ""))
-        if (
-            external_company
-            and current_company
-            and normalize_text(external_company) == normalize_text(current_company)
-        ):
+        if external_company:
+            # The verified employer/ATS JobPosting is authoritative. Discovery
+            # boards can prepend community or channel labels to the employer
+            # name, which must not survive direct-source reconciliation.
             job["company"] = external_company
 
     description = normalize_description_text(
