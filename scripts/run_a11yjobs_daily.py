@@ -957,12 +957,19 @@ def parse_jsonld_salary(jsonld: Dict[str, Any]) -> Tuple[Optional[int], Optional
         maximum = minimum
 
     unit = str(value.get("unitText") or base_salary.get("unitText") or "YEAR").upper()
-    salary_type = {
-        "HOUR": "hourly",
-        "DAY": "daily",
-        "MONTH": "monthly",
-        "YEAR": "annual",
-    }.get(unit, "annual")
+    salary_type = next(
+        (
+            normalized
+            for marker, normalized in (
+                ("HOUR", "hourly"),
+                ("DAY", "daily"),
+                ("MONTH", "monthly"),
+                ("YEAR", "annual"),
+            )
+            if marker in unit
+        ),
+        "annual",
+    )
     return minimum, maximum, currency, salary_type
 
 
@@ -1103,7 +1110,15 @@ def extract_jsonld_jobposting(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
     scripts = soup.find_all("script", type=re.compile("ld\+json", re.I))
     for script in scripts:
         try:
-            data = json.loads(script.string or script.get_text("", strip=True))
+            # Some ATS pages publish otherwise valid JobPosting JSON-LD with
+            # literal line breaks inside the description string.  Python's
+            # strict decoder rejects those control characters and would make
+            # us silently miss authoritative employment, salary, and posting
+            # date facts from the direct source.
+            data = json.loads(
+                script.string or script.get_text("", strip=True),
+                strict=False,
+            )
         except Exception:
             continue
         for item in unwrap_candidates(data):

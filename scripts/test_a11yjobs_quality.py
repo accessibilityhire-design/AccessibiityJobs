@@ -17,6 +17,7 @@ from run_a11yjobs_daily import (
     exclude_post_enrichment_cutoff_rows,
     extract_contact_email,
     extract_external_company_name,
+    extract_jsonld_jobposting,
     fetch_external_text,
     enrich_job,
     is_direct_job_url,
@@ -26,6 +27,7 @@ from run_a11yjobs_daily import (
     normalize_work_arrangement,
     parse_description_sections,
     parse_location_fields,
+    parse_jsonld_salary,
     parse_salary,
     reconcile_external_jobposting,
     convert_nan_to_insert_ready,
@@ -758,6 +760,39 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertEqual(job["work_arrangement"], "remote")
         self.assertEqual(job["date_posted"], "2026-07-16")
         self.assertEqual(job["application_deadline"], "2026-10-14T00:00:00Z")
+
+    def test_jsonld_jobposting_accepts_literal_newlines_in_description(self):
+        soup = BeautifulSoup(
+            """<script type="application/ld+json">{
+              "@context": "https://schema.org/",
+              "@type": "JobPosting",
+              "title": "Accessibility Subject Matter Expert",
+              "description": "First source-backed line.
+Second source-backed line.",
+              "employmentType": "Contract",
+              "datePosted": "2026-07-27",
+              "baseSalary": {
+                "@type": "MonetaryAmount",
+                "currency": "USD",
+                "value": {
+                  "@type": "QuantitativeValue",
+                  "minValue": 68,
+                  "maxValue": 78,
+                  "unitText": "Per Hour"
+                }
+              }
+            }</script>""",
+            "html.parser",
+        )
+        jobposting = extract_jsonld_jobposting(soup)
+        self.assertIsNotNone(jobposting)
+        self.assertEqual(jobposting["employmentType"], "Contract")
+        self.assertEqual(jobposting["datePosted"], "2026-07-27")
+        self.assertEqual(jobposting["baseSalary"]["currency"], "USD")
+        self.assertEqual(
+            parse_jsonld_salary(jobposting),
+            (68, 78, "USD", "hourly"),
+        )
 
     def test_direct_part_time_title_conflict_is_rejected(self):
         job = {"title": "508 Compliance Specialist", "employment_type": "full-time"}
