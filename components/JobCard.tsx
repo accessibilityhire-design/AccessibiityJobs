@@ -24,6 +24,13 @@ export function JobCard({ job }: JobCardProps) {
     const jobTitle = replaceEmDashes(job.title);
     const companyName = formatCompanyName(job.company);
     const formatSalary = () => {
+        if (job.salaryRange) return job.salaryRange;
+        if (!job.currency || !/^[A-Z]{3}$/i.test(job.currency)) return 'Competitive';
+        const formatter = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: job.currency.toUpperCase(),
+            maximumFractionDigits: 0,
+        });
         const suffix = job.salaryType === 'hourly'
             ? '/hr'
             : job.salaryType === 'daily'
@@ -33,13 +40,11 @@ export function JobCard({ job }: JobCardProps) {
             : '';
         if (job.salaryMin && job.salaryMax) {
             if (job.salaryMin === job.salaryMax) {
-                return `$${job.salaryMin.toLocaleString()}${suffix}`;
+                return `${formatter.format(job.salaryMin)}${suffix}`;
             }
-            const fmt = (n: number) =>
-                n >= 1000 ? `$${Math.round(n / 1000)}k` : `$${n.toLocaleString()}`;
+            const fmt = (n: number) => formatter.format(n);
             return `${fmt(job.salaryMin)}–${fmt(job.salaryMax)}${suffix}`;
         }
-        if (job.salaryRange) return job.salaryRange;
         return 'Competitive';
     };
 

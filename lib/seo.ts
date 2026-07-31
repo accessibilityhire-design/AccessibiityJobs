@@ -237,9 +237,11 @@ function buildBaseSalary(job: Job): Record<string, unknown> | undefined {
   const unitText = units[(job.salaryType || '').toLowerCase()];
   if (!unitText) return undefined;
 
-  const currency = /^[A-Z]{3}$/i.test(job.currency || '')
-    ? (job.currency || 'USD').toUpperCase()
-    : 'USD';
+  const currency = (job.currency || '').toUpperCase();
+  // Google requires a real ISO currency when baseSalary is emitted. Omitting
+  // compensation is safer than inventing USD for a source that only states
+  // an ambiguous dollar amount.
+  if (!/^[A-Z]{3}$/.test(currency)) return undefined;
 
   return {
     '@type': 'MonetaryAmount',

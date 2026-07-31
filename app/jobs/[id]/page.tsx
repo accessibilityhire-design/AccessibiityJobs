@@ -72,10 +72,10 @@ function parseJsonField(field: string | null): string[] {
 
 function formatSalary(min: number | null, max: number | null, currency: string | null): string | null {
   if (!min && !max) return null;
-  const curr = currency || 'USD';
+  if (!currency || !/^[A-Z]{3}$/i.test(currency)) return null;
   const formatter = new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: curr,
+    currency: currency.toUpperCase(),
     maximumFractionDigits: 0
   });
   if (min && max) return `${formatter.format(min)} – ${formatter.format(max)}`;
@@ -199,8 +199,9 @@ export default async function JobDetailPage({ params }: PageProps) {
   const showResponsibilities = hasMeaningfulJobSection(job.keyResponsibilities);
   const showRequirements = hasMeaningfulJobSection(job.requirements);
 
-  const salary = formatSalary(job.salaryMin, job.salaryMax, job.currency);
-  const salaryPeriod = job.salaryType
+  const formattedSalary = formatSalary(job.salaryMin, job.salaryMax, job.currency);
+  const salary = formattedSalary || job.salaryRange;
+  const salaryPeriod = formattedSalary && job.salaryType
     ? ({ annual: 'year', monthly: 'month', hourly: 'hour', daily: 'day', project: 'project' } as Record<string, string>)[job.salaryType.toLowerCase()] || job.salaryType
     : null;
   const location = replaceEmDashes(job.specificLocation || job.city || job.location || 'Location not specified');
