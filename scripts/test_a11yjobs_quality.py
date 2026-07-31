@@ -24,6 +24,7 @@ from run_a11yjobs_daily import (
     jobspy_record_to_job,
     determine_job_level,
     normalize_description_text,
+    normalize_employment_type,
     normalize_work_arrangement,
     parse_description_sections,
     parse_location_fields,
@@ -217,6 +218,22 @@ Contact the recruitment team if you need an adjustment.
             "- 7+ years of experience building production web systems\n"
             "- Technical Stack: TypeScript, React and PostgreSQL",
         )
+
+    def test_validation_rejects_duplicate_lines_and_broken_tail(self):
+        record = {
+            "title": "QA Accessibility Engineer",
+            "company": "Example Employer",
+            "employment_type": "full-time",
+            "work_arrangement": "onsite",
+            "description": "A substantial accessibility engineering overview for a real role.\n\nJob Description\n\nJob Description",
+            "key_responsibilities": "Build and maintain accessible automated tests for web applications.",
+            "requirements": "Strong WCAG knowledge and accessibility testing experience.\n\nExample Employer is an",
+            "status": "approved",
+            "source_url": "https://example.com/jobs/1",
+        }
+        errors = validate_record(record)
+        self.assertIn("description contains adjacent duplicate lines", errors)
+        self.assertIn("requirements ends with a broken fragment", errors)
 
 
 class SalaryQualityTests(unittest.TestCase):
@@ -442,6 +459,24 @@ class LocationQualityTests(unittest.TestCase):
                 "Location - Parramatta (Hybrid)",
             ),
             "hybrid",
+        )
+
+    def test_explicit_hybrid_source_phrases_are_respected(self):
+        for description in (
+            "This position is hybrid, with one day per week in person.",
+            "Remote Work Option: Hybrid (May be subject to change)",
+            "This is a 6 month hybrid contract opportunity in Phoenix.",
+        ):
+            with self.subTest(description=description):
+                self.assertEqual(
+                    normalize_work_arrangement("Phoenix, Arizona", "Accessibility Specialist", description),
+                    "hybrid",
+                )
+
+    def test_duration_qualified_term_is_contract_not_internship(self):
+        self.assertEqual(
+            normalize_employment_type("INTERN", "Accessibility Specialist (12 Month Term)"),
+            "contract",
         )
 
     def test_structured_australia_country_is_normalized(self):
@@ -755,11 +790,29 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
             "description": "A source-backed accessibility role with WCAG responsibilities and required qualifications for inclusive digital services.",
         }
         self.assertEqual(reconcile_external_jobposting(job, direct), [])
+        self.assertEqual(job["title"], "Accessibility Coordinator")
         self.assertEqual(job["company"], "Example University")
         self.assertEqual(job["currency"], "CAD")
         self.assertEqual(job["work_arrangement"], "remote")
         self.assertEqual(job["date_posted"], "2026-07-16")
         self.assertEqual(job["application_deadline"], "2026-10-14T00:00:00Z")
+
+    def test_verified_direct_title_replaces_less_specific_board_title(self):
+        job = {
+            "title": "UI/UX Designer",
+            "company": "Example Employer",
+            "employment_type": "full-time",
+            "work_arrangement": "onsite",
+            "location": "Dallas, Texas",
+        }
+        conflicts = reconcile_external_jobposting(job, {
+            "@type": "JobPosting",
+            "title": "Learning UX/UI Designer",
+            "employmentType": "FULL_TIME",
+            "description": "A source-backed role designing accessible enterprise learning experiences.",
+        })
+        self.assertEqual(conflicts, [])
+        self.assertEqual(job["title"], "Learning UX/UI Designer")
 
     def test_jsonld_jobposting_accepts_literal_newlines_in_description(self):
         soup = BeautifulSoup(

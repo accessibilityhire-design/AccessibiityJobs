@@ -267,8 +267,14 @@ def normalize_text(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.lower()).strip()
 
 
-def normalize_employment_type(text: str) -> str:
+def normalize_employment_type(text: str, title: str = "") -> str:
     lower = text.lower() if text else ""
+    title_lower = title.lower() if title else ""
+    # Curated boards occasionally encode a fixed-term role as an internship.
+    # A duration-qualified term in the source title is stronger evidence and
+    # must not be published as an internship.
+    if re.search(r"\b(?:\d+\s*[- ]?(?:month|year)\s+term|fixed[- ]term)\b", title_lower):
+        return "contract"
     if "part" in lower:
         return "part-time"
     if "contract" in lower:
@@ -302,6 +308,10 @@ def normalize_work_arrangement(
     ))
     if not future_hybrid_only and re.search(
         r"\bhybrid\s+(?:position|role|schedule|work)\b|"
+        r"\bhybrid\s+(?:contract|opportunity)\b|"
+        r"\bposition\s+is\s+hybrid\b|"
+        r"\bremote\s+work\s+option\b.{0,40}\bhybrid\b|"
+        r"\beligible\s+for\s+(?:a\s+)?hybrid\s+schedule\b|"
         r"\(\s*hybrid\s*\)|\blocation\b.{0,80}\bhybrid\b",
         description_lower,
         re.S,
@@ -1021,6 +1031,27 @@ def description_is_clean(text: str) -> bool:
     return True
 
 
+def has_adjacent_duplicate_lines(text: str) -> bool:
+    lines = [
+        _plain_markdown(line).casefold()
+        for line in (text or "").splitlines()
+        if _plain_markdown(line)
+    ]
+    return any(left == right and len(left) >= 4 for left, right in zip(lines, lines[1:]))
+
+
+def has_broken_trailing_fragment(text: str) -> bool:
+    tail = _plain_markdown(text or "")
+    if not tail:
+        return False
+    final_line = _plain_markdown((text or "").splitlines()[-1])
+    return len(final_line) < 120 and bool(re.search(
+        r"\b(?:is|is an|is a|and|or|with|for|to|including|such as)\s*$",
+        final_line,
+        re.I,
+    ))
+
+
 def validate_salary(min_val: Optional[int], max_val: Optional[int], salary_type: Optional[str]) -> Optional[str]:
     if min_val is None and max_val is None:
         return None
@@ -1725,7 +1756,7 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     employment_raw = jsonld.get("employmentType") or extract_label_value(soup, r"job type") or ""
     if isinstance(employment_raw, list):
         employment_raw = " ".join(employment_raw)
-    employment_type = normalize_employment_type(str(employment_raw)) if employment_raw else "full-time"
+    employment_type = normalize_employment_type(str(employment_raw), title) if employment_raw else "full-time"
 
     date_text = jsonld.get("datePosted") or extract_label_value(soup, r"date posted") or extract_label_value(soup, r"posted")
     date_posted = parse_date_text(str(date_text)) if date_text else None
@@ -1783,6 +1814,16 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     salary_min, salary_max, currency, salary_type = parse_jsonld_salary(jsonld)
     if validate_salary(salary_min, salary_max, salary_type):
         salary_min, salary_max, currency, salary_type = None, None, None, None
+    if (
+        currency == "USD"
+        and country not in {None, "US"}
+        and "$" in description
+        and not re.search(r"\bUSD\b", description, re.I)
+    ):
+        # A11yJobs has emitted USD for non-US roles whose visible source copy
+        # uses an unqualified dollar sign. Preserve the stated amounts and
+        # interval, but leave the unsupported currency unknown.
+        currency = None
     if salary_min is None and salary_max is None:
         salary_min, salary_max, currency, salary_type = parse_salary(salary_text)
     if salary_min is None and salary_max is None:
@@ -2344,6 +2385,11 @@ def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -
     if conflicts:
         return conflicts
 
+    if external_title:
+        # A verified employer/ATS title is authoritative even when it is a
+        # more specific overlapping form of the discovery-board title.
+        job["title"] = external_title
+
     hiring_org = jsonld.get("hiringOrganization")
     if isinstance(hiring_org, dict):
         external_company = clean_text(
@@ -2359,7 +2405,10 @@ def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -
         strip_html(html.unescape(str(jsonld.get("description") or "")))
     )
     if employment_text:
-        job["employment_type"] = normalize_employment_type(employment_text)
+        job["employment_type"] = normalize_employment_type(
+            employment_text,
+            external_title or current_title,
+        )
         job["type"] = job["employment_type"]
 
     job["work_arrangement"] = normalize_work_arrangement(
@@ -2624,6 +2673,16 @@ def validate_record(record: Dict[str, Any]) -> List[str]:
         plain_value = _plain_markdown(value)
         if re.match(r"^(?:[,;:]|to apply\b|and\s+|or\s+)", plain_value, re.I):
             errors.append(f"{field_name} starts mid-sentence")
+
+    for field_name, value in [
+        ("description", description),
+        ("key_responsibilities", key_resp),
+        ("requirements", requirements),
+    ]:
+        if has_adjacent_duplicate_lines(value):
+            errors.append(f"{field_name} contains adjacent duplicate lines")
+        if has_broken_trailing_fragment(value):
+            errors.append(f"{field_name} ends with a broken fragment")
 
     for field_name in [
         "required_skills", "preferred_skills", "required_certifications",
