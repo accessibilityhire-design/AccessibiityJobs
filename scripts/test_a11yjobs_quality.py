@@ -192,6 +192,36 @@ Contact the recruitment team if you need an adjustment.
         self.assertNotIn("How to apply", sections["requirements"])
         self.assertNotIn("recruitment team", sections["requirements"])
 
+    def test_desired_and_additional_requirements_are_classified_without_keywords(self):
+        sections = parse_description_sections("""About the Opportunity
+
+This accessibility specialist improves public-sector websites and documents for people who use assistive technology.
+
+Responsibilities
+
+- Audit web pages and remediate documents.
+
+Required Qualifications
+
+- Bachelor's degree.
+
+Preferred Qualifications
+
+- Experience with JAWS or NVDA.
+
+Additional Requirements
+
+- Must reside in the Phoenix metropolitan area.
+
+Keywords
+
+WCAG Section 508 accessibility testing
+""")
+        self.assertIn("Bachelor's degree", sections["requirements"])
+        self.assertIn("Must reside", sections["requirements"])
+        self.assertIn("JAWS or NVDA", sections["nice_to_have"])
+        self.assertNotIn("Keywords", sections["nice_to_have"])
+
     def test_bullet_continuations_are_rejoined(self):
         source = """Must-Have Qualifications
 
@@ -218,6 +248,46 @@ Contact the recruitment team if you need an adjustment.
             "- 7+ years of experience building production web systems\n"
             "- Technical Stack: TypeScript, React and PostgreSQL",
         )
+
+    def test_single_space_indented_jsonld_items_remain_separate_bullets(self):
+        sections = parse_description_sections("""Overview
+
+This role remediates federal documents and supports accessible public communications for people with disabilities.
+
+Responsibilities
+
+ Remediate documents for Section 508 compliance
+ Convert files for assistive technology compatibility
+
+Qualifications
+
+ Minimum 5 years of document remediation experience
+ Active Trusted Tester Certification
+""")
+        self.assertIn("- Remediate documents", sections["key_responsibilities"])
+        self.assertIn("- Convert files", sections["key_responsibilities"])
+        self.assertIn("- Minimum 5 years", sections["requirements"])
+        self.assertIn("- Active Trusted Tester", sections["requirements"])
+
+    def test_job_description_clears_duplicate_company_preamble(self):
+        sections = parse_description_sections("""Who we are
+
+Example Company builds technology for public-sector clients.
+
+Job Description
+
+This accessibility specialist leads inclusive product work across complex federal services used by millions of people.
+
+Responsibilities
+
+- Lead accessibility reviews throughout delivery.
+
+Requirements
+
+- Seven years of digital accessibility experience.
+""")
+        self.assertNotIn("Example Company builds", sections["description"])
+        self.assertTrue(sections["description"].startswith("This accessibility specialist"))
 
     def test_validation_rejects_duplicate_lines_and_broken_tail(self):
         record = {
@@ -479,6 +549,32 @@ class LocationQualityTests(unittest.TestCase):
             "contract",
         )
 
+    def test_experience_bucket_uses_stated_minimum_as_lower_bound(self):
+        self.assertEqual(extract_experience("3+ years of accessibility testing experience"), "3-5")
+        self.assertEqual(extract_experience("Minimum 5 years of document remediation experience"), "5-7")
+        self.assertEqual(extract_experience("7+ years of digital accessibility experience"), "7-10")
+        self.assertEqual(extract_experience("10+ years of accessibility consulting experience"), "10+")
+
+    def test_explicit_duration_contract_overrides_generic_full_time_schema(self):
+        self.assertEqual(
+            normalize_employment_type(
+                "FULL_TIME",
+                "Web Accessibility Specialist",
+                "Location: Phoenix. Duration: 6-Month Contract (Possible Extension)",
+            ),
+            "contract",
+        )
+
+    def test_explicit_offsite_position_is_remote(self):
+        self.assertEqual(
+            normalize_work_arrangement(
+                "Washington, DC",
+                "Section 508 Document Remediation Specialist (Part Time)",
+                "Offsite: This part-time offsite position will work approximately 10 hours a week.",
+            ),
+            "remote",
+        )
+
     def test_structured_australia_country_is_normalized(self):
         self.assertEqual(
             parse_location_fields(
@@ -654,6 +750,34 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         consolidated, duplicates = consolidate_source_candidates([board, direct])
         self.assertEqual(len(consolidated), 1)
         self.assertEqual(consolidated[0]["source_url"], direct["source_url"])
+        self.assertEqual(consolidated[0]["evidence_source_count"], 2)
+        self.assertEqual(len(duplicates), 1)
+
+    def test_cross_source_dedupe_collapses_redundant_company_alias(self):
+        common = {
+            "title": "Senior / Lead Accessibility Specialist",
+            "description": "Digital accessibility role with WCAG and Section 508 responsibilities. " * 3,
+            "relevance_score": 10,
+        }
+        linkedin = {
+            **common,
+            "company": "Tria Federal (Tria)",
+            "job_source": "linkedin",
+            "source_url": "https://www.linkedin.com/jobs/view/4447715827",
+            "_discovery_url": "https://www.linkedin.com/jobs/view/4447715827",
+        }
+        curated = {
+            **common,
+            "company": "Tria Federal",
+            "job_source": "a11yjobs",
+            "source_url": "https://www.a11yjobs.com/jobs/senior-lead-accessibility-specialist-tria-federal-OEA8E",
+            "_discovery_url": "https://www.a11yjobs.com/jobs/senior-lead-accessibility-specialist-tria-federal-OEA8E",
+        }
+
+        consolidated, duplicates = consolidate_source_candidates([linkedin, curated])
+
+        self.assertEqual(len(consolidated), 1)
+        self.assertEqual(consolidated[0]["company"], "Tria Federal")
         self.assertEqual(consolidated[0]["evidence_source_count"], 2)
         self.assertEqual(len(duplicates), 1)
 

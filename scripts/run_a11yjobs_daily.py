@@ -267,13 +267,37 @@ def normalize_text(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.lower()).strip()
 
 
-def normalize_employment_type(text: str, title: str = "") -> str:
+def normalize_company_for_dedupe(value: str) -> str:
+    company = clean_text(value)
+    trailing_alias = re.search(r"\s*\(([^()]+)\)\s*$", company)
+    if trailing_alias:
+        base = company[:trailing_alias.start()]
+        base_normalized = normalize_text(base)
+        alias_normalized = normalize_text(trailing_alias.group(1))
+        # Collapse only a redundant trailing alias already present in the
+        # employer name, such as "Tria Federal (Tria)". Unrelated parenthetical
+        # qualifiers remain distinct companies.
+        if alias_normalized and alias_normalized in base_normalized:
+            return base_normalized
+    return normalize_text(company)
+
+
+def normalize_employment_type(text: str, title: str = "", description: str = "") -> str:
     lower = text.lower() if text else ""
     title_lower = title.lower() if title else ""
+    description_lower = description.lower() if description else ""
     # Curated boards occasionally encode a fixed-term role as an internship.
     # A duration-qualified term in the source title is stronger evidence and
     # must not be published as an internship.
     if re.search(r"\b(?:\d+\s*[- ]?(?:month|year)\s+term|fixed[- ]term)\b", title_lower):
+        return "contract"
+    # Visible duration language is stronger than a board's generic FULL_TIME
+    # schema value. Keep this deliberately narrow so references to government
+    # contract work or contract awards do not change employment classification.
+    if re.search(
+        r"\b(?:duration\s*:\s*)?(?:\d+|three|six|nine|twelve)\s*[- ]?month\s+contract\b",
+        description_lower,
+    ):
         return "contract"
     if "part" in lower:
         return "part-time"
@@ -299,6 +323,12 @@ def normalize_work_arrangement(
     if str(job_location_type).upper() == "TELECOMMUTE" or "remote" in primary:
         return "remote"
     if re.search(r"\b(?:100%|fully|entirely)\s+remote\b|\bremote\s+(?:position|role)\b", description_lower):
+        return "remote"
+    if re.search(
+        r"\b(?:this\s+)?(?:part[- ]time\s+|full[- ]time\s+)?off[- ]?site\s+(?:position|role)\b|"
+        r"\bwork\s+(?:entirely\s+)?off[- ]?site\b",
+        description_lower,
+    ):
         return "remote"
     future_hybrid_only = bool(re.search(
         r"\b(?:potential(?:ly)?|possible|future|eventual)\s+hybrid\b|"
@@ -549,7 +579,7 @@ _SECTION_PATTERNS = [
     (
         "overview",
         re.compile(
-            r"^(?:about (?:the )?role|job summary|position summary|role summary|overview|"
+            r"^(?:about (?:the )?(?:role|opportunity)|job description|job summary|position summary|role summary|overview|"
             r"company description|your role|the role|we are looking for)$",
             re.I,
         ),
@@ -566,7 +596,7 @@ _SECTION_PATTERNS = [
     (
         "requirements",
         re.compile(
-            r"^(?:requirements?|qualifications?|basic qualifications?|required qualifications?|must[- ]have qualifications?|"
+            r"^(?:requirements?|additional requirements?|qualifications?|basic qualifications?|required qualifications?|must[- ]have qualifications?|"
             r"minimum qualifications?|required experience(?:\s*/\s*clearance)?|experience required|"
             r"required technical skills?(?:\s*&\s*qualifications?)?|required skills?(?: sets?)?|"
             r"core skills?(?:\s*&\s*knowledge)?|knowledge,? skills?(?:\s*(?:and|&)\s*abilities)?|"
@@ -580,7 +610,7 @@ _SECTION_PATTERNS = [
     (
         "preferred",
         re.compile(
-            r"^(?:preferred qualifications?|preferred experience|preferred skills?|desired experience|"
+            r"^(?:preferred qualifications?|preferred experience|preferred skills?|desired(?: experience)?|"
             r"nice[- ]to[- ]have qualifications?|nice to have|bonus points?|a plus)$",
             re.I,
         ),
@@ -588,8 +618,8 @@ _SECTION_PATTERNS = [
     (
         "ignore",
         re.compile(
-            r"^(?:benefits?|why join us|what we offer|compensation|salary|pay range|location|"
-            r"what['’]?s in it for you\??|how to apply|accessibility and inclusion|"
+            r"^(?:benefits?|why join (?:us|our team)|what we offer|compensation|salary|pay range|location|keywords|"
+            r"what['’]?s in it for you\??|impact you['’]?ll make|how to apply|accessibility and inclusion|"
             r"pre-employment checks|sponsorship\s*/\s*work rights(?: for .+)?|"
             r"travel expectations?|hiring journey|hiring process|application process|posting end date|"
             r"company snapshot|our core principles|use of ai in hiring|seniority level|employment type|"
@@ -602,7 +632,8 @@ _SECTION_PATTERNS = [
 
 _IGNORE_PROSE_START = re.compile(
     r"^(?:the )?(?:salary|compensation|base pay|pay) (?:range|band|provided)|"
-    r"^actual compensation\b|^in addition to base salary\b",
+    r"^actual compensation\b|^in addition to base salary\b|"
+    r"^.+ is required by law in some jurisdictions to include a reasonable estimate of the compensation range\b",
     re.I,
 )
 
@@ -657,6 +688,7 @@ def normalize_description_text(text: str) -> str:
     output: List[str] = []
     prose_buffer: List[str] = []
     pending_bullet_index: Optional[int] = None
+    active_section_category: Optional[str] = None
 
     def flush_prose() -> None:
         if prose_buffer:
@@ -679,6 +711,7 @@ def normalize_description_text(text: str) -> str:
             stripped = re.sub(r"\s+", " ", split_line.strip())
             category = _section_category(stripped)
             if category:
+                active_section_category = category
                 flush_prose()
                 add_break()
                 output.append(f"**{_plain_markdown(stripped)}**")
@@ -687,7 +720,10 @@ def normalize_description_text(text: str) -> str:
 
             bold_bullet_match = re.match(r"^\s*\*{2,}[•-]\s*(.+?)\*{2,}\s*$", split_line)
             bullet_match = re.match(r"^\s*(?:[-*•]|\d+[.)])\s+(.+)$", split_line)
-            was_indented = bool(re.match(r"^\s{2,}\S", split_line))
+            was_indented = bool(re.match(r"^\s{2,}\S", split_line)) or bool(
+                re.match(r"^\s\S", split_line)
+                and active_section_category in {"responsibilities", "requirements", "preferred"}
+            )
             if bold_bullet_match or bullet_match or was_indented:
                 flush_prose()
                 content = (
@@ -1212,6 +1248,9 @@ _CERTIFICATION_PATTERNS = [
     (cert, re.compile(r"\b" + re.escape(cert) + r"\b"))
     for cert in ["CPACC", "WAS", "CPWA", "DHS Trusted Tester", "Section 508 Trusted Tester", "ADS", "CPABE"]
 ]
+_CERTIFICATION_PATTERNS.append(
+    ("DHS Trusted Tester", re.compile(r"\bTrusted Tester(?: Certification)?\b"))
+)
 
 
 def extract_certifications(text: str) -> List[str]:
@@ -1278,13 +1317,13 @@ def extract_experience(text: str) -> Optional[str]:
         return None
     if years <= 1:
         return "0-1"
-    if years <= 3:
+    if years < 3:
         return "1-3"
-    if years <= 5:
+    if years < 5:
         return "3-5"
-    if years <= 7:
+    if years < 7:
         return "5-7"
-    if years <= 10:
+    if years < 10:
         return "7-10"
     return "10+"
 
@@ -1775,6 +1814,7 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
 
     apply_url = extract_apply_url(soup, url, jsonld)
     description = extract_best_description(soup, jsonld)
+    employment_type = normalize_employment_type(str(employment_raw), title, description)
     work_arrangement = normalize_work_arrangement(
         location_text,
         title,
@@ -2238,7 +2278,7 @@ def candidate_quality_score(job: Dict[str, Any]) -> int:
 def consolidate_source_candidates(jobs: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     groups: Dict[str, List[Dict[str, Any]]] = {}
     for job in jobs:
-        key = f"{normalize_text(job.get('title') or '')}::{normalize_text(job.get('company') or '')}"
+        key = f"{normalize_text(job.get('title') or '')}::{normalize_company_for_dedupe(job.get('company') or '')}"
         groups.setdefault(key, []).append(job)
 
     consolidated: List[Dict[str, Any]] = []
@@ -2408,6 +2448,7 @@ def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -
         job["employment_type"] = normalize_employment_type(
             employment_text,
             external_title or current_title,
+            description,
         )
         job["type"] = job["employment_type"]
 
