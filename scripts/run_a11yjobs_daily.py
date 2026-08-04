@@ -19,7 +19,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -58,10 +58,16 @@ SOURCE_PRIORITY = {
 }
 JOB_BOARD_HOSTS = {
     "a11yjobs.com",
+    "academiccareers.com",
+    "edjoin.org",
     "indeed.com",
+    "insidehighered.com",
     "linkedin.com",
     "glassdoor.com",
     "google.com",
+    "monster.com",
+    "remotive.com",
+    "simplyhired.com",
     "ziprecruiter.com",
     "haystackapp.io",
     "jobmesh.io",
@@ -295,7 +301,7 @@ def normalize_employment_type(text: str, title: str = "", description: str = "")
     # schema value. Keep this deliberately narrow so references to government
     # contract work or contract awards do not change employment classification.
     if re.search(
-        r"\b(?:duration\s*:\s*)?(?:\d+|three|six|nine|twelve)\s*[- ]?month\s+contract\b",
+        r"\b(?:duration\s*:\s*)?(?:\d+|three|six|nine|twelve)\s*[- ]?month\s+(?:fixed[- ]term\s+)?contract\b",
         description_lower,
     ):
         return "contract"
@@ -337,7 +343,7 @@ def normalize_work_arrangement(
         re.S,
     ))
     if not future_hybrid_only and re.search(
-        r"\bhybrid\s+(?:position|role|schedule|work)\b|"
+        r"\bhybrid\s+(?:position|role|schedule|work(?:ing)?)\b|"
         r"\bhybrid\s+(?:contract|opportunity)\b|"
         r"\bposition\s+is\s+hybrid\b|"
         r"\bremote\s+work\s+option\b.{0,40}\bhybrid\b|"
@@ -601,6 +607,7 @@ _SECTION_PATTERNS = [
             r"required technical skills?(?:\s*&\s*qualifications?)?|required skills?(?: sets?)?|"
             r"core skills?(?:\s*&\s*knowledge)?|knowledge,? skills?(?:\s*(?:and|&)\s*abilities)?|"
             r"specific skills? required|required education and experience|competencies|"
+            r"essential skills? required|"
             r"tools?\s*&\s*technologies|your education|what you['’]?ll need|what you will need|"
             r"what you['’]?ll bring|what you will bring|what you bring|"
             r"who you are|what we['’]?re looking for|what we are looking for|required)$",
@@ -611,6 +618,7 @@ _SECTION_PATTERNS = [
         "preferred",
         re.compile(
             r"^(?:preferred qualifications?|preferred experience|preferred skills?|desired(?: experience)?|"
+            r"desirable skills?|"
             r"nice[- ]to[- ]have qualifications?|nice to have|bonus points?|a plus)$",
             re.I,
         ),
@@ -620,6 +628,7 @@ _SECTION_PATTERNS = [
         re.compile(
             r"^(?:benefits?|why join (?:us|our team)|what we offer|compensation|salary|pay range|location|keywords|"
             r"what['’]?s in it for you\??|impact you['’]?ll make|how to apply|accessibility and inclusion|"
+            r"be more|"
             r"pre-employment checks|sponsorship\s*/\s*work rights(?: for .+)?|"
             r"travel expectations?|hiring journey|hiring process|application process|posting end date|"
             r"company snapshot|our core principles|use of ai in hiring|seniority level|employment type|"
@@ -683,6 +692,25 @@ def normalize_description_text(text: str) -> str:
         return ""
 
     text = html.unescape(text).replace("\r\n", "\n").replace("\r", "\n")
+    # Some Workday JobPosting payloads flatten otherwise meaningful headings
+    # into one long line. Restore only explicit, known heading phrases and only
+    # for flat payloads; prose containing words such as "requirements" remains
+    # untouched.
+    if text.count("\n") <= 2:
+        inline_heading = re.compile(
+            r"(?<=[.!?])\s+(?P<heading>what you['’]?ll do|essential skills? required|desirable skills?)\s*:\s+(?=\S)",
+            re.I,
+        )
+        text = inline_heading.sub(
+            lambda match: f"\n\n{match.group('heading')}\n\n",
+            text,
+        )
+        text = re.sub(
+            r"(?<=[.!?])\s+(?P<heading>be more)\s+(?=at the\b)",
+            lambda match: f"\n\n{match.group('heading')}\n\n",
+            text,
+            flags=re.I,
+        )
     text = re.sub(r"\s*—\s*", " - ", text)
     text = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", text)
     output: List[str] = []
@@ -1601,11 +1629,48 @@ def search_alternate_urls(session: requests.Session, title: str, company: str) -
         links = []
         for a in soup.select("a.result__a"):
             href = a.get("href")
-            if href and "duckduckgo.com" not in href:
+            if not href:
+                continue
+            parsed = urlparse(urljoin("https://duckduckgo.com", href))
+            if parsed.hostname and parsed.hostname.endswith("duckduckgo.com"):
+                redirect_target = parse_qs(parsed.query).get("uddg", [None])[0]
+                href = redirect_target or ""
+            if url_is_valid(href) and href not in links:
                 links.append(href)
-        return links[:1]
+        # Prefer employer/ATS pages while retaining independent boards as
+        # corroborating fallbacks. More than the first result is necessary
+        # because search engines commonly rank an aggregator above the ATS.
+        ranked_links = sorted(
+            enumerate(links),
+            key=lambda item: (not is_direct_job_url(item[1]), item[0]),
+        )
+        return [link for _, link in ranked_links[:5]]
     except Exception:
         return []
+
+
+def extract_embedded_direct_job_urls(content: str) -> List[str]:
+    """Return employer/ATS links explicitly printed in a board description."""
+    decoded = html.unescape(content or "").replace("\\/", "/")
+    soup = BeautifulSoup(decoded, "html.parser")
+    visible = soup.get_text(" ", strip=True)
+    anchor_urls = " ".join(
+        str(anchor.get("href") or "") for anchor in soup.find_all("a", href=True)
+    )
+    links: List[str] = []
+    for source_text in (visible, anchor_urls):
+        for match in re.finditer(r"https?://[^\s<>\"']+", source_text):
+            candidate = match.group(0).rstrip(".,;:!?)]}\u00a0")
+            if is_direct_job_url(candidate) and candidate not in links:
+                links.append(candidate)
+    ranked_links = sorted(
+        enumerate(links),
+        key=lambda item: (
+            not bool(re.search(r"/(?:careers?|jobs?|positions?|opportunities)(?:/|\b)", urlparse(item[1]).path, re.I)),
+            item[0],
+        ),
+    )
+    return [link for _, link in ranked_links[:5]]
 
 
 def extract_apply_url(soup: BeautifulSoup, page_url: str, jsonld: Dict[str, Any]) -> Optional[str]:
@@ -2511,31 +2576,48 @@ def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -
 def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]:
     apply_url = job.get("apply_url")
     content = ""
+    aggregator_content = ""
     source_used = "none"
 
     if apply_url:
         text, source_used, resolved_url = fetch_external_text(session, apply_url)
         if text and external_content_matches_job(text, job):
-            content = text
             evidence_url = resolved_url or apply_url
-            job["apply_url"] = evidence_url
-            job["direct_evidence_verified"] = is_direct_job_url(evidence_url)
+            if is_direct_job_url(evidence_url):
+                content = text
+                job["apply_url"] = evidence_url
+                job["direct_evidence_verified"] = True
+            else:
+                # A matching board page can enrich a corroborated listing but
+                # must not prevent discovery of a stronger employer/ATS page.
+                aggregator_content = text
+                source_used = "aggregator"
         elif text:
             source_used = "mismatch"
 
     if not content:
-        links = search_alternate_urls(session, job.get("title") or "", job.get("company") or "")
+        links = extract_embedded_direct_job_urls(aggregator_content)
+        searched_links = search_alternate_urls(
+            session,
+            job.get("title") or "",
+            job.get("company") or "",
+        ) if not links else []
+        links.extend(link for link in searched_links if link not in links)
         for link in links:
             text, source_used, resolved_url = fetch_external_text(session, link)
             if text and external_content_matches_job(text, job):
                 content = text
                 evidence_url = resolved_url or link
-                if not apply_url:
+                if is_direct_job_url(evidence_url) or not apply_url:
                     job["apply_url"] = evidence_url
                 job["direct_evidence_verified"] = is_direct_job_url(evidence_url)
                 break
             if text:
                 source_used = "mismatch"
+
+    if not content and aggregator_content:
+        content = aggregator_content
+        source_used = "aggregator"
 
     if content:
         external_jsonld = extract_external_jobposting(content)

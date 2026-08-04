@@ -31,6 +31,7 @@ from run_a11yjobs_daily import (
     parse_jsonld_salary,
     parse_salary,
     reconcile_external_jobposting,
+    search_alternate_urls,
     convert_nan_to_insert_ready,
     validate_record,
 )
@@ -42,6 +43,29 @@ class DescriptionQualityTests(unittest.TestCase):
             normalize_description_text("Accessibility matters—it improves access."),
             "Accessibility matters - it improves access.",
         )
+
+    def test_flat_workday_sections_and_explicit_classification_are_restored(self):
+        source = (
+            "12-Month Fixed-Term Contract | Hybrid Working. This accessibility specialist "
+            "guides product teams and supports an organisation-wide accessibility plan. "
+            "What You'll Do: Review digital products with assistive technologies and help "
+            "teams implement practical accessibility fixes. Essential skills required: "
+            "Strong WCAG knowledge and extensive experience performing accessibility audits. "
+            "Desirable skills: Experience delivering accessibility training. Be More At the "
+            "employer, people contribute to the broader community."
+        )
+
+        sections = parse_description_sections(source)
+
+        self.assertIn("guides product teams", sections["description"])
+        self.assertIn("Review digital products", sections["key_responsibilities"])
+        self.assertIn("Strong WCAG knowledge", sections["requirements"])
+        self.assertEqual(
+            sections["nice_to_have"],
+            "Experience delivering accessibility training.",
+        )
+        self.assertEqual(normalize_employment_type("FULL_TIME", description=source), "contract")
+        self.assertEqual(normalize_work_arrangement("Head Office", description=source), "hybrid")
 
     def test_sections_only_split_on_standalone_headings(self):
         source = """About the Role
@@ -833,6 +857,25 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertEqual(source, "direct")
         self.assertEqual(resolved_url, "https://job-boards.greenhouse.io/example/jobs/123")
 
+    def test_alternate_search_decodes_redirects_and_prefers_direct_ats(self):
+        search_page = """<html><body>
+        <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fcareers.insidehighered.com%2Fjob%2F123">Board</a>
+        <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.governmentjobs.com%2Fjobs%2F456">ATS</a>
+        </body></html>"""
+        response = Mock(status_code=200, text=search_page)
+        response.raise_for_status.return_value = None
+        session = Mock()
+        session.get.return_value = response
+
+        links = search_alternate_urls(
+            session,
+            "Instructional Accessibility Specialist",
+            "Example College",
+        )
+
+        self.assertEqual(links[0], "https://www.governmentjobs.com/jobs/456")
+        self.assertEqual(links[1], "https://careers.insidehighered.com/job/123")
+
     def test_verified_direct_enrichment_promotes_public_source_url(self):
         ats_url = "https://job-boards.greenhouse.io/example/jobs/123"
         ats_page = (
@@ -857,6 +900,45 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         enriched = enrich_job(session, job)
 
         self.assertTrue(enriched["direct_evidence_verified"])
+        self.assertEqual(enriched["source_url"], ats_url)
+
+    def test_board_apply_page_does_not_prevent_direct_ats_discovery(self):
+        board_url = "https://www.linkedin.com/jobs/view/123"
+        ats_url = "https://www.governmentjobs.com/jobs/456/accessibility-specialist"
+        board_page = (
+            "<html><body><h1>Accessibility Specialist</h1><p>Example College is hiring an "
+            "Accessibility Specialist to improve WCAG compliance and assistive technology "
+            "support across digital learning services. To apply, please visit "
+            f"{ats_url}</p></body></html>"
+        )
+        ats_page = (
+            "<html><body><h1>Accessibility Specialist</h1><p>Example College is hiring an "
+            "Accessibility Specialist. Responsibilities include WCAG audits and assistive "
+            "technology testing. Qualifications include accessible document remediation and "
+            "experience advising faculty on inclusive digital learning.</p></body></html>"
+        )
+        responses = [
+            Mock(status_code=200, text=board_page, url=board_url),
+            Mock(status_code=200, text=ats_page, url=ats_url),
+        ]
+        for response in responses:
+            response.raise_for_status.return_value = None
+        session = Mock()
+        session.get.side_effect = responses
+        job = {
+            "title": "Accessibility Specialist",
+            "company": "Example College",
+            "source_url": "https://www.a11yjobs.com/jobs/example",
+            "apply_url": board_url,
+            "description": "A" * 120,
+            "key_responsibilities": "Test accessible products.",
+            "requirements": "Know WCAG.",
+        }
+
+        enriched = enrich_job(session, job)
+
+        self.assertTrue(enriched["direct_evidence_verified"])
+        self.assertEqual(enriched["apply_url"], ats_url)
         self.assertEqual(enriched["source_url"], ats_url)
 
     def test_unknown_booleans_remain_null_in_insert_ready_rows(self):
