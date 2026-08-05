@@ -862,7 +862,7 @@ def parse_description_sections(description: str) -> Dict[str, Optional[str]]:
 
     overview = cleaned("overview")
     responsibilities = cleaned("responsibilities")
-    requirements = cleaned("requirements")
+    requirements = dedupe_secondary_section_blocks(cleaned("requirements"))
     preferred = cleaned("preferred")
 
     # A title or one-line fragment is not an honest standalone role overview.
@@ -882,6 +882,71 @@ def parse_description_sections(description: str) -> Dict[str, Optional[str]]:
         "requirements": requirements if len(_plain_markdown(requirements)) >= 20 else REQUIREMENTS_FALLBACK,
         "nice_to_have": preferred if len(_plain_markdown(preferred)) >= 20 else None,
     }
+
+
+def _dedupe_signature(value: str) -> str:
+    value = _plain_markdown(value).casefold()
+    word_ranges = {
+        "one to three": "1 3",
+        "three to five": "3 5",
+        "five to seven": "5 7",
+        "seven to ten": "7 10",
+    }
+    for words, digits in word_ranges.items():
+        value = value.replace(words, digits)
+    value = re.sub(r"\brequirements?\b\s*$", "", value)
+    return re.sub(r"[^a-z0-9]+", " ", value).strip()
+
+
+def dedupe_secondary_section_blocks(value: str) -> str:
+    """Drop a repeated subsection only when all of its content already appeared.
+
+    Some ATS pages publish the same experience requirements first as one prose
+    paragraph and then again under a secondary heading with one item per line.
+    This keeps genuinely new subsections while preventing duplicated cards.
+    """
+    if not value:
+        return value
+
+    lines = value.splitlines()
+    output: List[str] = []
+    index = 0
+
+    def is_secondary_heading(line: str) -> bool:
+        plain = _plain_markdown(line)
+        return bool(
+            re.fullmatch(r"\*\*.+\*\*", line.strip())
+            or _section_category(line) == "requirements"
+            or re.fullmatch(r"qualifications?\s*(?:&|and)\s*experience\s+requirements?", plain, re.I)
+        )
+
+    while index < len(lines):
+        line = lines[index]
+        if not is_secondary_heading(line):
+            output.append(line)
+            index += 1
+            continue
+
+        block_end = index + 1
+        while block_end < len(lines) and not is_secondary_heading(lines[block_end]):
+            block_end += 1
+        block = lines[index + 1:block_end]
+        block_items = [
+            signature
+            for item in block
+            if (signature := _dedupe_signature(item)) and len(signature) >= 20
+        ]
+        prior = _dedupe_signature(" ".join(output))
+        if block_items and all(item in prior for item in block_items):
+            while output and not output[-1].strip():
+                output.pop()
+            index = block_end
+            continue
+
+        output.extend(lines[index:block_end])
+        index = block_end
+
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(output)).strip()
 
 
 def split_description(description: str, title: str, company: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
@@ -1288,6 +1353,20 @@ def extract_certifications(text: str) -> List[str]:
     return list(sorted(set(found)))
 
 
+def extract_preferred_certifications(text: str) -> List[str]:
+    """Find certification mentions explicitly qualified as preferred nearby."""
+    if not text:
+        return []
+    found: List[str] = []
+    for cert, pattern in _CERTIFICATION_PATTERNS:
+        for match in pattern.finditer(text):
+            qualifier = text[match.end():match.end() + 80]
+            if re.match(r"(?:\s+certification)?\s+(?:is\s+)?preferred\b", qualifier, re.I):
+                found.append(cert)
+                break
+    return list(sorted(set(found)))
+
+
 _BENEFIT_KEYWORDS = [
     ("Health coverage", re.compile(r"health (?:insurance|coverage|benefits)|medical (?:insurance|coverage)|HMO coverage", re.I), "health_insurance"),
     ("Dental insurance", re.compile(r"dental (?:insurance|coverage|benefits)", re.I), None),
@@ -1377,7 +1456,7 @@ _ASSISTIVE_TECH_NAMES = ["JAWS", "NVDA", "VoiceOver", "TalkBack", "ZoomText", "D
 _ACCESSIBILITY_FOCUS_PATTERNS = [
     ("web", re.compile(r"\bweb(?:site| application| content| accessibility)?\b", re.I)),
     ("mobile", re.compile(r"\bmobile\b|\biOS\b|\bAndroid\b", re.I)),
-    ("documents", re.compile(r"\bdocuments?\b|\bPDFs?\b|\bWord\b|\bPowerPoint\b", re.I)),
+    ("documents", re.compile(r"\bdocument accessibility\b|\baccessible documents?\b|(?<!design )\bdocuments\b|\bPDFs?\b|\bWord\b|\bPowerPoint\b", re.I)),
     ("design", re.compile(r"inclusive design|accessible design|\bUX\b|\bUI\b", re.I)),
     ("testing", re.compile(r"accessibility testing|manual testing|automated testing", re.I)),
 ]
@@ -1415,7 +1494,10 @@ def extract_structured_fields(full_text: str, sections: Dict[str, Optional[str]]
     preferred_skills = [skill for skill in extract_skills(preferred_text) if skill not in required_skills]
     benefits, benefit_flags = extract_benefits(full_text)
 
-    preferred_certifications = extract_certifications(preferred_text)
+    preferred_certifications = list(sorted(set(
+        extract_certifications(preferred_text)
+        + extract_preferred_certifications(required_context)
+    )))
     required_certifications = [
         cert
         for cert in extract_certifications(required_context)

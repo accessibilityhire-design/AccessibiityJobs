@@ -329,6 +329,29 @@ Requirements
         self.assertIn("description contains adjacent duplicate lines", errors)
         self.assertIn("requirements ends with a broken fragment", errors)
 
+    def test_repeated_secondary_requirements_block_is_removed(self):
+        source = """About the role
+
+This accessibility QA analyst tests public applications and reports actionable defects to a cross-functional delivery team serving government users.
+
+Responsibilities
+
+- Conduct Section 508 compliance testing and document results.
+
+Requirements
+
+Three to five years of experience in software testing and quality assurance. Three to five years of experience reading technical specifications.
+
+Qualifications & Experience Requirements
+
+3-5 years of experience in software testing and quality assurance
+3-5 years of experience reading technical specifications
+"""
+        sections = parse_description_sections(source)
+
+        self.assertNotIn("Qualifications & Experience Requirements", sections["requirements"])
+        self.assertEqual(sections["requirements"].count("software testing and quality assurance"), 1)
+
 
 class SalaryQualityTests(unittest.TestCase):
     def test_generic_salary_paragraph_does_not_use_unrelated_numbers(self):
@@ -420,6 +443,34 @@ Preferred Qualifications
             structured["preferred_certifications"],
             ["ADS", "CPWA", "WAS"],
         )
+
+    def test_inline_preferred_certification_is_not_marked_required(self):
+        source = """Role overview with enough context to explain a serious accessibility QA position supporting public-sector applications.
+
+Responsibilities
+
+- Conduct Section 508 compliance testing and document results.
+
+Requirements
+
+- Experience using NVDA, JAWS, ANDI, and Trusted Tester certification preferred.
+"""
+        sections = parse_description_sections(source)
+        structured = extract_structured_fields(source, sections)
+
+        self.assertEqual(structured["required_certifications"], [])
+        self.assertEqual(structured["preferred_certifications"], ["DHS Trusted Tester"])
+        self.assertNotIn("documents", structured["accessibility_focus"])
+
+    def test_design_documents_do_not_infer_document_accessibility_focus(self):
+        source = (
+            "Incorporate accessibility requirements into design documents and specifications. "
+            "Audit games and web applications for accessibility compliance."
+        )
+        structured = extract_structured_fields(source, {})
+
+        self.assertIn("web", structured["accessibility_focus"])
+        self.assertNotIn("documents", structured["accessibility_focus"])
 
     def test_direct_page_brand_name_preserves_source_spacing(self):
         self.assertEqual(
