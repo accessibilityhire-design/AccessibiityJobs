@@ -170,6 +170,11 @@ JUNK_TEXT_PATTERNS = [
     r"(?:^|\n)\s*navigation\s*(?:\n|$)",
     r"(?:^|\n)\s*footer\s*(?:\n|$)",
     r"back to top",
+    r"performing security verification",
+    r"enable javascript and cookies to continue",
+    r"performance and security by cloudflare",
+    r"don't forget to mention that you found this job on our platform",
+    r"your company here\?",
 ]
 
 
@@ -305,13 +310,23 @@ def normalize_employment_type(text: str, title: str = "", description: str = "")
         description_lower,
     ):
         return "contract"
+    if re.search(
+        r"\bduration\s*:\s*(?:\d+|three|six|nine|twelve)\s*months?\b.{0,60}\bcontract\b",
+        description_lower,
+        re.S,
+    ):
+        return "contract"
+    if re.search(r"\btype of position\s*:\s*part[- ]time\b", description_lower):
+        return "part-time"
+    if re.search(r"\bintermittent\b", lower) or re.search(r"\bintermittent\b", title_lower):
+        return "part-time"
     if "part" in lower:
         return "part-time"
     if "contract" in lower:
         return "contract"
     if "freelance" in lower:
         return "freelance"
-    if "intern" in lower:
+    if re.search(r"\bintern(?:ship)?\b", lower):
         return "internship"
     return "full-time"
 
@@ -342,7 +357,12 @@ def normalize_work_arrangement(
         description_lower,
         re.S,
     ))
-    if not future_hybrid_only and re.search(
+    explicitly_not_hybrid = bool(re.search(
+        r"\b(?:opportunity for )?hybrid schedule\s*:\s*no\b|"
+        r"\bnot (?:eligible|available) for (?:a )?hybrid schedule\b",
+        description_lower,
+    ))
+    if not future_hybrid_only and not explicitly_not_hybrid and re.search(
         r"\bhybrid\s+(?:position|role|schedule|work(?:ing)?)\b|"
         r"\bhybrid\s+(?:contract|opportunity)\b|"
         r"\bposition\s+is\s+hybrid\b|"
@@ -351,6 +371,12 @@ def normalize_work_arrangement(
         r"\(\s*hybrid\s*\)|\blocation\b.{0,80}\bhybrid\b",
         description_lower,
         re.S,
+    ):
+        return "hybrid"
+    if (
+        "model is a blended approach" in description_lower
+        and re.search(r"\b(?:office|client site)\b", description_lower)
+        and "virtually" in description_lower
     ):
         return "hybrid"
     return "onsite"
@@ -586,7 +612,7 @@ _SECTION_PATTERNS = [
         "overview",
         re.compile(
             r"^(?:about (?:the )?(?:role|opportunity)|job description|job summary|position summary|role summary|overview|"
-            r"company description|your role|the role|we are looking for)$",
+            r"position summary statement|company description|your opportunity|your role|the role|job overview|we are looking for)$",
             re.I,
         ),
     ),
@@ -595,7 +621,8 @@ _SECTION_PATTERNS = [
         re.compile(
             r"^(?:(?:key job|key|core|primary|role) responsibilities|responsibilities|duties|"
             r"job duties|duties and responsibilities|essential functions|job role and responsibilit(?:y|ies)|"
-            r"what you['’]?ll do|what you will do|what you['’]?ll own|your impact)$",
+            r"essential duties(?: and responsibilities)?|job responsibilities|project coordination|your responsibilities|"
+            r"what you['’]?ll (?:do|be doing)|what you will (?:do|be doing)|what you['’]?ll own|your impact)$",
             re.I,
         ),
     ),
@@ -608,6 +635,9 @@ _SECTION_PATTERNS = [
             r"core skills?(?:\s*&\s*knowledge)?|knowledge,? skills?(?:\s*(?:and|&)\s*abilities)?|"
             r"specific skills? required|required education and experience|competencies|"
             r"essential skills? required|"
+            r"how do we define success for your role\??|person specification|"
+            r"required education|required knowledge,? skills?(?:,? and qualifications)?(?: \(nsqs\))?|"
+            r"minimum education\s*(?:&|and)\s*experience|"
             r"tools?\s*&\s*technologies|your education|what you['’]?ll need|what you will need|"
             r"what you['’]?ll bring|what you will bring|what you bring|"
             r"who you are|what we['’]?re looking for|what we are looking for|required)$",
@@ -618,7 +648,7 @@ _SECTION_PATTERNS = [
         "preferred",
         re.compile(
             r"^(?:preferred qualifications?|preferred experience|preferred skills?|desired(?: experience)?|"
-            r"desirable skills?|"
+            r"desirable(?: skills?)?|advantageous|preferred certification|"
             r"nice[- ]to[- ]have qualifications?|nice to have|bonus points?|a plus)$",
             re.I,
         ),
@@ -692,11 +722,35 @@ def normalize_description_text(text: str) -> str:
         return ""
 
     text = html.unescape(text).replace("\r\n", "\n").replace("\r", "\n")
+    # Some ATS responses are UTF-8 bytes decoded as Windows-1252. Repair only
+    # the observed sequences so legitimate source punctuation is untouched.
+    for broken, repaired in {
+        "â¢": "•",
+        "â": "’",
+        "â": "–",
+        "â": "—",
+        "Â ": " ",
+    }.items():
+        text = text.replace(broken, repaired)
     # Some Workday JobPosting payloads flatten otherwise meaningful headings
     # into one long line. Restore only explicit, known heading phrases and only
     # for flat payloads; prose containing words such as "requirements" remains
     # untouched.
     if text.count("\n") <= 2:
+        flat_heading = re.compile(
+            r"(?P<heading>"
+            r"Your Opportunity|Project Coordination|How do we define success for your role\?|"
+            r"What You(?:'|’|â)ll Be Doing|Your Responsibilities|What You(?:'|’|â)ll Bring|"
+            r"Job Description|About the role|Desirable(?: skills?)?|Advantageous|Person Specification|"
+            r"Required Education|Preferred Certification|Required Skills|Preferred Skills|"
+            r"Job Overview|Job Responsibilities|Essential Duties(?: and Responsibilities)?|"
+            r"Qualifications"
+            r")(?:\s*:\s*|[ \t]+)(?=\S)"
+        )
+        text = flat_heading.sub(
+            lambda match: f"\n\n{match.group('heading')}\n\n",
+            text,
+        )
         inline_heading = re.compile(
             r"(?<=[.!?])\s+(?P<heading>what you['’]?ll do|essential skills? required|desirable skills?)\s*:\s+(?=\S)",
             re.I,
@@ -711,6 +765,7 @@ def normalize_description_text(text: str) -> str:
             text,
             flags=re.I,
         )
+    text = re.sub(r"\s*•\s*", "\n- ", text)
     text = re.sub(r"\s*—\s*", " - ", text)
     text = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", text)
     output: List[str] = []
@@ -1589,6 +1644,7 @@ _LEGAL_BOILERPLATE_MARKERS = [
     re.compile(r"\bSupplemental Contact Information\b", re.I),
     re.compile(r"\bVeterans[’']? and National Guard Preference\b", re.I),
     re.compile(r"\bApplication Process\b\s*\*\*", re.I),
+    re.compile(r"\bUnless explicitly requested or approached by SS&C Technologies\b", re.I),
 ]
 
 
@@ -1695,7 +1751,8 @@ def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[s
 
     jina_url = f"https://r.jina.ai/http://{url.replace('https://', '').replace('http://', '')}"
     text, _ = try_fetch(jina_url)
-    if text:
+    jina_visible = normalize_external_content(text) if text else ""
+    if text and not any(marker in jina_visible.lower() for marker in blocked_markers):
         return text, "jina", url
 
     return None, "failed", None
@@ -2727,6 +2784,7 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
                 strip_html(html.unescape(str(external_jsonld.get("description") or "")))
             )
         content = structured_description if len(_plain_markdown(structured_description)) >= 100 else normalize_external_content(content)
+        content = trim_legal_boilerplate(content)
         external_sections = parse_description_sections(content)
         if has_job_detail and (
             not job.get("description")
@@ -2961,6 +3019,17 @@ def exclude_post_enrichment_cutoff_rows(
     return eligible, failures
 
 
+def validate_enriched_record(
+    record: Dict[str, Any], cutoff_date: Optional[date] = None
+) -> List[str]:
+    """Apply the authoritative enriched date gate before content validation."""
+    if cutoff_date is not None:
+        _, cutoff_failures = exclude_post_enrichment_cutoff_rows([record], cutoff_date)
+        if cutoff_failures:
+            return cutoff_failures[0]["errors"]
+    return validate_record(record)
+
+
 def write_json(path: str, payload: Any) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=True, indent=2, default=str)
@@ -2975,7 +3044,9 @@ def write_csv(path: str, rows: List[Dict[str, Any]], headers: List[str]) -> int:
     return len(rows)
 
 
-def process_candidate_job(job: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+def process_candidate_job(
+    job: Dict[str, Any], cutoff_date: Optional[date] = None
+) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
     local_session = requests.Session()
     local_session.headers.update(HEADERS)
 
@@ -2983,7 +3054,7 @@ def process_candidate_job(job: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional
 
     candidate = build_candidate_record(job)
     insert_candidate = convert_nan_to_insert_ready(candidate)
-    validation_errors = validate_record(insert_candidate)
+    validation_errors = validate_enriched_record(insert_candidate, cutoff_date)
 
     if validation_errors:
         failure = {
@@ -3192,7 +3263,10 @@ def main() -> int:
     if jobs_for_enrichment:
         max_workers = min(8, len(jobs_for_enrichment))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_map = {executor.submit(process_candidate_job, job): job for job in jobs_for_enrichment}
+            future_map = {
+                executor.submit(process_candidate_job, job, cutoff_date): job
+                for job in jobs_for_enrichment
+            }
             for future in as_completed(future_map):
                 candidate, insert_candidate, failure = future.result()
                 candidates_with_nan.append(candidate)

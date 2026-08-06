@@ -12,6 +12,7 @@ from run_a11yjobs_daily import (
     extract_experience,
     extract_structured_fields,
     consolidate_source_candidates,
+    description_is_clean,
     external_content_matches_job,
     external_content_has_job_detail,
     exclude_post_enrichment_cutoff_rows,
@@ -32,7 +33,9 @@ from run_a11yjobs_daily import (
     parse_salary,
     reconcile_external_jobposting,
     search_alternate_urls,
+    trim_legal_boilerplate,
     convert_nan_to_insert_ready,
+    validate_enriched_record,
     validate_record,
 )
 
@@ -66,6 +69,65 @@ class DescriptionQualityTests(unittest.TestCase):
         )
         self.assertEqual(normalize_employment_type("FULL_TIME", description=source), "contract")
         self.assertEqual(normalize_work_arrangement("Head Office", description=source), "hybrid")
+
+    def test_observed_flat_ats_headings_are_restored(self):
+        source = (
+            "The employer builds accessible services used by customers and staff across several "
+            "digital products and delivery teams. What You’ll Be Doing Lead WCAG reviews, coach "
+            "developers, and validate fixes with assistive technology. Qualifications Eight years "
+            "of UI/UX experience and strong knowledge of Section 508 are required."
+        )
+
+        sections = parse_description_sections(source)
+
+        self.assertIn("Lead WCAG reviews", sections["key_responsibilities"])
+        self.assertIn("Eight years", sections["requirements"])
+
+    def test_flat_colon_template_and_mojibake_bullets_are_restored(self):
+        source = (
+            "Required Education: â¢ Bachelor’s degree or equivalent experience"
+            "Required Skills: â¢ Three years of WCAG testing experience"
+            "Preferred Skills: â¢ Experience with Adobe Experience Manager"
+            "Job Overview:This accessibility specialist improves public websites and ensures "
+            "that people with disabilities can use important government services independently."
+            "Job Responsibilities:Conduct accessibility auditsâ¢ Remediate barriersâ¢ Train authors"
+        )
+
+        sections = parse_description_sections(source)
+
+        self.assertIn("Conduct accessibility audits", sections["key_responsibilities"])
+        self.assertIn("Bachelor’s degree", sections["requirements"])
+        self.assertIn("Adobe Experience Manager", sections["nice_to_have"])
+        self.assertNotIn("â", " ".join(value or "" for value in sections.values()))
+
+    def test_security_interstitial_and_board_chrome_are_junk(self):
+        self.assertFalse(
+            description_is_clean(
+                "Performing security verification. Enable JavaScript and cookies to continue. "
+                "Performance and Security by Cloudflare"
+            )
+        )
+        self.assertFalse(
+            description_is_clean(
+                "Apply now. Don't forget to mention that you found this job on our platform. "
+                "Your company here?"
+            )
+        )
+
+    def test_ssc_recruiter_boilerplate_is_trimmed_before_broken_tail(self):
+        source = (
+            "This accessibility QA role contains a substantial employer-backed description, "
+            "responsibilities, and requirements for applicants. It explains automated and manual "
+            "WCAG testing, collaboration with developers, accessible design review, defect triage, "
+            "and clear remediation guidance. Applicants need practical screen-reader experience, "
+            "strong communication skills, and a record of maintaining reliable test automation. "
+            "Unless explicitly requested or approached by SS&C Technologies, the company will "
+            "not accept unsolicited resumes. SS&C Technologies is an"
+        )
+        cleaned = trim_legal_boilerplate(source)
+
+        self.assertNotIn("Unless explicitly", cleaned)
+        self.assertFalse(cleaned.endswith("is an"))
 
     def test_sections_only_split_on_standalone_headings(self):
         source = """About the Role
@@ -606,6 +668,26 @@ class LocationQualityTests(unittest.TestCase):
             "hybrid",
         )
 
+    def test_blended_office_and_virtual_model_is_hybrid(self):
+        self.assertEqual(
+            normalize_work_arrangement(
+                "Toronto, Canada",
+                "Accessibility Specialist",
+                "Our model is a blended approach. Staff spend time in the office, at the client site, and virtually.",
+            ),
+            "hybrid",
+        )
+
+    def test_explicit_no_hybrid_schedule_remains_onsite(self):
+        self.assertEqual(
+            normalize_work_arrangement(
+                "Overland Park, United States",
+                "Digital Accessibility Librarian",
+                "Opportunity for hybrid schedule: No",
+            ),
+            "onsite",
+        )
+
     def test_explicit_hybrid_source_phrases_are_respected(self):
         for description in (
             "This position is hybrid, with one day per week in person.",
@@ -621,6 +703,32 @@ class LocationQualityTests(unittest.TestCase):
     def test_duration_qualified_term_is_contract_not_internship(self):
         self.assertEqual(
             normalize_employment_type("INTERN", "Accessibility Specialist (12 Month Term)"),
+            "contract",
+        )
+
+    def test_intermittent_is_part_time_not_internship(self):
+        self.assertEqual(
+            normalize_employment_type("INTERMITTENT", "Accessibility Compliance Analyst"),
+            "part-time",
+        )
+
+    def test_labeled_part_time_temporary_source_overrides_generic_schema(self):
+        self.assertEqual(
+            normalize_employment_type(
+                "FULL_TIME",
+                "Digital Accessibility Librarian",
+                "Type of Position: Part-time Temporary. Work Schedule: 20 hours per week.",
+            ),
+            "part-time",
+        )
+
+    def test_duration_with_possible_extension_is_contract(self):
+        self.assertEqual(
+            normalize_employment_type(
+                "FULL_TIME",
+                "Accessibility Specialist",
+                "Duration: 05 months + possible extension Contract Description: Improve accessible products.",
+            ),
             "contract",
         )
 
@@ -724,6 +832,25 @@ class MultiSourceQualityTests(unittest.TestCase):
             "not strictly later than cutoff_date 2026-07-24",
             failures[0]["errors"][0],
         )
+
+    def test_authoritative_date_gate_precedes_placeholder_validation(self):
+        record = {
+            "title": "Accessibility Specialist",
+            "company": "Example Company",
+            "date_posted": "2026-07-24",
+            "employment_type": "full-time",
+            "work_arrangement": "onsite",
+            "description": "A source-backed accessibility role overview with sufficient detail. " * 3,
+            "key_responsibilities": RESPONSIBILITIES_FALLBACK,
+            "requirements": REQUIREMENTS_FALLBACK,
+            "source_url": "https://example.com/jobs/1",
+            "status": "approved",
+        }
+
+        errors = validate_enriched_record(record, date(2026, 7, 24))
+
+        self.assertEqual(len(errors), 1)
+        self.assertIn("not strictly later than cutoff_date", errors[0])
 
     def test_jobspy_mapping_rejects_unrelated_search_result(self):
         record = {
