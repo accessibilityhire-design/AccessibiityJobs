@@ -316,6 +316,11 @@ def normalize_employment_type(text: str, title: str = "", description: str = "")
         re.S,
     ):
         return "contract"
+    if re.search(r"\bemployment type\s*:?[\s*]*temporary\b", description_lower) and re.search(
+        r"\bestimated duration(?:\s*\(in months\))?\s*:?[\s*]*\d+\b",
+        description_lower,
+    ):
+        return "contract"
     if re.search(r"\btype of position\s*:\s*part[- ]time\b", description_lower):
         return "part-time"
     if re.search(r"\bintermittent\b", lower) or re.search(r"\bintermittent\b", title_lower):
@@ -486,6 +491,7 @@ def parse_date_text(text: str) -> Optional[date]:
         "%B %d, %Y",
         "%d %b %Y",
         "%d %B %Y",
+        "%m/%d/%Y",
     ]
     for fmt in patterns:
         try:
@@ -622,6 +628,9 @@ _SECTION_PATTERNS = [
             r"^(?:(?:key job|key|core|primary|role) responsibilities|responsibilities|duties|"
             r"job duties|duties and responsibilities|essential functions|job role and responsibilit(?:y|ies)|"
             r"essential duties(?: and responsibilities)?|job responsibilities|project coordination|your responsibilities|"
+            r"website accessibility compliance|content refinement and optimization|website redesign support|"
+            r"accessibility training and guidance|governance and review processes|"
+            r"user experience \(ux\) enhancement|graphic design support|"
             r"what you['’]?ll (?:do|be doing)|what you will (?:do|be doing)|what you['’]?ll own|your impact)$",
             re.I,
         ),
@@ -661,7 +670,7 @@ _SECTION_PATTERNS = [
             r"be more|"
             r"pre-employment checks|sponsorship\s*/\s*work rights(?: for .+)?|"
             r"travel expectations?|hiring journey|hiring process|application process|posting end date|"
-            r"company snapshot|our core principles|use of ai in hiring|seniority level|employment type|"
+            r"company snapshot|our core principles|use of ai in hiring|seniority level|employment type|why [A-Za-z0-9&.' -]{2,80}\??|"
             r"job function|industries|we value equal opportunity|applicants with disabilities|"
             r"drug and alcohol policy|equal opportunity employer|eeo statement)$",
             re.I,
@@ -732,6 +741,21 @@ def normalize_description_text(text: str) -> str:
         "Â ": " ",
     }.items():
         text = text.replace(broken, repaired)
+    text = re.sub(r"(?<=[a-z])\.(?=[A-Z])", ". ", text)
+    text = re.sub(
+        r"(?<=[a-z)])(?P<heading>Content Refinement and Optimization|Website Redesign Support|"
+        r"Accessibility Training and Guidance|Governance and Review Processes|"
+        r"User Experience \(UX\) Enhancement|Graphic Design Support)(?=\n\s*[-*•])",
+        lambda match: f"\n\n{match.group('heading')}\n",
+        text,
+    )
+    if text.count("\n") > 2:
+        text = re.sub(
+            r"(?m)^\s*(?P<heading>Job Overview|Job Responsibilities|Required Education|"
+            r"Preferred Certification|Required Skills|Preferred Skills)\s*:\s*",
+            lambda match: f"\n\n{match.group('heading')}\n\n",
+            text,
+        )
     # Some Workday JobPosting payloads flatten otherwise meaningful headings
     # into one long line. Restore only explicit, known heading phrases and only
     # for flat payloads; prose containing words such as "requirements" remains
@@ -744,6 +768,10 @@ def normalize_description_text(text: str) -> str:
             r"Job Description|About the role|Desirable(?: skills?)?|Advantageous|Person Specification|"
             r"Required Education|Preferred Certification|Required Skills|Preferred Skills|"
             r"Job Overview|Job Responsibilities|Essential Duties(?: and Responsibilities)?|"
+            r"Website Accessibility Compliance|Content Refinement and Optimization|"
+            r"Website Redesign Support|Accessibility Training and Guidance|"
+            r"Governance and Review Processes|User Experience \(UX\) Enhancement|Graphic Design Support|"
+            r"Why [A-Za-z0-9&.' -]{2,80}\??|"
             r"Qualifications"
             r")(?:\s*:\s*|[ \t]+)(?=\S)"
         )
@@ -1347,9 +1375,20 @@ def extract_contact_email(text: str) -> Optional[str]:
     matches = re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", text)
     for email in matches:
         local_part = email.split("@", 1)[0].lower()
-        if any(marker in local_part for marker in ("accommodation", "no-reply", "noreply")):
+        if any(marker in local_part for marker in (
+            "accommodation", "no-reply", "noreply", "info", "hello",
+            "support", "admin", "webmaster", "privacy",
+        )):
             continue
-        return email
+        match = re.search(re.escape(email), text, re.I)
+        if not match:
+            continue
+        context = _plain_markdown(text[max(0, match.start() - 160):match.end() + 160]).lower()
+        if re.search(
+            r"\b(?:email|contact|send|submit|questions?|recruiter|hiring manager|apply)\b",
+            context,
+        ):
+            return email
     return None
 
 
@@ -1381,7 +1420,14 @@ def extract_skills(text: str) -> List[str]:
     analysis_text = _plain_markdown(text)
     found: List[str] = []
     for skill, pattern in _SKILL_PATTERNS:
-        if pattern.search(analysis_text) and skill not in found:
+        match = pattern.search(analysis_text)
+        if (
+            skill == "document accessibility"
+            and match
+            and re.match(r"\s+(?:defects?|issues?|findings?|results?)\b", analysis_text[match.end():], re.I)
+        ):
+            continue
+        if match and skill not in found:
             found.append(skill)
     return found
 
@@ -1511,7 +1557,7 @@ _ASSISTIVE_TECH_NAMES = ["JAWS", "NVDA", "VoiceOver", "TalkBack", "ZoomText", "D
 _ACCESSIBILITY_FOCUS_PATTERNS = [
     ("web", re.compile(r"\bweb(?:site| application| content| accessibility)?\b", re.I)),
     ("mobile", re.compile(r"\bmobile\b|\biOS\b|\bAndroid\b", re.I)),
-    ("documents", re.compile(r"\bdocument accessibility\b|\baccessible documents?\b|(?<!design )\bdocuments\b|\bPDFs?\b|\bWord\b|\bPowerPoint\b", re.I)),
+    ("documents", re.compile(r"\bdocument accessibility\b(?!\s+(?:defects?|issues?|findings?|results?))|\baccessible documents?\b|(?<!design )\bdocuments\b|\bPDFs?\b|\bWord\b|\bPowerPoint\b", re.I)),
     ("design", re.compile(r"inclusive design|accessible design|\bUX\b|\bUI\b", re.I)),
     ("testing", re.compile(r"accessibility testing|manual testing|automated testing", re.I)),
 ]
@@ -1519,6 +1565,13 @@ _ACCESSIBILITY_FOCUS_PATTERNS = [
 
 def extract_wcag_level(text: str) -> Optional[str]:
     analysis_text = _plain_markdown(text)
+    combined = re.search(
+        r"\bWCAG\s*(2\.[012])\s*(?:/|or)\s*(2\.[012])\b",
+        analysis_text,
+        re.I,
+    )
+    if combined:
+        return f"wcag-{max(combined.group(1), combined.group(2))}"
     for version in ["3.0", "2.2", "2.1", "2.0"]:
         if re.search(rf"\bWCAG\s*{re.escape(version)}\b", analysis_text, re.I):
             return f"wcag-{version}"
@@ -1645,6 +1698,7 @@ _LEGAL_BOILERPLATE_MARKERS = [
     re.compile(r"\bVeterans[’']? and National Guard Preference\b", re.I),
     re.compile(r"\bApplication Process\b\s*\*\*", re.I),
     re.compile(r"\bUnless explicitly requested or approached by SS&C Technologies\b", re.I),
+    re.compile(r"Only those lawfully authorized to work in the designated country\b", re.I),
 ]
 
 
@@ -1661,7 +1715,7 @@ def trim_legal_boilerplate(text: str) -> str:
         if match and (earliest == -1 or match.start() < earliest):
             earliest = match.start()
     if earliest > 300:
-        return text[:earliest].strip()
+        return text[:earliest].rstrip("* \n").strip()
     return text
 
 
@@ -1712,6 +1766,16 @@ def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[s
             return None, None
 
     text, resolved_url = try_fetch(url)
+    if text:
+        javascript_redirect = re.search(
+            r"navigateTo\([^,]+,[^,]+,\s*[\"'](https?://[^\"']+)",
+            html.unescape(text),
+            re.I,
+        )
+        if javascript_redirect:
+            redirected_text, redirected_url = try_fetch(javascript_redirect.group(1))
+            if redirected_text:
+                text, resolved_url = redirected_text, redirected_url
     blocked_markers = [
         "enable javascript",
         "access denied",
@@ -2188,7 +2252,15 @@ def is_job_board_url(url: Optional[str]) -> bool:
 
 
 def is_direct_job_url(url: Optional[str]) -> bool:
-    return bool(url and url_is_valid(url) and not is_job_board_url(url))
+    if not url or not url_is_valid(url) or is_job_board_url(url):
+        return False
+    parsed = urlparse(url)
+    generic_path = parsed.path.rstrip("/").lower()
+    if not parsed.query and generic_path in {
+        "", "/career", "/careers", "/job", "/jobs", "/opportunities",
+    }:
+        return False
+    return True
 
 
 def accessibility_relevance_score(title: str, description: str) -> int:
@@ -2354,7 +2426,7 @@ def jobspy_record_to_job(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "travel_required": None,
         "additional_notes": f"discovered_via={source}",
         "location": location_text or None,
-        "type": work_arrangement,
+        "type": employment_type,
         "salary_range": salary_range,
         "job_source": source,
         "source_url": source_url,
@@ -2599,6 +2671,85 @@ def external_content_has_job_detail(
     return len(_plain_markdown(visible)) >= 300 and detail_count >= 2
 
 
+def external_content_is_closed(content: str) -> bool:
+    """Detect explicit employer/ATS closure notices ahead of stale JobPosting data."""
+    if not content:
+        return False
+    soup = BeautifulSoup(content, "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    visible = clean_text(soup.get_text(" ", strip=True)).lower()
+    return bool(re.search(
+        r"\bjob you are trying to apply for has been filled\b|"
+        r"\b(?:job|position|opening) (?:has been|is) (?:filled|closed)\b|"
+        r"\bno longer (?:available|accepting applications)\b",
+        visible,
+    ))
+
+
+def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> None:
+    """Apply labeled facts from direct pages that omit JobPosting JSON-LD."""
+    visible = _plain_markdown(normalize_external_content(content))
+    if not visible:
+        return
+
+    posted_match = re.search(r"\bDate Posted\s*:\s*(\d{1,2}/\d{1,2}/\d{4})\b", visible, re.I)
+    posted = parse_date_text(posted_match.group(1)) if posted_match else None
+    if posted:
+        job["date_posted"] = posted.isoformat()
+        job["created_at"] = f"{posted.isoformat()}T00:00:00Z"
+
+    location_match = re.search(
+        r"\bJob Location\s*:\s*(.+?)(?=\s+Work Model\s*:)",
+        visible,
+        re.I,
+    )
+    if location_match:
+        location_text = clean_text(location_match.group(1))
+        location_for_fields = re.sub(r",\s*[A-Z0-9 -]{3,10}$", "", location_text)
+        city, country = parse_location_fields(location_for_fields)
+        job["location"] = location_text[:255]
+        job["specific_location"] = location_text[:255]
+        job["city"] = city
+        job["country"] = country
+
+    if re.search(r"\bWork Model\s*:\s*Hybrid\b", visible, re.I):
+        job["work_arrangement"] = "hybrid"
+    elif re.search(r"\bWork Model\s*:\s*Remote\b", visible, re.I):
+        job["work_arrangement"] = "remote"
+    elif re.search(r"\bWork Model\s*:\s*(?:On[- ]?site|In[- ]?office)\b", visible, re.I):
+        job["work_arrangement"] = "onsite"
+
+    if re.search(r"\bEmployment Type\s*:?[\s*]*Temporary\b", visible, re.I) or re.search(
+        r"\bFT/PT\s*:?[\s*]*Part[- ]Time\b",
+        visible,
+        re.I,
+    ):
+        employment_type = normalize_employment_type(
+            "",
+            str(job.get("title") or ""),
+            visible,
+        )
+        job["employment_type"] = employment_type
+        job["type"] = employment_type
+
+    hourly = re.search(
+        r"\bMin Hourly Rate\s*\(\$\)\s*:\s*([0-9]+(?:\.[0-9]+)?)\s+"
+        r"Max Hourly Rate\s*\(\$\)\s*:\s*([0-9]+(?:\.[0-9]+)?)",
+        visible,
+        re.I,
+    )
+    if hourly:
+        minimum = int(round(float(hourly.group(1))))
+        maximum = int(round(float(hourly.group(2))))
+        if not validate_salary(minimum, maximum, "hourly"):
+            job["salary_min"] = minimum
+            job["salary_max"] = maximum
+            job["currency"] = None
+            job["salary_type"] = "hourly"
+            job["salary_range"] = format_salary_evidence(minimum, maximum, None, "hourly")
+
+
 def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -> List[str]:
     """Prefer explicit employer/ATS JobPosting facts and report disagreements."""
     conflicts: List[str] = []
@@ -2761,6 +2912,9 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
     if content:
         external_jsonld = extract_external_jobposting(content)
         conflicts = reconcile_external_jobposting(job, external_jsonld) if external_jsonld else []
+        reconcile_explicit_external_facts(job, content)
+        if external_content_is_closed(content):
+            conflicts.append("Direct employer or ATS page says the job is closed")
         if conflicts:
             job["evidence_conflicts"] = conflicts
             job["direct_evidence_verified"] = False
@@ -2786,21 +2940,17 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
         content = structured_description if len(_plain_markdown(structured_description)) >= 100 else normalize_external_content(content)
         content = trim_legal_boilerplate(content)
         external_sections = parse_description_sections(content)
-        if has_job_detail and (
-            not job.get("description")
-            or len(job.get("description") or "") < 100
-            or len(job.get("key_responsibilities") or "") < 50
-            or len(job.get("requirements") or "") < 50
-            or is_placeholder_section(job.get("key_responsibilities"))
-            or is_placeholder_section(job.get("requirements"))
-        ):
+        external_sections_are_complete = (
+            not is_placeholder_section(external_sections.get("key_responsibilities"))
+            and not is_placeholder_section(external_sections.get("requirements"))
+        )
+        if has_job_detail and source_used in {"direct", "jina"} and external_sections_are_complete:
             if external_sections.get("description"):
                 job["description"] = external_sections["description"]
                 job["key_responsibilities"] = external_sections["key_responsibilities"]
                 job["requirements"] = external_sections["requirements"]
                 job["nice_to_have"] = external_sections["nice_to_have"]
-        if not job.get("contact_email"):
-            job["contact_email"] = extract_contact_email(content)
+        job["contact_email"] = extract_contact_email(content)
         if not job.get("salary_range"):
             salary_min, salary_max, currency, salary_type = parse_salary(content)
             if salary_min or salary_max:
@@ -2819,26 +2969,20 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
                 job["retirement"] = True
             if benefit_flags.get("professional_development") and not job.get("professional_development"):
                 job["professional_development"] = True
-        if not job.get("required_skills"):
+        if has_job_detail and external_sections_are_complete:
             items = structured["required_skills"]
             preferred_items = structured["preferred_skills"]
             job["required_skills"] = json.dumps(items[:15], ensure_ascii=False) if items else None
-            if preferred_items:
-                job["preferred_skills"] = json.dumps(preferred_items[:15], ensure_ascii=False)
-        required_certs = structured["required_certifications"]
-        preferred_certs = structured["preferred_certifications"]
-        job["required_certifications"] = json.dumps(required_certs, ensure_ascii=False) if required_certs else None
-        job["preferred_certifications"] = json.dumps(preferred_certs, ensure_ascii=False) if preferred_certs else None
-        if not job.get("years_experience"):
+            job["preferred_skills"] = json.dumps(preferred_items[:15], ensure_ascii=False) if preferred_items else None
+            required_certs = structured["required_certifications"]
+            preferred_certs = structured["preferred_certifications"]
+            job["required_certifications"] = json.dumps(required_certs, ensure_ascii=False) if required_certs else None
+            job["preferred_certifications"] = json.dumps(preferred_certs, ensure_ascii=False) if preferred_certs else None
             job["years_experience"] = structured["years_experience"]
-        if not job.get("education_level"):
             job["education_level"] = structured["education_level"]
-        if not job.get("wcag_level"):
             job["wcag_level"] = structured["wcag_level"]
-        if not job.get("accessibility_focus") and structured["accessibility_focus"]:
-            job["accessibility_focus"] = json.dumps(structured["accessibility_focus"], ensure_ascii=False)
-        if not job.get("assistive_tech_experience") and structured["assistive_tech_experience"]:
-            job["assistive_tech_experience"] = json.dumps(structured["assistive_tech_experience"], ensure_ascii=False)
+            job["accessibility_focus"] = json.dumps(structured["accessibility_focus"], ensure_ascii=False) if structured["accessibility_focus"] else None
+            job["assistive_tech_experience"] = json.dumps(structured["assistive_tech_experience"], ensure_ascii=False) if structured["assistive_tech_experience"] else None
 
     if "direct_evidence_verified" not in job:
         job["direct_evidence_verified"] = False
@@ -2851,6 +2995,7 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
         # employer/ATS page is verified, use it as the public apply target;
         # the discovery board remains preserved in source_evidence.
         job["source_url"] = job["apply_url"]
+    job["type"] = job.get("employment_type")
     return job
 
 

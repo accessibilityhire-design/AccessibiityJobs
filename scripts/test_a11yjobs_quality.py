@@ -15,6 +15,7 @@ from run_a11yjobs_daily import (
     description_is_clean,
     external_content_matches_job,
     external_content_has_job_detail,
+    external_content_is_closed,
     exclude_post_enrichment_cutoff_rows,
     extract_contact_email,
     extract_external_company_name,
@@ -32,6 +33,7 @@ from run_a11yjobs_daily import (
     parse_jsonld_salary,
     parse_salary,
     reconcile_external_jobposting,
+    reconcile_explicit_external_facts,
     search_alternate_urls,
     trim_legal_boilerplate,
     convert_nan_to_insert_ready,
@@ -533,6 +535,34 @@ Requirements
 
         self.assertIn("web", structured["accessibility_focus"])
         self.assertNotIn("documents", structured["accessibility_focus"])
+        self.assertNotIn("document accessibility", structured["required_skills"])
+
+    def test_document_accessibility_defects_is_not_document_focus(self):
+        source = (
+            "This web QA role tests browser experiences against WCAG. Responsibilities include "
+            "triaging and documenting accessibility defects with remediation guidance."
+        )
+        structured = extract_structured_fields(
+            source,
+            {
+                "key_responsibilities": source,
+                "requirements": "Strong WCAG and web accessibility testing experience.",
+                "nice_to_have": None,
+            },
+        )
+        self.assertIn("web", structured["accessibility_focus"])
+        self.assertNotIn("documents", structured["accessibility_focus"])
+
+    def test_combined_wcag_versions_preserve_latest_stated_version(self):
+        structured = extract_structured_fields(
+            "This role audits web applications against WCAG 2.1/2.2 Level AA.",
+            {
+                "key_responsibilities": "Audit web applications and document defects.",
+                "requirements": "Hands-on WCAG 2.1/2.2 Level AA testing experience.",
+                "nice_to_have": None,
+            },
+        )
+        self.assertEqual(structured["wcag_level"], "wcag-2.2")
 
     def test_direct_page_brand_name_preserves_source_spacing(self):
         self.assertEqual(
@@ -863,6 +893,10 @@ class MultiSourceQualityTests(unittest.TestCase):
         }
         self.assertIsNone(jobspy_record_to_job(record))
 
+    def test_generic_employer_careers_home_is_not_direct_job_evidence(self):
+        self.assertFalse(is_direct_job_url("https://www.example.com/careers/"))
+        self.assertTrue(is_direct_job_url("https://www.example.com/careers/accessibility-engineer-123"))
+
     def test_jobspy_mapping_prefers_direct_employer_url(self):
         description = """We are hiring an Accessibility Engineer to improve inclusive digital products for customers with disabilities. The role owns accessibility quality across our web platform.
 
@@ -894,6 +928,7 @@ Requirements
         assert mapped is not None
         self.assertEqual(mapped["source_url"], "https://careers.example.com/jobs/123")
         self.assertEqual(mapped["job_source"], "indeed")
+        self.assertEqual(mapped["type"], "full-time")
         self.assertIsNone(mapped["contact_email"])
 
     def test_jobspy_mapping_uses_explicit_description_salary_as_fallback(self):
@@ -1131,6 +1166,58 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
     def test_contact_email_ignores_accommodation_only_address(self):
         text = "Contact hiringaccommodation@example.com to request an interview accommodation."
         self.assertIsNone(extract_contact_email(text))
+
+    def test_contact_email_ignores_generic_employer_mailbox(self):
+        text = "For general company information, contact info@example.com."
+        self.assertIsNone(extract_contact_email(text))
+
+    def test_explicit_direct_labels_override_board_classification(self):
+        source = """<html><body><main>
+        Date Posted: 08/05/2026 Hiring Organization: Rose International
+        Job Location: Nashville, TN, USA, 37243 Work Model: Hybrid
+        Employment Type: Temporary FT/PT: Part-Time Estimated Duration (In months): 10
+        Min Hourly Rate($): 50.00 Max Hourly Rate($): 65.00
+        Job Description: This accessibility specialist improves public websites for disabled users.
+        Job Responsibilities: Audit websites against WCAG and remediate barriers with product teams.
+        Required Skills: Three years of accessibility testing and Adobe Experience Manager experience.
+        </main></body></html>"""
+        job = {
+            "title": "Web Accessibility Consultant",
+            "employment_type": "full-time",
+            "type": "full-time",
+            "work_arrangement": "onsite",
+        }
+
+        reconcile_explicit_external_facts(job, source)
+
+        self.assertEqual(job["date_posted"], "2026-08-05")
+        self.assertEqual(job["employment_type"], "contract")
+        self.assertEqual(job["type"], "contract")
+        self.assertEqual(job["work_arrangement"], "hybrid")
+        self.assertEqual(job["salary_min"], 50)
+        self.assertEqual(job["salary_max"], 65)
+        self.assertIsNone(job["currency"])
+        self.assertEqual(job["salary_type"], "hourly")
+        self.assertEqual(job["country"], "US")
+
+    def test_glued_direct_responsibility_headings_are_restored(self):
+        source = """Job Overview: This accessibility website role improves public services for disabled users. The work includes governance and training across several content teams.
+        Job Responsibilities: Website Accessibility Compliance
+        - Audit websites and remediate accessibility issuesContent Refinement and Optimization
+        - Rewrite content for clarity and accessibilityGraphic Design Support
+        - Create accessible visual templatesOnly those lawfully authorized to work in the designated country will be considered."""
+        cleaned = trim_legal_boilerplate(normalize_description_text(source))
+        sections = parse_description_sections(cleaned)
+
+        self.assertIn("**Content Refinement and Optimization**", sections["key_responsibilities"])
+        self.assertIn("**Graphic Design Support**", sections["key_responsibilities"])
+        self.assertNotIn("lawfully authorized", sections["key_responsibilities"])
+
+    def test_closed_employer_page_beats_stale_jobposting(self):
+        content = """<html><body><p>We're sorry, the job you are trying to apply for has been filled.</p>
+        <script type="application/ld+json">{"@type":"JobPosting","title":"Accessibility Manager"}</script>
+        </body></html>"""
+        self.assertTrue(external_content_is_closed(content))
 
     def test_application_shell_is_not_treated_as_job_description(self):
         shell = """<html><body><h1>Begin application - University of Alabama</h1>
