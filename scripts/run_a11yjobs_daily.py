@@ -59,6 +59,7 @@ SOURCE_PRIORITY = {
 JOB_BOARD_HOSTS = {
     "a11yjobs.com",
     "academiccareers.com",
+    "dice.com",
     "edjoin.org",
     "indeed.com",
     "insidehighered.com",

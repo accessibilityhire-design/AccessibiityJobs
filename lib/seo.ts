@@ -48,6 +48,7 @@ function validHttpUrl(value: string | null | undefined): string | undefined {
 
 const JOB_BOARD_HOSTS = new Set([
   'a11yjobs.com',
+  'dice.com',
   'indeed.com',
   'linkedin.com',
   'glassdoor.com',

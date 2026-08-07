@@ -899,6 +899,7 @@ class MultiSourceQualityTests(unittest.TestCase):
 
     def test_generic_employer_careers_home_is_not_direct_job_evidence(self):
         self.assertFalse(is_direct_job_url("https://www.example.com/careers/"))
+        self.assertFalse(is_direct_job_url("https://www.dice.com/job-detail/example"))
         self.assertTrue(is_direct_job_url("https://www.example.com/careers/accessibility-engineer-123"))
 
     def test_jobspy_mapping_prefers_direct_employer_url(self):
