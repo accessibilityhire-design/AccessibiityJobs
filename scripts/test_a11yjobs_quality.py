@@ -26,6 +26,7 @@ from run_a11yjobs_daily import (
     jobspy_record_to_job,
     determine_job_level,
     normalize_description_text,
+    normalize_country_code,
     normalize_employment_type,
     normalize_work_arrangement,
     parse_description_sections,
@@ -43,6 +44,9 @@ from run_a11yjobs_daily import (
 
 
 class DescriptionQualityTests(unittest.TestCase):
+    def test_romanian_country_name_is_normalized_for_jobposting_schema(self):
+        self.assertEqual(normalize_country_code("Romania"), "RO")
+
     def test_em_dashes_are_normalized_for_site_copy(self):
         self.assertEqual(
             normalize_description_text("Accessibility matters—it improves access."),

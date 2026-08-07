@@ -117,6 +117,8 @@ const COUNTRY_ALIASES: Record<string, string> = {
   ph: 'PH',
   sweden: 'SE',
   se: 'SE',
+  romania: 'RO',
+  ro: 'RO',
 };
 
 const US_STATE_CODES = new Set([

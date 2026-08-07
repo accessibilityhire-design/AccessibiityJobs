@@ -118,6 +118,7 @@ COUNTRY_CODE_ALIASES = {
     "ec": "EC", "ecuador": "EC",
     "ph": "PH", "philippines": "PH",
     "se": "SE", "sweden": "SE",
+    "ro": "RO", "romania": "RO",
 }
 
 REQUIRED_FIELDS = [
