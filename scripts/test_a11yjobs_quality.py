@@ -185,6 +185,84 @@ What You'll Bring
         self.assertIn("Improve the accessibility engine", sections["key_responsibilities"])
         self.assertIn("Demonstrated proficiency with C++", sections["requirements"])
 
+    def test_current_direct_source_section_headings_are_classified(self):
+        observed_sources = {
+            "salesforce": """About the Role
+
+This support engineer investigates accessibility barriers for customers and
+works with product teams to improve inclusive experiences across the platform.
+
+Your Impact - Responsibilities:
+
+- Reproduce accessibility issues with screen readers.
+- Document barriers for customers and product teams.
+
+Requirements
+
+- Strong working knowledge of HTML, CSS, and JavaScript.
+- Understanding of WCAG 2.2 and ARIA 1.2.
+""",
+            "reset_health": """About the Role
+
+This QA team member delivers reliable web and mobile software under a regulated
+quality system and helps the team expand responsible automation practices.
+
+### **Roles & Responsibilities**
+
+- Design and execute manual and automated test cases.
+- Track defects through resolution.
+
+Essential
+
+- Commercial web and mobile software testing experience.
+- Experience with test automation frameworks.
+""",
+            "jpmorgan": """About the Role
+
+This accessibility program lead supports product and technology teams with
+program governance, controls, reporting, and accessible delivery initiatives.
+
+Responsibilities
+
+- Develop project execution plans and resolve delivery issues.
+- Report accessibility program status to governance partners.
+
+Required qualifications, capabilities, and skills
+
+- Strong understanding of ADA, Section 508, and WCAG.
+- Experience with controls, risk management, and operations.
+""",
+            "cgi": """About the Role
+
+This accessibility tester evaluates web, mobile, and desktop applications and
+helps engineering teams remediate barriers for people with disabilities.
+
+Responsibilities
+
+- Perform manual and automated accessibility testing.
+- Document defects and remediation recommendations.
+
+Must-Have Skills:
+
+- Strong knowledge of WCAG 2.1 and WCAG 2.2.
+- Experience testing with assistive technologies.
+
+Good-to-Have Skills:
+
+- CPACC or WAS accessibility certification.
+- Experience testing native mobile applications.
+""",
+        }
+
+        sections = {name: parse_description_sections(source) for name, source in observed_sources.items()}
+
+        self.assertIn("Reproduce accessibility issues", sections["salesforce"]["key_responsibilities"])
+        self.assertIn("Design and execute", sections["reset_health"]["key_responsibilities"])
+        self.assertIn("Commercial web and mobile", sections["reset_health"]["requirements"])
+        self.assertIn("Strong understanding of ADA", sections["jpmorgan"]["requirements"])
+        self.assertIn("Strong knowledge of WCAG", sections["cgi"]["requirements"])
+        self.assertIn("CPACC or WAS", sections["cgi"]["nice_to_have"])
+
     def test_amazon_job_section_headings_are_classified(self):
         source = """About the Role
 
@@ -727,6 +805,7 @@ class LocationQualityTests(unittest.TestCase):
             "This position is hybrid, with one day per week in person.",
             "Remote Work Option: Hybrid (May be subject to change)",
             "This is a 6 month hybrid contract opportunity in Phoenix.",
+            "In-office presence is required 3 days per week.",
         ):
             with self.subTest(description=description):
                 self.assertEqual(
@@ -899,6 +978,7 @@ class MultiSourceQualityTests(unittest.TestCase):
 
     def test_generic_employer_careers_home_is_not_direct_job_evidence(self):
         self.assertFalse(is_direct_job_url("https://www.example.com/careers/"))
+        self.assertFalse(is_direct_job_url("https://www.cgi.com/en/careers"))
         self.assertFalse(is_direct_job_url("https://www.dice.com/job-detail/example"))
         self.assertTrue(is_direct_job_url("https://www.example.com/careers/accessibility-engineer-123"))
 
@@ -1021,6 +1101,30 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertEqual(len(consolidated), 1)
         self.assertEqual(consolidated[0]["company"], "Tria Federal")
         self.assertEqual(consolidated[0]["evidence_source_count"], 2)
+        self.assertEqual(len(duplicates), 1)
+
+    def test_same_source_dedupe_collapses_acronym_international_suffix(self):
+        common = {
+            "title": "508 Accessibility Analyst",
+            "description": "Section 508 testing role with document remediation responsibilities. " * 3,
+            "job_source": "a11yjobs",
+            "relevance_score": 10,
+        }
+        short_name = {
+            **common,
+            "company": "CACI",
+            "source_url": "https://www.a11yjobs.com/jobs/caci-short",
+        }
+        legal_name = {
+            **common,
+            "company": "CACI International Inc",
+            "source_url": "https://www.a11yjobs.com/jobs/caci-legal",
+        }
+
+        consolidated, duplicates = consolidate_source_candidates([short_name, legal_name])
+
+        self.assertEqual(len(consolidated), 1)
+        self.assertEqual(consolidated[0]["evidence_source_count"], 1)
         self.assertEqual(len(duplicates), 1)
 
     def test_validation_allows_application_url_without_fabricated_email(self):
@@ -1175,6 +1279,7 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
     def test_contact_email_ignores_generic_employer_mailbox(self):
         text = "For general company information, contact info@example.com."
         self.assertIsNone(extract_contact_email(text))
+        self.assertIsNone(extract_contact_email("For questions, contact Jobs@Stevens.edu."))
 
     def test_explicit_direct_labels_override_board_classification(self):
         source = """<html><body><main>

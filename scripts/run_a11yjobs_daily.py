@@ -282,6 +282,12 @@ def normalize_text(value: str) -> str:
 
 def normalize_company_for_dedupe(value: str) -> str:
     company = clean_text(value)
+    acronym_international = re.fullmatch(
+        r"([A-Z0-9]{2,12})\s+International(?:\s+Inc\.?)?",
+        company,
+    )
+    if acronym_international:
+        return normalize_text(acronym_international.group(1))
     trailing_alias = re.search(r"\s*\(([^()]+)\)\s*$", company)
     if trailing_alias:
         base = company[:trailing_alias.start()]
@@ -384,6 +390,11 @@ def normalize_work_arrangement(
         "model is a blended approach" in description_lower
         and re.search(r"\b(?:office|client site)\b", description_lower)
         and "virtually" in description_lower
+    ):
+        return "hybrid"
+    if re.search(
+        r"\bin[- ]office presence is required\s+[1-4]\s+days? per week\b",
+        description_lower,
     ):
         return "hybrid"
     return "onsite"
@@ -630,6 +641,7 @@ _SECTION_PATTERNS = [
             r"^(?:(?:key job|key|core|primary|role) responsibilities|responsibilities|duties|"
             r"job duties|duties and responsibilities|essential functions|job role and responsibilit(?:y|ies)|"
             r"essential duties(?: and responsibilities)?|job responsibilities|project coordination|your responsibilities|"
+            r"roles?\s*(?:&|and)\s*responsibilities|your impact\s*[-–—]\s*responsibilities|"
             r"website accessibility compliance|content refinement and optimization|website redesign support|"
             r"accessibility training and guidance|governance and review processes|"
             r"user experience \(ux\) enhancement|graphic design support|"
@@ -640,7 +652,9 @@ _SECTION_PATTERNS = [
     (
         "requirements",
         re.compile(
-            r"^(?:requirements?|additional requirements?|qualifications?|basic qualifications?|required qualifications?|must[- ]have qualifications?|"
+            r"^(?:requirements?|additional requirements?|qualifications?|basic qualifications?|"
+            r"required qualifications?(?:,?\s*capabilities?,?\s*(?:and|&)\s*skills?)?|"
+            r"must[- ]have (?:qualifications?|skills?)|essential(?: qualifications?)?|"
             r"minimum qualifications?|required experience(?:\s*/\s*clearance)?|experience required|"
             r"required technical skills?(?:\s*&\s*qualifications?)?|required skills?(?: sets?)?|"
             r"core skills?(?:\s*&\s*knowledge)?|knowledge,? skills?(?:\s*(?:and|&)\s*abilities)?|"
@@ -660,7 +674,7 @@ _SECTION_PATTERNS = [
         re.compile(
             r"^(?:preferred qualifications?|preferred experience|preferred skills?|desired(?: experience)?|"
             r"desirable(?: skills?)?|advantageous|preferred certification|"
-            r"nice[- ]to[- ]have qualifications?|nice to have|bonus points?|a plus)$",
+            r"nice[- ]to[- ]have qualifications?|nice to have|good[- ]to[- ]have skills?|bonus points?|a plus)$",
             re.I,
         ),
     ),
@@ -1379,7 +1393,8 @@ def extract_contact_email(text: str) -> Optional[str]:
         local_part = email.split("@", 1)[0].lower()
         if any(marker in local_part for marker in (
             "accommodation", "no-reply", "noreply", "info", "hello",
-            "support", "admin", "webmaster", "privacy",
+            "support", "admin", "webmaster", "privacy", "jobs", "careers",
+            "recruiting", "recruitment",
         )):
             continue
         match = re.search(re.escape(email), text, re.I)
@@ -2258,9 +2273,13 @@ def is_direct_job_url(url: Optional[str]) -> bool:
         return False
     parsed = urlparse(url)
     generic_path = parsed.path.rstrip("/").lower()
-    if not parsed.query and generic_path in {
-        "", "/career", "/careers", "/job", "/jobs", "/opportunities",
-    }:
+    if not parsed.query and (
+        generic_path == ""
+        or re.fullmatch(
+            r"/(?:[a-z]{2}(?:-[a-z]{2})?/)?(?:careers?|jobs?|opportunities)",
+            generic_path,
+        )
+    ):
         return False
     return True
 
