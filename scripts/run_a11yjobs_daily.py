@@ -68,6 +68,7 @@ JOB_BOARD_HOSTS = {
     "google.com",
     "monster.com",
     "remotive.com",
+    "role.com",
     "simplyhired.com",
     "ziprecruiter.com",
     "haystackapp.io",
@@ -587,7 +588,49 @@ def extract_job_link_hints(soup: BeautifulSoup, today_utc: date) -> Dict[str, Op
 
             if full_url not in links or (links[full_url] is None and hint_date is not None):
                 links[full_url] = hint_date
+
+    # A11yJobs moved its listing cards into an Inertia/React ``data-page``
+    # payload in August 2026. Keep the anchor path above for older responses,
+    # but read the server-rendered payload when physical card links are absent.
+    props = extract_inertia_page_props(soup)
+    jobs = props.get("jobs") if props else None
+    if isinstance(jobs, list):
+        for job in jobs:
+            if not isinstance(job, dict):
+                continue
+            slug = clean_text(str(job.get("hashidslug") or ""))
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*", slug):
+                continue
+            full_url = urljoin(BASE_URL, f"/jobs/{slug}")
+            hint_date = parse_date_text(str(job.get("created_at") or ""))
+            if full_url not in links or (links[full_url] is None and hint_date is not None):
+                links[full_url] = hint_date
     return links
+
+
+def extract_inertia_page_props(soup: BeautifulSoup) -> Dict[str, Any]:
+    app = soup.find(id="app", attrs={"data-page": True})
+    if not app:
+        return {}
+    try:
+        payload = json.loads(html.unescape(str(app.get("data-page") or "")))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    props = payload.get("props") if isinstance(payload, dict) else None
+    return props if isinstance(props, dict) else {}
+
+
+def extract_next_listing_url(soup: BeautifulSoup) -> Optional[str]:
+    next_link = soup.find("a", attrs={"rel": "next"})
+    candidate = next_link.get("href", "") if next_link else ""
+    if not candidate:
+        pagination = extract_inertia_page_props(soup).get("jobsPagination")
+        if isinstance(pagination, dict):
+            candidate = str(pagination.get("next_url") or "")
+    if not candidate:
+        return None
+    resolved = urljoin(BASE_URL, candidate)
+    return resolved if hostname_without_www(resolved) == hostname_without_www(BASE_URL) else None
 
 
 def extract_label_value(soup: BeautifulSoup, label_regex: str) -> Optional[str]:
@@ -631,7 +674,8 @@ _SECTION_PATTERNS = [
         "overview",
         re.compile(
             r"^(?:about (?:the )?(?:role|opportunity)|job description|job summary|position summary|role summary|overview|"
-            r"position summary statement|company description|your opportunity|your role|the role|job overview|we are looking for)$",
+            r"position summary statement|company description|your opportunity|your role|the role|job overview|"
+            r"about this team and role|we are looking for)$",
             re.I,
         ),
     ),
@@ -665,7 +709,7 @@ _SECTION_PATTERNS = [
             r"minimum education\s*(?:&|and)\s*experience|"
             r"tools?\s*&\s*technologies|your education|what you['’]?ll need|what you will need|"
             r"what you['’]?ll bring|what you will bring|what you bring|"
-            r"who you are|what we['’]?re looking for|what we are looking for|required)$",
+            r"who you are|about you|what we['’]?re looking for|what we are looking for|required)$",
             re.I,
         ),
     ),
@@ -688,6 +732,7 @@ _SECTION_PATTERNS = [
             r"travel expectations?|hiring journey|hiring process|application process|posting end date|"
             r"company snapshot|our core principles|use of ai in hiring|seniority level|employment type|why [A-Za-z0-9&.' -]{2,80}\??|"
             r"job function|industries|we value equal opportunity|applicants with disabilities|"
+            r"about royal london|inclusion,? diversity and belonging|"
             r"drug and alcohol policy|equal opportunity employer|eeo statement)$",
             re.I,
         ),
@@ -727,7 +772,7 @@ def _split_glued_heading(value: str) -> List[str]:
     This repairs a common LinkedIn-derived artifact without guessing that
     every bold phrase is a section boundary.
     """
-    match = re.match(r"^(\s*(?:#{1,6}\s*)?\*{2,}(.{2,100}?)\*{2,})(\S.*)$", value)
+    match = re.match(r"^(\s*(?:#{1,6}\s*)?\*{2,}(.{2,100}?)\*{2,})(\s*\S.*)$", value)
     if not match or not _section_category(match.group(2)):
         return [value]
     remainder = match.group(3).strip()
@@ -938,6 +983,12 @@ def parse_description_sections(description: str) -> Dict[str, Optional[str]]:
                 active = "ignore"
                 continue
             if category == "overview":
+                if (
+                    _plain_markdown(line).lower() == "about the role"
+                    and len(_plain_markdown("\n".join(buckets["overview"]))) >= 100
+                ):
+                    active = "responsibilities"
+                    continue
                 # Preamble before an explicit role overview is usually the
                 # duplicate title/location card or generic company marketing.
                 # Prefer the role-specific overview that follows the header.
@@ -1744,7 +1795,23 @@ def normalize_external_content(text: str) -> str:
         soup = BeautifulSoup(text, "html.parser")
         for tag in soup(["script", "style", "noscript"]):
             tag.decompose()
-        visible_text = normalize_description_text(soup.get_text("\n", strip=True))
+        # SuccessFactors and similar ATS pages mark the authoritative role body
+        # even when they omit JobPosting JSON-LD. Preserve its headings and
+        # list items instead of flattening them into surrounding page chrome.
+        job_body = soup.find(attrs={"itemprop": "description"})
+        if job_body:
+            fragment = BeautifulSoup(str(job_body), "html.parser")
+            for heading in fragment.find_all(re.compile(r"^h[1-6]$")):
+                label = clean_text(heading.get_text(" ", strip=True))
+                heading.replace_with(f"\n**{label}**\n" if label else "\n")
+            for item in fragment.find_all("li"):
+                label = clean_text(item.get_text(" ", strip=True))
+                item.replace_with(f"\n- {label}\n" if label else "\n")
+            for br in fragment.find_all("br"):
+                br.replace_with("\n")
+            visible_text = normalize_description_text(fragment.get_text("\n", strip=True))
+        else:
+            visible_text = normalize_description_text(soup.get_text("\n", strip=True))
         if len(visible_text) >= 200:
             text = visible_text
         else:
@@ -3259,10 +3326,11 @@ def main() -> int:
     if soup:
         job_link_hints = extract_job_link_hints(soup, today_utc)
 
-        next_link = soup.find("a", attrs={"rel": "next"})
+        next_url = extract_next_listing_url(soup)
         page_count = 1
-        while next_link and page_count < 5:
-            next_url = urljoin(BASE_URL, next_link.get("href", ""))
+        visited_pages = {LIST_URL}
+        while next_url and next_url not in visited_pages and page_count < 5:
+            visited_pages.add(next_url)
             next_soup = fetch_page(session, next_url)
             if not next_soup:
                 source_errors.append(f"a11yjobs page {page_count + 1} could not be fetched")
@@ -3271,7 +3339,7 @@ def main() -> int:
             for link, hint_date in next_hints.items():
                 if link not in job_link_hints or (job_link_hints[link] is None and hint_date is not None):
                     job_link_hints[link] = hint_date
-            next_link = next_soup.find("a", attrs={"rel": "next"})
+            next_url = extract_next_listing_url(next_soup)
             page_count += 1
     else:
         source_errors.append("a11yjobs listing page could not be fetched")

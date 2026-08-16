@@ -19,7 +19,9 @@ from run_a11yjobs_daily import (
     exclude_post_enrichment_cutoff_rows,
     extract_contact_email,
     extract_external_company_name,
+    extract_job_link_hints,
     extract_jsonld_jobposting,
+    extract_next_listing_url,
     fetch_external_text,
     enrich_job,
     is_direct_job_url,
@@ -28,6 +30,7 @@ from run_a11yjobs_daily import (
     normalize_description_text,
     normalize_country_code,
     normalize_employment_type,
+    normalize_external_content,
     normalize_work_arrangement,
     parse_description_sections,
     parse_location_fields,
@@ -44,6 +47,71 @@ from run_a11yjobs_daily import (
 
 
 class DescriptionQualityTests(unittest.TestCase):
+    def test_inertia_listing_payload_exposes_jobs_and_pagination(self):
+        payload = {
+            "component": "welcome",
+            "props": {
+                "jobs": [{
+                    "hashidslug": "accessibility-specialist-example-AbC12",
+                    "created_at": "2026-08-16T12:35:02.000000Z",
+                }],
+                "jobsPagination": {"next_url": "https://www.a11yjobs.com?page=2"},
+            },
+        }
+        encoded_payload = json.dumps(payload).replace('"', "&quot;")
+        soup = BeautifulSoup(
+            f'<div id="app" data-page="{encoded_payload}"></div>',
+            "html.parser",
+        )
+
+        self.assertEqual(
+            extract_job_link_hints(soup, date(2026, 8, 17)),
+            {
+                "https://www.a11yjobs.com/jobs/accessibility-specialist-example-AbC12":
+                    date(2026, 8, 16),
+            },
+        )
+        self.assertEqual(
+            extract_next_listing_url(soup),
+            "https://www.a11yjobs.com?page=2",
+        )
+
+    def test_successfactors_itemprop_body_preserves_sections(self):
+        source = """
+        <html><body><nav>Careers navigation</nav>
+        <span itemprop="description">
+          <p>This specialist shapes accessible digital products across several delivery teams and customer journeys.</p>
+          <h3>About the role</h3>
+          <ul><li>Lead manual and automated accessibility audits across websites and native applications.</li></ul>
+          <h3>About you</h3>
+          <ul><li>Proven expertise conducting WCAG audits and explaining fixes to technical stakeholders.</li></ul>
+          <h3>About Royal London</h3><p>Generic employer profile.</p>
+        </span></body></html>
+        """
+
+        sections = parse_description_sections(normalize_external_content(source))
+
+        self.assertIn("shapes accessible digital products", sections["description"])
+        self.assertIn("Lead manual", sections["key_responsibilities"])
+        self.assertIn("Proven expertise", sections["requirements"])
+        self.assertNotIn("Generic employer profile", sections["requirements"])
+
+    def test_mozilla_team_heading_restores_overview_before_role_sections(self):
+        source = """**Why Mozilla?**
+        Generic employer profile that should not become the role overview.
+        **About This Team And Role** The Accessibility Team improves the browser engine for people using assistive technology around the world.
+        **What You’ll Do**
+        - Improve the architecture and correctness of the core accessibility engine.
+        **What You'll Bring**
+        - Demonstrated proficiency with C++ and knowledge of web accessibility.
+        """
+
+        sections = parse_description_sections(source)
+
+        self.assertIn("Accessibility Team", sections["description"])
+        self.assertIn("Improve the architecture", sections["key_responsibilities"])
+        self.assertIn("Demonstrated proficiency", sections["requirements"])
+
     def test_romanian_country_name_is_normalized_for_jobposting_schema(self):
         self.assertEqual(normalize_country_code("Romania"), "RO")
 
@@ -980,6 +1048,7 @@ class MultiSourceQualityTests(unittest.TestCase):
         self.assertFalse(is_direct_job_url("https://www.example.com/careers/"))
         self.assertFalse(is_direct_job_url("https://www.cgi.com/en/careers"))
         self.assertFalse(is_direct_job_url("https://www.dice.com/job-detail/example"))
+        self.assertFalse(is_direct_job_url("https://role.com/jobs/associate-director-accessibility-46988381"))
         self.assertTrue(is_direct_job_url("https://www.example.com/careers/accessibility-engineer-123"))
 
     def test_jobspy_mapping_prefers_direct_employer_url(self):
