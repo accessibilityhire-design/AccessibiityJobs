@@ -33,6 +33,7 @@ from run_a11yjobs_daily import (
     normalize_external_content,
     normalize_work_arrangement,
     parse_description_sections,
+    parse_job_detail,
     parse_location_fields,
     parse_jsonld_salary,
     parse_salary,
@@ -75,6 +76,57 @@ class DescriptionQualityTests(unittest.TestCase):
             extract_next_listing_url(soup),
             "https://www.a11yjobs.com?page=2",
         )
+
+    def test_inertia_job_detail_payload_is_parsed_without_visible_markup(self):
+        payload = {
+            "component": "jobs/show",
+            "props": {
+                "job": {
+                    "title": "Accessibility Engineer",
+                    "description": """Example University is hiring an accessibility engineer to improve inclusive digital services for disabled users.
+
+**Responsibilities**
+
+- Test websites with assistive technology and document remediation guidance.
+
+**Requirements**
+
+- Demonstrated knowledge of WCAG, ARIA, and semantic HTML.
+""",
+                    "type": 1,
+                    "location": "hybrid",
+                    "city": "Toronto, Ontario, Canada",
+                    "country": "CA",
+                    "status": "published",
+                    "completed": None,
+                    "deleted_at": None,
+                    "created_at": "2026-08-16T12:35:02.000000Z",
+                    "application_deadline": "2026-09-30T00:00:00.000000Z",
+                    "company": {"name": "Example University"},
+                }
+            },
+        }
+        encoded = json.dumps(payload).replace('"', "&quot;")
+        response = Mock(
+            status_code=200,
+            text=f'<html><body><div id="app" data-page="{encoded}"></div></body></html>',
+        )
+        response.content = response.text.encode()
+        response.raise_for_status.return_value = None
+        session = Mock()
+        session.get.return_value = response
+        url = "https://www.a11yjobs.com/jobs/accessibility-engineer-example-ABC12"
+
+        job = parse_job_detail(session, url)
+
+        self.assertEqual(job["title"], "Accessibility Engineer")
+        self.assertEqual(job["company"], "Example University")
+        self.assertEqual(job["date_posted"], "2026-08-16")
+        self.assertEqual(job["employment_type"], "full-time")
+        self.assertEqual(job["work_arrangement"], "hybrid")
+        self.assertEqual(job["city"], "Toronto")
+        self.assertEqual(job["country"], "CA")
+        self.assertEqual(job["apply_url"], url + "/apply")
 
     def test_successfactors_itemprop_body_preserves_sections(self):
         source = """
@@ -429,6 +481,57 @@ Contact the recruitment team if you need an adjustment.
         self.assertNotIn("superannuation", sections["requirements"])
         self.assertNotIn("How to apply", sections["requirements"])
         self.assertNotIn("recruitment team", sections["requirements"])
+
+    def test_requirements_stop_before_greenhouse_benefits_and_company_copy(self):
+        source = """About this team and role
+
+This accessibility engineering role improves the browser engine for people
+who use assistive technologies across operating systems.
+
+What You'll Do
+
+- Improve the accessibility engine and collaborate with platform engineers.
+
+What You'll Bring
+
+- Demonstrated C++ proficiency and knowledge of ARIA.
+
+What You'll Get
+
+- Rich medical, dental, and vision coverage.
+
+About Us
+
+The employer builds products used by people around the world.
+"""
+        sections = parse_description_sections(source)
+
+        self.assertIn("Demonstrated C++ proficiency", sections["requirements"])
+        self.assertNotIn("medical", sections["requirements"])
+        self.assertNotIn("About Us", sections["requirements"])
+
+    def test_grouped_and_uk_benefits_are_source_backed(self):
+        source = """Rich medical, dental, and vision coverage. Generous retirement
+        contributions, an annual professional development budget, considerable paid
+        parental leave, 28 days annual leave, and a pension scheme."""
+        structured = extract_structured_fields(source, {
+            "key_responsibilities": "",
+            "requirements": REQUIREMENTS_FALLBACK,
+            "nice_to_have": None,
+        })
+
+        self.assertEqual(structured["benefits"], [
+            "Health coverage",
+            "Dental insurance",
+            "Vision insurance",
+            "Retirement plan",
+            "Paid time off",
+            "Parental leave",
+            "Professional development",
+        ])
+        self.assertTrue(structured["benefit_flags"]["health_insurance"])
+        self.assertTrue(structured["benefit_flags"]["retirement"])
+        self.assertTrue(structured["benefit_flags"]["professional_development"])
 
     def test_desired_and_additional_requirements_are_classified_without_keywords(self):
         sections = parse_description_sections("""About the Opportunity
@@ -1293,6 +1396,86 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertTrue(enriched["direct_evidence_verified"])
         self.assertEqual(enriched["source_url"], ats_url)
 
+    def test_greenhouse_location_disagreement_rejects_direct_evidence(self):
+        ats_url = "https://job-boards.greenhouse.io/example/jobs/123"
+        ats_page = """<html><body>
+        <div class="job__title"><h1>Accessibility Engineer</h1>
+        <div class="job__location">Remote US</div></div>
+        <p>Example Company is hiring an Accessibility Engineer to test products
+        with WCAG and assistive technology. Responsibilities include manual audits,
+        engineering collaboration, and documented remediation guidance.</p>
+        </body></html>"""
+        response = Mock(status_code=200, text=ats_page, url=ats_url)
+        session = Mock()
+        session.get.return_value = response
+        job = {
+            "title": "Accessibility Engineer",
+            "company": "Example Company",
+            "country": "CA",
+            "location": "Toronto, Ontario, Canada",
+            "work_arrangement": "onsite",
+            "source_url": "https://www.linkedin.com/jobs/view/123",
+            "apply_url": ats_url,
+            "description": "A" * 120,
+            "key_responsibilities": "Test accessible products.",
+            "requirements": "Know WCAG.",
+        }
+
+        enriched = enrich_job(session, job)
+
+        self.assertFalse(enriched["direct_evidence_verified"])
+        self.assertIn("Remote US", enriched["evidence_conflicts"][0])
+        self.assertEqual(enriched["country"], "CA")
+        self.assertEqual(enriched["work_arrangement"], "onsite")
+
+    def test_greenhouse_remote_location_reconciles_matching_country(self):
+        job = {
+            "title": "Accessibility Engineer",
+            "country": "CA",
+            "city": "Toronto",
+            "location": "Toronto, Ontario, Canada",
+            "specific_location": "Toronto, Ontario, Canada",
+            "work_arrangement": "onsite",
+        }
+        source = """<html><body><div class="job__location">Remote Canada</div>
+        <p>An accessibility engineering role with WCAG responsibilities and
+        qualifications for assistive technology testing.</p></body></html>"""
+
+        conflicts = reconcile_explicit_external_facts(job, source)
+
+        self.assertEqual(conflicts, [])
+        self.assertEqual(job["work_arrangement"], "remote")
+        self.assertEqual(job["location"], "Remote Canada")
+        self.assertIsNone(job["city"])
+        self.assertEqual(job["country"], "CA")
+
+    def test_oracle_metadata_shell_is_not_verified_direct_evidence(self):
+        ats_url = "https://example.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/123"
+        ats_page = """<html><head>
+        <meta property="og:title" content="Accessibility Specialist" />
+        <meta property="og:description" content="Example Company accessibility role." />
+        </head><body><footer>Example Company careers privacy and legal links.</footer></body></html>"""
+        response = Mock(status_code=200, text=ats_page, url=ats_url)
+        session = Mock()
+        session.get.return_value = response
+        job = {
+            "title": "Accessibility Specialist",
+            "company": "Example Company",
+            "country": "GB",
+            "location": "London, United Kingdom",
+            "work_arrangement": "onsite",
+            "source_url": "https://www.linkedin.com/jobs/view/123",
+            "apply_url": ats_url,
+            "description": "A" * 120,
+            "key_responsibilities": "Test accessible products.",
+            "requirements": "Know WCAG.",
+        }
+
+        enriched = enrich_job(session, job)
+
+        self.assertFalse(enriched["direct_evidence_verified"])
+        self.assertIn("lacks a live job description", enriched["evidence_conflicts"][0])
+
     def test_board_apply_page_does_not_prevent_direct_ats_discovery(self):
         board_url = "https://www.linkedin.com/jobs/view/123"
         ats_url = "https://www.governmentjobs.com/jobs/456/accessibility-specialist"
@@ -1403,6 +1586,19 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         <p>Email address:</p><p>New applicants: use the same email address.</p>
         <p>Existing applicants: sign in to apply and continue.</p></body></html>"""
         self.assertFalse(external_content_has_job_detail(shell))
+
+    def test_greenhouse_what_you_do_and_bring_is_job_detail(self):
+        content = """<html><body><main>
+        <h1>Accessibility Engineer</h1>
+        <p>This source-backed accessibility role improves browser support for disabled users
+        across operating systems and web applications while collaborating with platform teams.</p>
+        <h2>What You’ll Do</h2><p>Improve accessibility engine architecture, write tests,
+        debug platform issues, and document remediation guidance for engineering teams.</p>
+        <h2>What You’ll Bring</h2><p>Knowledge of ARIA and assistive technology plus
+        experience writing and debugging cross-platform application code.</p>
+        </main></body></html>"""
+
+        self.assertTrue(external_content_has_job_detail(content))
 
     def test_direct_jobposting_reconciles_employer_facts(self):
         job = {

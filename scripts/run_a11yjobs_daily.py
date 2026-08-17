@@ -725,14 +725,14 @@ _SECTION_PATTERNS = [
     (
         "ignore",
         re.compile(
-            r"^(?:benefits?|why join (?:us|our team)|what we offer|compensation|salary|pay range|location|keywords|"
+            r"^(?:benefits?|why join (?:us|our team)|what we offer|what you['’]?ll get|compensation|salary|pay range|location|keywords|"
             r"what['’]?s in it for you\??|impact you['’]?ll make|how to apply|accessibility and inclusion|"
             r"be more|"
             r"pre-employment checks|sponsorship\s*/\s*work rights(?: for .+)?|"
             r"travel expectations?|hiring journey|hiring process|application process|posting end date|"
             r"company snapshot|our core principles|use of ai in hiring|seniority level|employment type|why [A-Za-z0-9&.' -]{2,80}\??|"
             r"job function|industries|we value equal opportunity|applicants with disabilities|"
-            r"about royal london|inclusion,? diversity and belonging|"
+            r"about us|about the team|about royal london|inclusion,? diversity and belonging|"
             r"drug and alcohol policy|equal opportunity employer|eeo statement)$",
             re.I,
         ),
@@ -1537,12 +1537,13 @@ def extract_preferred_certifications(text: str) -> List[str]:
 
 
 _BENEFIT_KEYWORDS = [
-    ("Health coverage", re.compile(r"health (?:insurance|coverage|benefits)|medical (?:insurance|coverage)|HMO coverage", re.I), "health_insurance"),
-    ("Dental insurance", re.compile(r"dental (?:insurance|coverage|benefits)", re.I), None),
+    ("Health coverage", re.compile(r"health (?:insurance|coverage|benefits)|medical(?: (?:insurance|coverage)|(?=.{0,30}\bcoverage\b))|HMO coverage", re.I), "health_insurance"),
+    ("Dental insurance", re.compile(r"dental(?: (?:insurance|coverage|benefits)|(?=.{0,20}\bcoverage\b))", re.I), None),
     ("Vision insurance", re.compile(r"vision (?:insurance|coverage|benefits)", re.I), None),
-    ("Retirement plan", re.compile(r"401\(?k\)?|retirement plan", re.I), "retirement"),
-    ("Paid time off", re.compile(r"paid time off|\bPTO\b|paid vacation", re.I), None),
+    ("Retirement plan", re.compile(r"401\(?k\)?|retirement (?:plan|contributions?)|pension scheme", re.I), "retirement"),
+    ("Paid time off", re.compile(r"paid time off|\bPTO\b|paid vacation|\b\d+ days annual leave\b", re.I), None),
     ("Parental leave", re.compile(r"parental leave|family leave", re.I), None),
+    ("Professional development", re.compile(r"professional development (?:budget|allowance|fund)", re.I), "professional_development"),
     ("Stock/equity", re.compile(r"stock (grant|purchase|option)|equity compensation", re.I), None),
     ("Tuition assistance", re.compile(r"tuition (assistance|reimbursement)|college coaching", re.I), "professional_development"),
     ("Wellness programs", re.compile(r"wellness program|mental health support", re.I), None),
@@ -2107,6 +2108,41 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
         return None
 
     jsonld = extract_jsonld_jobposting(soup) or {}
+    inertia_job = extract_inertia_page_props(soup).get("job")
+    if isinstance(inertia_job, dict):
+        if (
+            str(inertia_job.get("status") or "").lower() != "published"
+            or inertia_job.get("deleted_at")
+            or inertia_job.get("completed") is True
+        ):
+            return None
+        company_value = inertia_job.get("company")
+        company_name = (
+            clean_text(str(company_value.get("name") or ""))
+            if isinstance(company_value, dict)
+            else ""
+        )
+        jsonld = {
+            **jsonld,
+            "title": inertia_job.get("title") or jsonld.get("title"),
+            "description": inertia_job.get("description") or jsonld.get("description"),
+            "datePosted": inertia_job.get("created_at") or jsonld.get("datePosted"),
+            "validThrough": inertia_job.get("application_deadline") or jsonld.get("validThrough"),
+            "hiringOrganization": {"@type": "Organization", "name": company_name},
+            "employmentType": {
+                1: "FULL_TIME",
+                2: "PART_TIME",
+                3: "CONTRACTOR",
+                4: "OTHER",
+                5: "INTERN",
+                6: "TEMPORARY",
+            }.get(inertia_job.get("type")),
+            "jobLocationType": (
+                "TELECOMMUTE"
+                if str(inertia_job.get("location") or "").lower() == "remote"
+                else None
+            ),
+        }
 
     title_elem = soup.find("h1") or soup.find("h2") or soup.find("title")
     title = jsonld.get("title") or (title_elem.get_text(strip=True) if title_elem else "")
@@ -2123,7 +2159,11 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
         company = extract_label_value(soup, r"company") or extract_label_value(soup, r"organization") or ""
     company = html.unescape(company).strip()
 
-    location_text = extract_label_value(soup, r"location") or ""
+    location_text = (
+        clean_text(str(inertia_job.get("city") or ""))
+        if isinstance(inertia_job, dict)
+        else extract_label_value(soup, r"location") or ""
+    )
     jsonld_city = None
     jsonld_region = None
     jsonld_country = None
@@ -2143,6 +2183,10 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
                 if parsed_location:
                     location_text = parsed_location
                     break
+    if isinstance(inertia_job, dict):
+        jsonld_city = location_text.split(",", 1)[0].strip() or None
+        jsonld_region = None
+        jsonld_country = clean_optional_text(inertia_job.get("country"))
 
     employment_raw = jsonld.get("employmentType") or extract_label_value(soup, r"job type") or ""
     if isinstance(employment_raw, list):
@@ -2165,7 +2209,11 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     salary_text = extract_salary_text(soup)
 
     apply_url = extract_apply_url(soup, url, jsonld)
+    if not apply_url and isinstance(inertia_job, dict):
+        apply_url = url.rstrip("/") + "/apply"
     description = extract_best_description(soup, jsonld)
+    if isinstance(inertia_job, dict) and not salary_text:
+        salary_text = description
     employment_type = normalize_employment_type(str(employment_raw), title, description)
     work_arrangement = normalize_work_arrangement(
         location_text,
@@ -2173,6 +2221,13 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
         description,
         str(jsonld.get("jobLocationType") or ""),
     )
+    if isinstance(inertia_job, dict):
+        work_arrangement = {
+            "remote": "remote",
+            "hybrid": "hybrid",
+            "on-site": "onsite",
+            "onsite": "onsite",
+        }.get(str(inertia_job.get("location") or "").lower(), work_arrangement)
 
     # The visible description/responsibilities/requirements DO drop the
     # universal trailing EEO/legal boilerplate because it carries no decision
@@ -2749,6 +2804,8 @@ def external_content_has_job_detail(
         "position overview",
         "what you'll do",
         "what you’ll do",
+        "what you'll bring",
+        "what you’ll bring",
         "experience required",
         "wcag",
         "section 508",
@@ -2775,11 +2832,43 @@ def external_content_is_closed(content: str) -> bool:
     ))
 
 
-def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> None:
+def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List[str]:
     """Apply labeled facts from direct pages that omit JobPosting JSON-LD."""
+    conflicts: List[str] = []
+    soup = BeautifulSoup(content, "html.parser")
+    greenhouse_location = soup.select_one(".job__location")
+    if greenhouse_location:
+        direct_location = clean_text(greenhouse_location.get_text(" ", strip=True))
+        if direct_location:
+            country_location = re.sub(r"^remote\s*", "", direct_location, flags=re.I)
+            direct_city, direct_country = parse_location_fields(country_location)
+            if re.match(r"^remote\b", direct_location, re.I):
+                direct_city = None
+            current_country = clean_optional_text(job.get("country"))
+            if (
+                current_country
+                and direct_country
+                and direct_country in set(COUNTRY_CODE_ALIASES.values())
+                and current_country != direct_country
+            ):
+                conflicts.append(
+                    f"Direct Greenhouse location disagrees with source country: {direct_location}"
+                )
+            else:
+                job["location"] = direct_location
+                job["specific_location"] = direct_location
+                job["city"] = direct_city
+                if direct_country in set(COUNTRY_CODE_ALIASES.values()):
+                    job["country"] = direct_country
+                job["work_arrangement"] = normalize_work_arrangement(
+                    direct_location,
+                    str(job.get("title") or ""),
+                    "",
+                )
+
     visible = _plain_markdown(normalize_external_content(content))
     if not visible:
-        return
+        return conflicts
 
     posted_match = re.search(r"\bDate Posted\s*:\s*(\d{1,2}/\d{1,2}/\d{4})\b", visible, re.I)
     posted = parse_date_text(posted_match.group(1)) if posted_match else None
@@ -2836,6 +2925,8 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> None
             job["currency"] = None
             job["salary_type"] = "hourly"
             job["salary_range"] = format_salary_evidence(minimum, maximum, None, "hourly")
+
+    return conflicts
 
 
 def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -> List[str]:
@@ -3000,7 +3091,11 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
     if content:
         external_jsonld = extract_external_jobposting(content)
         conflicts = reconcile_external_jobposting(job, external_jsonld) if external_jsonld else []
-        reconcile_explicit_external_facts(job, content)
+        conflicts.extend(reconcile_explicit_external_facts(job, content))
+        has_job_detail = external_content_has_job_detail(content, external_jsonld)
+        evidence_host = hostname_without_www(job.get("apply_url"))
+        if evidence_host.endswith("fa.oraclecloud.com") and not has_job_detail:
+            conflicts.append("Direct Oracle ATS page lacks a live job description")
         if external_content_is_closed(content):
             conflicts.append("Direct employer or ATS page says the job is closed")
         if conflicts:
@@ -3019,7 +3114,6 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
             content,
         )
 
-        has_job_detail = external_content_has_job_detail(content, external_jsonld)
         structured_description = ""
         if external_jsonld:
             structured_description = normalize_description_text(
@@ -3047,16 +3141,18 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
                 job["currency"] = currency
                 job["salary_type"] = salary_type
         structured = extract_structured_fields(content, external_sections)
-        if not job.get("benefits"):
-            benefits_list = structured["benefits"]
-            benefit_flags = structured["benefit_flags"]
+        benefits_list = structured["benefits"]
+        benefit_flags = structured["benefit_flags"]
+        if benefits_list and source_used in {"direct", "jina"}:
+            job["benefits"] = json.dumps(benefits_list, ensure_ascii=False)
+        elif not job.get("benefits"):
             job["benefits"] = json.dumps(benefits_list, ensure_ascii=False) if benefits_list else None
-            if benefit_flags.get("health_insurance") and not job.get("health_insurance"):
-                job["health_insurance"] = True
-            if benefit_flags.get("retirement") and not job.get("retirement"):
-                job["retirement"] = True
-            if benefit_flags.get("professional_development") and not job.get("professional_development"):
-                job["professional_development"] = True
+        if benefit_flags.get("health_insurance") and not job.get("health_insurance"):
+            job["health_insurance"] = True
+        if benefit_flags.get("retirement") and not job.get("retirement"):
+            job["retirement"] = True
+        if benefit_flags.get("professional_development") and not job.get("professional_development"):
+            job["professional_development"] = True
         if has_job_detail and external_sections_are_complete:
             items = structured["required_skills"]
             preferred_items = structured["preferred_skills"]
