@@ -1344,6 +1344,11 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         }
         self.assertEqual(validate_record(record), [])
 
+    def test_workopolis_search_page_is_not_direct_employer_evidence(self):
+        self.assertFalse(
+            is_direct_job_url("https://www.workopolis.com/search?q=accessibility")
+        )
+
     def test_external_evidence_must_match_title_and_company(self):
         job = {"title": "Accessibility Engineer", "company": "Example Company"}
         matching = "Example Company is hiring an Accessibility Engineer to lead WCAG and screen reader testing."

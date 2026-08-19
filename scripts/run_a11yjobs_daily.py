@@ -70,6 +70,7 @@ JOB_BOARD_HOSTS = {
     "remotive.com",
     "role.com",
     "simplyhired.com",
+    "workopolis.com",
     "ziprecruiter.com",
     "haystackapp.io",
     "jobmesh.io",
