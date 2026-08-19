@@ -726,6 +726,7 @@ _SECTION_PATTERNS = [
         "ignore",
         re.compile(
             r"^(?:benefits?|why join (?:us|our team)|what we offer|what you['’]?ll get|compensation|salary|pay range|location|keywords|"
+            r"physical demands?|application requirements?|position type\s*(?:&|and)\s*work location|"
             r"what['’]?s in it for you\??|impact you['’]?ll make|how to apply|accessibility and inclusion|"
             r"be more|"
             r"pre-employment checks|sponsorship\s*/\s*work rights(?: for .+)?|"
@@ -1324,6 +1325,8 @@ def has_broken_trailing_fragment(text: str) -> bool:
     if not tail:
         return False
     final_line = _plain_markdown((text or "").splitlines()[-1])
+    if re.search(r"\bfollowing\s*$", tail, re.I):
+        return True
     return len(final_line) < 120 and bool(re.search(
         r"\b(?:is|is an|is a|and|or|with|for|to|including|such as)\s*$",
         final_line,
@@ -1888,6 +1891,11 @@ def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[s
             ),
             None,
         )
+        # The React/Inertia apply page now creates the continuation action on
+        # the client, so the server-rendered HTML can omit the anchor entirely.
+        # The route remains the source-backed canonical redirect.
+        if not go_link and urlparse(resolved_url or url).path.rstrip("/").endswith("/apply"):
+            go_link = (resolved_url or url).rstrip("/") + "/go"
         if go_link:
             external_text, external_url = try_fetch(go_link)
             external_visible = normalize_external_content(external_text) if external_text else ""
@@ -2703,7 +2711,19 @@ def consolidate_source_candidates(jobs: List[Dict[str, Any]]) -> Tuple[List[Dict
     consolidated: List[Dict[str, Any]] = []
     duplicates: List[Dict[str, Any]] = []
     for group in groups.values():
-        ranked = sorted(group, key=candidate_quality_score, reverse=True)
+        # Evidence class must win before incidental completeness. A longer
+        # LinkedIn description must not displace a direct employer/ATS row or
+        # the curated A11yJobs copy, because those sources are the better base
+        # for authoritative dates, work arrangement, and application routes.
+        ranked = sorted(
+            group,
+            key=lambda job: (
+                is_direct_job_url(job.get("source_url")),
+                -SOURCE_PRIORITY.get(str(job.get("job_source") or ""), 20),
+                candidate_quality_score(job),
+            ),
+            reverse=True,
+        )
         winner = dict(ranked[0])
         evidence: List[Dict[str, str]] = []
         seen_evidence = set()
@@ -2969,7 +2989,12 @@ def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -
         external_company = clean_text(
             html.unescape(str(hiring_org.get("name") or ""))
         )
-        if external_company:
+        is_careers_portal_brand = bool(re.search(
+            r"\b(?:careers?|jobs?)\s*$",
+            external_company,
+            re.I,
+        ))
+        if external_company and not is_careers_portal_brand:
             # The verified employer/ATS JobPosting is authoritative. Discovery
             # boards can prepend community or channel labels to the employer
             # name, which must not survive direct-source reconciliation.
@@ -3270,6 +3295,7 @@ def validate_record(record: Dict[str, Any]) -> List[str]:
         ("description", description),
         ("key_responsibilities", key_resp),
         ("requirements", requirements),
+        ("nice_to_have", record.get("nice_to_have") or ""),
     ]:
         if has_adjacent_duplicate_lines(value):
             errors.append(f"{field_name} contains adjacent duplicate lines")

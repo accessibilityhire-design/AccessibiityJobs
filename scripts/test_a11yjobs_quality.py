@@ -1275,6 +1275,33 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertEqual(consolidated[0]["evidence_source_count"], 2)
         self.assertEqual(len(duplicates), 1)
 
+    def test_cross_source_dedupe_prefers_curated_copy_over_longer_board_copy(self):
+        common = {
+            "title": "Accessibility Coordinator",
+            "company": "Example University",
+            "country": "US",
+            "relevance_score": 8,
+        }
+        linkedin = {
+            **common,
+            "job_source": "linkedin",
+            "source_url": "https://www.linkedin.com/jobs/view/123",
+            "description": "A much longer board description. " * 80,
+            "work_arrangement": "remote",
+        }
+        curated = {
+            **common,
+            "job_source": "a11yjobs",
+            "source_url": "https://www.a11yjobs.com/jobs/accessibility-coordinator-example-ABC12",
+            "description": "A curated source-backed description. " * 5,
+            "work_arrangement": "hybrid",
+        }
+
+        consolidated, _ = consolidate_source_candidates([linkedin, curated])
+
+        self.assertEqual(consolidated[0]["job_source"], "a11yjobs")
+        self.assertEqual(consolidated[0]["work_arrangement"], "hybrid")
+
     def test_same_source_dedupe_collapses_acronym_international_suffix(self):
         common = {
             "title": "508 Accessibility Analyst",
@@ -1350,6 +1377,79 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertEqual(text, ats_page)
         self.assertEqual(source, "direct")
         self.assertEqual(resolved_url, "https://job-boards.greenhouse.io/example/jobs/123")
+
+    def test_external_fetch_uses_a11yjobs_apply_go_when_react_omits_anchor(self):
+        apply_url = "https://www.a11yjobs.com/jobs/example/apply"
+        apply_page = (
+            '<html><body><div id="app" data-page="{}"></div>'
+            '<p>Accessibility Engineer at Example Company. This source-backed confirmation '
+            'page explains that applicants continue to the employer system to complete the '
+            'application for this accessibility engineering role.</p></body></html>'
+        )
+        ats_page = (
+            '<html><body><h1>Accessibility Engineer</h1><p>Example Company is hiring an '
+            'accessibility engineer to test web and mobile products with assistive technology. '
+            'Responsibilities include WCAG reviews and documented remediation guidance.</p></body></html>'
+        )
+        apply_response = Mock(status_code=200, text=apply_page, url=apply_url)
+        ats_response = Mock(
+            status_code=200,
+            text=ats_page,
+            url="https://job-boards.greenhouse.io/example/jobs/123",
+        )
+        session = Mock()
+        session.get.side_effect = [apply_response, ats_response]
+
+        text, source, resolved_url = fetch_external_text(session, apply_url)
+
+        self.assertEqual(text, ats_page)
+        self.assertEqual(source, "direct")
+        self.assertEqual(resolved_url, "https://job-boards.greenhouse.io/example/jobs/123")
+        self.assertEqual(session.get.call_args_list[1].args[0], apply_url + "/go")
+
+    def test_validation_rejects_broken_optional_qualification_tail(self):
+        record = {
+            "title": "Accessibility Engineer",
+            "company": "Example Company",
+            "employment_type": "full-time",
+            "work_arrangement": "onsite",
+            "description": "A source-backed accessibility engineering overview with enough detail for applicants to understand the role and team. " * 2,
+            "key_responsibilities": "Test web and mobile interfaces with assistive technology and document remediation guidance for product teams.",
+            "requirements": "Demonstrated knowledge of WCAG, semantic HTML, ARIA, and manual screen-reader testing across production interfaces.",
+            "nice_to_have": "In your cover letter, please respond to one or more of the following:",
+            "source_url": "https://careers.example.com/jobs/123",
+            "status": "approved",
+        }
+
+        self.assertIn("nice_to_have ends with a broken fragment", validate_record(record))
+
+    def test_non_qualification_tail_does_not_leak_into_preferred_section(self):
+        source = """This accessibility specialist supports faculty and staff across digital services, helps teams remove barriers, and builds durable inclusive practices across the organization.
+
+        Responsibilities
+
+        - Review websites and documents and provide practical remediation guidance.
+
+        Requirements
+
+        - Five years of accessibility experience and strong knowledge of WCAG.
+
+        Preferred Qualifications
+
+        - Experience conducting manual testing with assistive technology.
+
+        Physical Demands
+
+        This role requires occasional travel to meetings and extended computer use.
+
+        The hiring range is $80,000-$90,000.
+        """
+
+        sections = parse_description_sections(source)
+
+        self.assertIn("manual testing", sections["nice_to_have"])
+        self.assertNotIn("Physical Demands", sections["nice_to_have"])
+        self.assertNotIn("hiring range", sections["nice_to_have"])
 
     def test_alternate_search_decodes_redirects_and_prefers_direct_ats(self):
         search_page = """<html><body>
@@ -1642,6 +1742,28 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertEqual(job["work_arrangement"], "remote")
         self.assertEqual(job["date_posted"], "2026-07-16")
         self.assertEqual(job["application_deadline"], "2026-10-14T00:00:00Z")
+
+    def test_direct_jobposting_does_not_replace_employer_with_portal_brand(self):
+        job = {
+            "title": "Accessibility Coordinator",
+            "company": "University of Virginia",
+            "employment_type": "full-time",
+            "work_arrangement": "hybrid",
+            "location": "Charlottesville, Virginia",
+        }
+        direct = {
+            "@type": "JobPosting",
+            "title": "Accessibility Coordinator",
+            "hiringOrganization": {
+                "@type": "Organization",
+                "name": "Commonwealth of VA Careers",
+            },
+            "employmentType": "FULL_TIME",
+            "description": "A source-backed accessibility role supporting University of Virginia faculty and staff.",
+        }
+
+        self.assertEqual(reconcile_external_jobposting(job, direct), [])
+        self.assertEqual(job["company"], "University of Virginia")
 
     def test_verified_direct_title_replaces_less_specific_board_title(self):
         job = {
