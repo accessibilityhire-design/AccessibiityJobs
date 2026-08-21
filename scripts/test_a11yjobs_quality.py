@@ -1748,6 +1748,35 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertEqual(job["date_posted"], "2026-07-16")
         self.assertEqual(job["application_deadline"], "2026-10-14T00:00:00Z")
 
+    def test_direct_remote_country_location_preserves_remote_arrangement(self):
+        job = {
+            "title": "Freelance Accessibility Tester",
+            "company": "Example Employer",
+            "employment_type": "freelance",
+            "work_arrangement": "remote",
+            "location": "Republic Of India",
+            "city": "Republic Of India",
+            "country": "IN",
+        }
+        direct = {
+            "@type": "JobPosting",
+            "title": "Freelance Accessibility Tester",
+            "employmentType": "FREELANCE",
+            "jobLocation": {
+                "@type": "Place",
+                "address": {
+                    "@type": "PostalAddress",
+                    "addressLocality": "Remote in India",
+                },
+            },
+            "description": "A source-backed accessibility testing role with WCAG and Section 508 responsibilities.",
+        }
+
+        self.assertEqual(reconcile_external_jobposting(job, direct), [])
+        self.assertEqual(job["work_arrangement"], "remote")
+        self.assertIsNone(job["city"])
+        self.assertEqual(job["country"], "IN")
+
     def test_direct_jobposting_does_not_replace_employer_with_portal_brand(self):
         job = {
             "title": "Accessibility Coordinator",

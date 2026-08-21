@@ -415,6 +415,25 @@ def parse_location_fields(
     jsonld_region: Optional[str] = None,
     jsonld_country: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
+    remote_country_match = re.fullmatch(
+        r"\s*remote\s+in\s+(.+?)\s*",
+        location_text or "",
+        re.I,
+    )
+    structured_city_matches_location = (
+        not jsonld_city
+        or clean_text(str(jsonld_city)).lower() == clean_text(location_text or "").lower()
+    )
+    if (
+        remote_country_match
+        and structured_city_matches_location
+        and not jsonld_region
+        and not jsonld_country
+    ):
+        remote_country = normalize_country_code(remote_country_match.group(1))
+        if remote_country in set(COUNTRY_CODE_ALIASES.values()):
+            return None, remote_country
+
     city = str(jsonld_city).strip() if jsonld_city else None
     if city and "," in city:
         # Some sources place a complete ``city, region`` label in
@@ -3012,13 +3031,6 @@ def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -
         )
         job["type"] = job["employment_type"]
 
-    job["work_arrangement"] = normalize_work_arrangement(
-        str(job.get("location") or ""),
-        external_title or current_title,
-        description,
-        str(jsonld.get("jobLocationType") or ""),
-    )
-
     job_location = jsonld.get("jobLocation")
     locations = job_location if isinstance(job_location, list) else [job_location]
     for location in locations:
@@ -3042,6 +3054,13 @@ def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -
             job["city"] = city
             job["country"] = country
         break
+
+    job["work_arrangement"] = normalize_work_arrangement(
+        str(job.get("location") or ""),
+        external_title or current_title,
+        description,
+        str(jsonld.get("jobLocationType") or ""),
+    )
 
     salary_min, salary_max, currency, salary_type = parse_jsonld_salary(jsonld)
     if not validate_salary(salary_min, salary_max, salary_type) and currency in CURRENCIES:
