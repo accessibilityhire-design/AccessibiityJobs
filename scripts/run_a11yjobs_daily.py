@@ -435,6 +435,8 @@ def parse_location_fields(
             return None, remote_country
 
     city = str(jsonld_city).strip() if jsonld_city else None
+    if city and city.lower() == "remote":
+        city = None
     if city and "," in city:
         # Some sources place a complete ``city, region`` label in
         # addressLocality. Store only the locality; the region remains in the

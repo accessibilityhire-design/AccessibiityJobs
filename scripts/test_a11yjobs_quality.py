@@ -1777,6 +1777,12 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertIsNone(job["city"])
         self.assertEqual(job["country"], "IN")
 
+    def test_remote_label_is_not_stored_as_a_city(self):
+        self.assertEqual(
+            parse_location_fields("Remote", "Remote", None, "United States"),
+            (None, "US"),
+        )
+
     def test_direct_jobposting_does_not_replace_employer_with_portal_brand(self):
         job = {
             "title": "Accessibility Coordinator",
