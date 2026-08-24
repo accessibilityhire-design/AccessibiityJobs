@@ -102,6 +102,7 @@ class DescriptionQualityTests(unittest.TestCase):
                     "deleted_at": None,
                     "created_at": "2026-08-16T12:35:02.000000Z",
                     "application_deadline": "2026-09-30T00:00:00.000000Z",
+                    "has_custom_deadline": False,
                     "company": {"name": "Example University"},
                 }
             },
@@ -127,6 +128,8 @@ class DescriptionQualityTests(unittest.TestCase):
         self.assertEqual(job["city"], "Toronto")
         self.assertEqual(job["country"], "CA")
         self.assertEqual(job["apply_url"], url + "/apply")
+        self.assertIsNone(job["application_deadline"])
+        self.assertIsNone(job["valid_through"])
 
     def test_successfactors_itemprop_body_preserves_sections(self):
         source = """
@@ -1633,6 +1636,13 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         text = "Contact hiringaccommodation@example.com to request an interview accommodation."
         self.assertIsNone(extract_contact_email(text))
 
+        hr_text = (
+            "Federal law requires employers to provide reasonable accommodations. "
+            "Please email humanresources@example.edu if you require a reasonable "
+            "accommodation to apply for a job."
+        )
+        self.assertIsNone(extract_contact_email(hr_text))
+
     def test_contact_email_ignores_generic_employer_mailbox(self):
         text = "For general company information, contact info@example.com."
         self.assertIsNone(extract_contact_email(text))
@@ -1666,6 +1676,67 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertIsNone(job["currency"])
         self.assertEqual(job["salary_type"], "hourly")
         self.assertEqual(job["country"], "US")
+
+    def test_pageup_date_and_location_override_polluted_board_metadata(self):
+        source = """<html><body>
+        <h2>Director of Student Accessibility</h2>
+        <strong>Location:</strong> <span class="location">Moon Campus</span>
+        <p>This director leads disability services and ensures equal access to
+        education programs for students with disabilities across the campus.</p>
+        <h3>Responsibilities</h3><p>Coordinate accommodations and advise faculty.</p>
+        <h3>Minimum Qualifications</h3><p>Experience leading disability services.</p>
+        <p>Exemption Status: Exempt</p>
+        <p>Reasonable Accommodation Notice: Email humanresources@example.edu.</p>
+        <b>Advertised:</b><span class="open-date"><time
+        datetime="2026-08-21T13:00:00Z">August 21, 2026</time></span>
+        </body></html>"""
+        job = {
+            "title": "Director of Student Accessibility",
+            "date_posted": "2026-08-23",
+            "created_at": "2026-08-23T00:00:00Z",
+            "location": "Montreal",
+            "specific_location": "Montreal",
+            "city": "Montreal",
+            "country": "CA",
+            "work_arrangement": "onsite",
+        }
+
+        self.assertEqual(reconcile_explicit_external_facts(job, source), [])
+        self.assertEqual(job["date_posted"], "2026-08-21")
+        self.assertEqual(job["created_at"], "2026-08-21T00:00:00Z")
+        self.assertEqual(job["location"], "Moon Campus")
+        self.assertIsNone(job["city"])
+        self.assertIsNone(job["country"])
+
+        cleaned = trim_legal_boilerplate(normalize_external_content(source))
+        self.assertNotIn("Exemption Status", cleaned)
+        self.assertNotIn("humanresources@example.edu", cleaned)
+
+    def test_smartrecruiters_microdata_overrides_board_posting_date(self):
+        source = """<html><body>
+        <main itemscope itemtype="http://schema.org/JobPosting">
+        <h1 itemprop="title">Accessibility Design Specialist</h1>
+        <spl-job-location formattedAddress="Montreal, QC, Canada"
+        workplaceType="on_site"></spl-job-location>
+        <meta itemprop="datePosted" content="2026-08-21T15:04:16.992Z">
+        <div itemprop="description">This specialist partners with game teams to
+        improve accessibility for disabled players throughout production.</div>
+        </main></body></html>"""
+        job = {
+            "title": "Accessibility Design Specialist",
+            "date_posted": "2026-08-23",
+            "created_at": "2026-08-23T00:00:00Z",
+            "location": "Montreal",
+            "city": "Montreal",
+            "country": "CA",
+            "work_arrangement": "onsite",
+        }
+
+        self.assertEqual(reconcile_explicit_external_facts(job, source), [])
+        self.assertEqual(job["date_posted"], "2026-08-21")
+        self.assertEqual(job["location"], "Montreal, QC, Canada")
+        self.assertEqual(job["city"], "Montreal")
+        self.assertEqual(job["country"], "CA")
 
     def test_glued_direct_responsibility_headings_are_restored(self):
         source = """Job Overview: This accessibility website role improves public services for disabled users. The work includes governance and training across several content teams.

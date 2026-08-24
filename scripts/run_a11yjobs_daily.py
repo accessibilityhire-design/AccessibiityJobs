@@ -1477,6 +1477,8 @@ def extract_contact_email(text: str) -> Optional[str]:
         if not match:
             continue
         context = _plain_markdown(text[max(0, match.start() - 160):match.end() + 160]).lower()
+        if "reasonable accommodation" in context:
+            continue
         if re.search(
             r"\b(?:email|contact|send|submit|questions?|recruiter|hiring manager|apply)\b",
             context,
@@ -1788,6 +1790,8 @@ _LEGAL_BOILERPLATE_MARKERS = [
     re.compile(r"\bEqual Employment Opportunity Employer\b", re.I),
     re.compile(r"\bis an [Ee]qual [Oo]pportunity [Ee]mployer\b"),
     re.compile(r"\bADA Accommodations\b", re.I),
+    re.compile(r"\bExemption Status\s*:", re.I),
+    re.compile(r"\bReasonable Accommodation Notice\s*:", re.I),
     re.compile(r"\bSupplemental Contact Information\b", re.I),
     re.compile(r"\bVeterans[’']? and National Guard Preference\b", re.I),
     re.compile(r"\bApplication Process\b\s*\*\*", re.I),
@@ -2157,7 +2161,11 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
             "title": inertia_job.get("title") or jsonld.get("title"),
             "description": inertia_job.get("description") or jsonld.get("description"),
             "datePosted": inertia_job.get("created_at") or jsonld.get("datePosted"),
-            "validThrough": inertia_job.get("application_deadline") or jsonld.get("validThrough"),
+            "validThrough": (
+                inertia_job.get("application_deadline")
+                if inertia_job.get("has_custom_deadline") is True
+                else None
+            ) or jsonld.get("validThrough"),
             "hiringOrganization": {"@type": "Organization", "name": company_name},
             "employmentType": {
                 1: "FULL_TIME",
@@ -2909,14 +2917,46 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
                 )
 
     visible = _plain_markdown(normalize_external_content(content))
-    if not visible:
-        return conflicts
 
-    posted_match = re.search(r"\bDate Posted\s*:\s*(\d{1,2}/\d{1,2}/\d{4})\b", visible, re.I)
-    posted = parse_date_text(posted_match.group(1)) if posted_match else None
+    posted = None
+    posted_meta = soup.select_one('[itemprop="datePosted"][content]')
+    if posted_meta:
+        posted = parse_date_text(str(posted_meta.get("content") or ""))
+    if not posted:
+        posted_time = soup.select_one(".open-date time[datetime]")
+        if posted_time:
+            posted = parse_date_text(str(posted_time.get("datetime") or ""))
+    if not posted:
+        posted_match = re.search(r"\bDate Posted\s*:\s*(\d{1,2}/\d{1,2}/\d{4})\b", visible, re.I)
+        posted = parse_date_text(posted_match.group(1)) if posted_match else None
     if posted:
         job["date_posted"] = posted.isoformat()
         job["created_at"] = f"{posted.isoformat()}T00:00:00Z"
+
+    direct_location = ""
+    structured_location = soup.select_one("spl-job-location[formattedaddress]")
+    if structured_location:
+        direct_location = clean_text(str(structured_location.get("formattedaddress") or ""))
+    if not direct_location:
+        location_label = soup.find("strong", string=re.compile(r"^\s*Location\s*:\s*$", re.I))
+        location_value = location_label.find_next_sibling("span") if location_label else None
+        if location_value and "location" in (location_value.get("class") or []):
+            direct_location = clean_text(location_value.get_text(" ", strip=True))
+    if direct_location:
+        direct_city, direct_country = parse_location_fields(direct_location)
+        if direct_country not in set(COUNTRY_CODE_ALIASES.values()):
+            direct_country = None
+        if not direct_country and re.search(r"\bcampus\b", direct_location, re.I):
+            direct_city = None
+        job["location"] = direct_location[:255]
+        job["specific_location"] = direct_location[:255]
+        job["city"] = direct_city
+        job["country"] = direct_country
+        job["work_arrangement"] = normalize_work_arrangement(
+            direct_location,
+            str(job.get("title") or ""),
+            visible,
+        )
 
     location_match = re.search(
         r"\bJob Location\s*:\s*(.+?)(?=\s+Work Model\s*:)",
