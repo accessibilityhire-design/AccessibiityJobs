@@ -1352,6 +1352,32 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
             is_direct_job_url("https://www.workopolis.com/search?q=accessibility")
         )
 
+    def test_builtin_listing_is_not_direct_employer_evidence(self):
+        self.assertFalse(
+            is_direct_job_url("https://builtin.com/job/accessibility-testing-expert/10415581")
+        )
+
+    def test_company_age_is_not_candidate_experience(self):
+        source = (
+            "Our firm has over 34 years of experience delivering technical services. "
+            "Candidates need at least 5 years of professional accessibility testing experience."
+        )
+        self.assertEqual(extract_experience(source), "5-7")
+
+    def test_wcag_chain_uses_highest_explicit_version(self):
+        structured = extract_structured_fields(
+            "Test websites against WCAG 2.0/2.1/2.2 standards.",
+            {"key_responsibilities": "Test websites.", "requirements": "Know WCAG."},
+        )
+        self.assertEqual(structured["wcag_level"], "wcag-2.2")
+
+    def test_document_as_verb_does_not_add_document_focus(self):
+        structured = extract_structured_fields(
+            "Document accessibility barriers found while testing websites.",
+            {"key_responsibilities": "Test websites.", "requirements": "Know WCAG."},
+        )
+        self.assertNotIn("documents", structured["accessibility_focus"])
+
     def test_external_evidence_must_match_title_and_company(self):
         job = {"title": "Accessibility Engineer", "company": "Example Company"}
         matching = "Example Company is hiring an Accessibility Engineer to lead WCAG and screen reader testing."
@@ -1676,6 +1702,20 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertIsNone(job["currency"])
         self.assertEqual(job["salary_type"], "hourly")
         self.assertEqual(job["country"], "US")
+
+    def test_icims_experience_label_overrides_company_age(self):
+        source = """<html><body><main>
+        Accessibility Specialist Location US-TX-Austin Job ID 2026-8075
+        Experience (Years) 5 Category Applications/Software Development
+        Allied Consultants has over 34 years of experience delivering services.
+        Responsibilities include remediating documents and training content authors.
+        Qualifications include EIR accessibility and assistive technology experience.
+        </main></body></html>"""
+        job = {"title": "Accessibility Specialist", "years_experience": "10+"}
+
+        reconcile_explicit_external_facts(job, source)
+
+        self.assertEqual(job["years_experience"], "5-7")
 
     def test_pageup_date_and_location_override_polluted_board_metadata(self):
         source = """<html><body>

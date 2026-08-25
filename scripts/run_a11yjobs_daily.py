@@ -59,6 +59,7 @@ SOURCE_PRIORITY = {
 JOB_BOARD_HOSTS = {
     "a11yjobs.com",
     "academiccareers.com",
+    "builtin.com",
     "dice.com",
     "edjoin.org",
     "indeed.com",
@@ -1612,24 +1613,28 @@ def extract_experience(text: str) -> Optional[str]:
     # Require "experience" to follow within a few words. A bare "N years"
     # matches unrelated things like "six years of creditable service" for
     # veteran status, which has nothing to do with the job's experience bar.
-    match = _EXPERIENCE_RE.search(_plain_markdown(text))
-    if not match:
-        return None
-    raw = match.group(1).lower()
-    years = int(raw) if raw.isdigit() else _WORD_NUMBERS.get(raw)
-    if years is None:
-        return None
-    if years <= 1:
-        return "0-1"
-    if years < 3:
-        return "1-3"
-    if years < 5:
-        return "3-5"
-    if years < 7:
-        return "5-7"
-    if years < 10:
-        return "7-10"
-    return "10+"
+    for match in _EXPERIENCE_RE.finditer(_plain_markdown(text)):
+        raw = match.group(1).lower()
+        years = int(raw) if raw.isdigit() else _WORD_NUMBERS.get(raw)
+        if years is None:
+            continue
+        # Employer introductions often say the firm has 25-50 years of
+        # experience. Those values are not plausible candidate requirements;
+        # skip them and continue to the actual qualifications section.
+        if years > 20:
+            continue
+        if years <= 1:
+            return "0-1"
+        if years < 3:
+            return "1-3"
+        if years < 5:
+            return "3-5"
+        if years < 7:
+            return "5-7"
+        if years < 10:
+            return "7-10"
+        return "10+"
+    return None
 
 
 def extract_education(text: str) -> Optional[str]:
@@ -1653,7 +1658,7 @@ _ASSISTIVE_TECH_NAMES = ["JAWS", "NVDA", "VoiceOver", "TalkBack", "ZoomText", "D
 _ACCESSIBILITY_FOCUS_PATTERNS = [
     ("web", re.compile(r"\bweb(?:site| application| content| accessibility)?\b", re.I)),
     ("mobile", re.compile(r"\bmobile\b|\biOS\b|\bAndroid\b", re.I)),
-    ("documents", re.compile(r"\bdocument accessibility\b(?!\s+(?:defects?|issues?|findings?|results?))|\baccessible documents?\b|(?<!design )\bdocuments\b|\bPDFs?\b|\bWord\b|\bPowerPoint\b", re.I)),
+    ("documents", re.compile(r"\bdocument accessibility\b(?!\s+(?:barriers?|defects?|issues?|findings?|results?))|\baccessible documents?\b|(?<!design )\bdocuments\b|\bPDFs?\b|\bWord\b|\bPowerPoint\b", re.I)),
     ("design", re.compile(r"inclusive design|accessible design|\bUX\b|\bUI\b", re.I)),
     ("testing", re.compile(r"accessibility testing|manual testing|automated testing", re.I)),
 ]
@@ -1662,12 +1667,13 @@ _ACCESSIBILITY_FOCUS_PATTERNS = [
 def extract_wcag_level(text: str) -> Optional[str]:
     analysis_text = _plain_markdown(text)
     combined = re.search(
-        r"\bWCAG\s*(2\.[012])\s*(?:/|or)\s*(2\.[012])\b",
+        r"\bWCAG\s*((?:2\.[012])(?:\s*(?:/|,|or)\s*(?:2\.[012]))+)\b",
         analysis_text,
         re.I,
     )
     if combined:
-        return f"wcag-{max(combined.group(1), combined.group(2))}"
+        versions = re.findall(r"2\.[012]", combined.group(1))
+        return f"wcag-{max(versions)}"
     for version in ["3.0", "2.2", "2.1", "2.0"]:
         if re.search(rf"\bWCAG\s*{re.escape(version)}\b", analysis_text, re.I):
             return f"wcag-{version}"
@@ -2918,6 +2924,26 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
 
     visible = _plain_markdown(normalize_external_content(content))
 
+    experience_match = re.search(
+        r"\bExperience\s*\(Years\)\s*:?\s*(\d{1,2})\b",
+        visible,
+        re.I,
+    )
+    if experience_match:
+        years = int(experience_match.group(1))
+        if years <= 1:
+            job["years_experience"] = "0-1"
+        elif years < 3:
+            job["years_experience"] = "1-3"
+        elif years < 5:
+            job["years_experience"] = "3-5"
+        elif years < 7:
+            job["years_experience"] = "5-7"
+        elif years < 10:
+            job["years_experience"] = "7-10"
+        elif years <= 20:
+            job["years_experience"] = "10+"
+
     posted = None
     posted_meta = soup.select_one('[itemprop="datePosted"][content]')
     if posted_meta:
@@ -3249,7 +3275,8 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
             preferred_certs = structured["preferred_certifications"]
             job["required_certifications"] = json.dumps(required_certs, ensure_ascii=False) if required_certs else None
             job["preferred_certifications"] = json.dumps(preferred_certs, ensure_ascii=False) if preferred_certs else None
-            job["years_experience"] = structured["years_experience"]
+            if structured["years_experience"]:
+                job["years_experience"] = structured["years_experience"]
             job["education_level"] = structured["education_level"]
             job["wcag_level"] = structured["wcag_level"]
             job["accessibility_focus"] = json.dumps(structured["accessibility_focus"], ensure_ascii=False) if structured["accessibility_focus"] else None
