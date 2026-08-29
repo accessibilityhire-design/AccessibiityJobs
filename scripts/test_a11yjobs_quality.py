@@ -1778,6 +1778,107 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertEqual(job["city"], "Montreal")
         self.assertEqual(job["country"], "CA")
 
+    def test_smartrecruiters_hybrid_street_address_uses_locality(self):
+        source = """<html><body>
+        <spl-job-location formattedAddress="4 Park Drive, Abingdon, Oxfordshire, United Kingdom"
+        workplaceType="hybrid"></spl-job-location>
+        <meta itemprop="datePosted" content="2026-08-27T08:46:12.556Z">
+        <meta itemprop="validThrough" content="2026-09-11T23:00:00.000Z">
+        <meta itemprop="industry" content="Publishing">
+        <p>This accessibility auditor follows a balanced working model with
+        three days each week in the Milton Park or London office.</p>
+        </body></html>"""
+        job = {
+            "title": "Digital Accessibility Auditor (12 month fixed-term contract or internal secondment)",
+            "location": "London",
+            "city": "London",
+            "country": "GB",
+            "work_arrangement": "onsite",
+        }
+
+        reconcile_explicit_external_facts(job, source)
+
+        self.assertEqual(job["work_arrangement"], "hybrid")
+        self.assertEqual(job["city"], "Abingdon")
+        self.assertEqual(job["country"], "GB")
+        self.assertEqual(job["industry"], "Publishing")
+        self.assertEqual(job["application_deadline"], "2026-09-11T00:00:00Z")
+        self.assertIsNone(determine_job_level(job["title"], source))
+
+    def test_ultipro_embedded_opportunity_overrides_board_date(self):
+        opportunity = json.dumps({
+            "Title": "Disability Specialist",
+            "FullTime": True,
+            "PostedDate": "2026-08-25T20:37:53.017Z",
+            "JobCategoryName": "Student Affairs",
+        })
+        source = (
+            "<html><body><script>var opportunity = new "
+            f"US.Opportunity.CandidateOpportunityDetail({opportunity});"
+            "</script></body></html>"
+        )
+        job = {
+            "title": "Disability Specialist",
+            "date_posted": "2026-08-26",
+            "created_at": "2026-08-26T00:00:00Z",
+            "employment_type": "contract",
+            "type": "contract",
+        }
+
+        reconcile_explicit_external_facts(job, source)
+
+        self.assertEqual(job["date_posted"], "2026-08-25")
+        self.assertEqual(job["created_at"], "2026-08-25T00:00:00Z")
+        self.assertEqual(job["department"], "Student Affairs")
+        self.assertEqual(job["employment_type"], "full-time")
+
+    def test_zoho_embedded_job_reconciles_location_without_guessing_country(self):
+        zoho_record = json.dumps([{
+            "Remote_Job": False,
+            "Posting_Title": "Accessibility Engineer",
+            "Date_Opened": "2026-08-27",
+            "Job_Type": "Permanent",
+            "Location": "Bengaluru",
+            "Job_Description": "Benefits include professional development and training opportunities.",
+        }])
+        encoded = zoho_record.replace("\\", "\\\\").replace('"', r"\x22")
+        source = f"<script>var jobs = JSON.parse('{encoded}');</script>"
+        job = {
+            "title": "Accessibility Engineer",
+            "location": "Remote",
+            "specific_location": "Remote",
+            "city": None,
+            "country": "US",
+            "work_arrangement": "remote",
+            "employment_type": "full-time",
+            "type": "full-time",
+        }
+
+        reconcile_explicit_external_facts(job, source)
+
+        self.assertEqual(job["location"], "Bengaluru")
+        self.assertEqual(job["city"], "Bengaluru")
+        self.assertIsNone(job["country"])
+        self.assertEqual(job["work_arrangement"], "onsite")
+        self.assertEqual(job["date_posted"], "2026-08-27")
+        self.assertTrue(job["professional_development"])
+        self.assertEqual(json.loads(job["benefits"]), ["Professional development"])
+
+    def test_taleo_encoded_remote_work_schedule_overrides_onsite_default(self):
+        source = (
+            "<html><body><input value=\"%3Cp%3EWork%20Schedule%3A%20"
+            "Remote%20position.%208%20am%20to%205%20pm.%3C%2Fp%3E\"></body></html>"
+        )
+        job = {
+            "title": "Software Systems Specialist III",
+            "location": "Galveston",
+            "work_arrangement": "onsite",
+        }
+
+        reconcile_explicit_external_facts(job, source)
+
+        self.assertEqual(job["work_arrangement"], "remote")
+
     def test_glued_direct_responsibility_headings_are_restored(self):
         source = """Job Overview: This accessibility website role improves public services for disabled users. The work includes governance and training across several content teams.
         Job Responsibilities: Website Accessibility Compliance

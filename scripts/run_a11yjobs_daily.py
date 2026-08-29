@@ -19,7 +19,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import parse_qs, urljoin, urlparse
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -509,7 +509,10 @@ def determine_job_level(title: str, description: str) -> Optional[str]:
         return "senior"
     if any(kw in title_lower for kw in ["mid", "intermediate"]):
         return "mid"
-    if any(kw in title_lower for kw in ["junior", "jr.", "entry", "early career", "associate", "intern"]):
+    if re.search(
+        r"\b(?:junior|jr\.?|entry(?:[- ]level)?|early career|associate|intern(?:ship)?)\b",
+        title_lower,
+    ):
         return "entry"
 
     return None
@@ -2959,6 +2962,17 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
         job["date_posted"] = posted.isoformat()
         job["created_at"] = f"{posted.isoformat()}T00:00:00Z"
 
+    valid_through_meta = soup.select_one('[itemprop="validThrough"][content]')
+    if valid_through_meta:
+        valid_through = parse_date_text(str(valid_through_meta.get("content") or ""))
+        if valid_through:
+            job["valid_through"] = valid_through.isoformat()
+            job["application_deadline"] = f"{valid_through.isoformat()}T00:00:00Z"
+
+    industry_meta = soup.select_one('[itemprop="industry"][content]')
+    if industry_meta and industry_meta.get("content"):
+        job["industry"] = clean_text(str(industry_meta.get("content") or "")) or None
+
     direct_location = ""
     structured_location = soup.select_one("spl-job-location[formattedaddress]")
     if structured_location:
@@ -2970,6 +2984,16 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
             direct_location = clean_text(location_value.get_text(" ", strip=True))
     if direct_location:
         direct_city, direct_country = parse_location_fields(direct_location)
+        location_parts = [clean_text(part) for part in direct_location.split(",") if clean_text(part)]
+        # SmartRecruiters formattedAddress can begin with a street address.
+        # Its second component is then the locality; publishing the street as
+        # the city is an obvious metadata error.
+        if (
+            structured_location
+            and len(location_parts) >= 3
+            and re.match(r"^\d", location_parts[0])
+        ):
+            direct_city = location_parts[1]
         if direct_country not in set(COUNTRY_CODE_ALIASES.values()):
             direct_country = None
         if not direct_country and re.search(r"\bcampus\b", direct_location, re.I):
@@ -2983,6 +3007,136 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
             str(job.get("title") or ""),
             visible,
         )
+        workplace_type = clean_text(
+            str(structured_location.get("workplacetype") or "")
+        ).lower() if structured_location else ""
+        if workplace_type == "hybrid":
+            job["work_arrangement"] = "hybrid"
+        elif workplace_type in {"remote", "telecommute"}:
+            job["work_arrangement"] = "remote"
+        elif workplace_type in {"on_site", "onsite", "on-site"}:
+            job["work_arrangement"] = "onsite"
+
+    # UKG/UltiPro embeds the authoritative opportunity record as JSON. Prefer
+    # its labeled posting date and organizational facts over a curated board's
+    # timezone-normalized listing date.
+    opportunity_match = re.search(
+        r"var\s+opportunity\s*=\s*new\s+US\.Opportunity\.CandidateOpportunityDetail\((\{.*?\})\);",
+        content,
+        re.S,
+    )
+    if opportunity_match:
+        try:
+            opportunity = json.loads(opportunity_match.group(1))
+        except (TypeError, ValueError):
+            opportunity = None
+        if isinstance(opportunity, dict):
+            direct_title = clean_text(str(opportunity.get("Title") or ""))
+            current_title = clean_text(str(job.get("title") or ""))
+            if direct_title and (
+                normalize_text(direct_title) in normalize_text(current_title)
+                or normalize_text(current_title) in normalize_text(direct_title)
+            ):
+                direct_posted = parse_date_text(str(opportunity.get("PostedDate") or ""))
+                if direct_posted:
+                    job["date_posted"] = direct_posted.isoformat()
+                    job["created_at"] = f"{direct_posted.isoformat()}T00:00:00Z"
+                category = clean_text(str(opportunity.get("JobCategoryName") or ""))
+                if category:
+                    job["department"] = category
+                if opportunity.get("FullTime") is True:
+                    job["employment_type"] = "full-time"
+                    job["type"] = "full-time"
+
+    # Zoho Recruit serializes its direct job record inside JSON.parse using
+    # JavaScript hex escapes. Decode only the small set of explicit ATS facts
+    # needed for reconciliation; do not infer a country from a city name.
+    zoho_match = re.search(r"var\s+jobs\s*=\s*JSON\.parse\('(.*?)'\);", content, re.S)
+    if zoho_match:
+        encoded = zoho_match.group(1)
+        decoded: List[str] = []
+        index = 0
+        while index < len(encoded):
+            if encoded[index] != "\\":
+                decoded.append(encoded[index])
+                index += 1
+                continue
+            if index + 1 >= len(encoded):
+                decoded.append("\\")
+                break
+            marker = encoded[index + 1]
+            if marker == "x" and index + 3 < len(encoded):
+                decoded.append(chr(int(encoded[index + 2:index + 4], 16)))
+                index += 4
+            elif marker == "u" and index + 5 < len(encoded):
+                decoded.append(chr(int(encoded[index + 2:index + 6], 16)))
+                index += 6
+            elif marker in {"n", "r", "t"}:
+                decoded.append({"n": "\n", "r": "\r", "t": "\t"}[marker])
+                index += 2
+            elif marker in {"\\", "/", "'", '"'}:
+                decoded.append(marker)
+                index += 2
+            else:
+                # JavaScript accepts identity escapes such as \- in these
+                # payloads; JSON does not, so retain the character only.
+                decoded.append(marker)
+                index += 2
+        try:
+            zoho_jobs = json.loads("".join(decoded))
+        except (TypeError, ValueError):
+            zoho_jobs = []
+        current_title = normalize_text(str(job.get("title") or ""))
+        matching_zoho = next((
+            item for item in zoho_jobs
+            if isinstance(item, dict)
+            and normalize_text(str(item.get("Posting_Title") or "")) == current_title
+        ), None)
+        if matching_zoho:
+            zoho_location = clean_text(str(matching_zoho.get("Location") or ""))
+            if zoho_location:
+                job["location"] = zoho_location[:255]
+                job["specific_location"] = zoho_location[:255]
+                job["city"] = zoho_location[:255]
+                job["country"] = None
+            remote_job = matching_zoho.get("Remote_Job")
+            if isinstance(remote_job, bool):
+                job["work_arrangement"] = "remote" if remote_job else "onsite"
+            zoho_posted = parse_date_text(str(matching_zoho.get("Date_Opened") or ""))
+            if zoho_posted:
+                job["date_posted"] = zoho_posted.isoformat()
+                job["created_at"] = f"{zoho_posted.isoformat()}T00:00:00Z"
+            if clean_text(str(matching_zoho.get("Job_Type") or "")).lower() == "permanent":
+                job["employment_type"] = "full-time"
+                job["type"] = "full-time"
+            zoho_description = normalize_description_text(
+                strip_html(html.unescape(str(matching_zoho.get("Job_Description") or "")))
+            )
+            if re.search(
+                r"\bprofessional development(?: and training)? opportunities\b",
+                zoho_description,
+                re.I,
+            ):
+                job["professional_development"] = True
+                try:
+                    benefits = json.loads(job.get("benefits") or "[]")
+                except (TypeError, ValueError):
+                    benefits = []
+                if "Professional development" not in benefits:
+                    benefits.append("Professional development")
+                job["benefits"] = json.dumps(benefits, ensure_ascii=False)
+
+    # Taleo can URL-encode the authored job body in its bootstrap payload.
+    # Decode it solely for explicit work-model evidence such as "Remote
+    # position"; preserve the separately labeled primary location.
+    decoded_visible = unquote(html.unescape(content))
+    decoded_arrangement = normalize_work_arrangement(
+        str(job.get("location") or ""),
+        str(job.get("title") or ""),
+        decoded_visible,
+    )
+    if decoded_arrangement in {"remote", "hybrid"}:
+        job["work_arrangement"] = decoded_arrangement
 
     location_match = re.search(
         r"\bJob Location\s*:\s*(.+?)(?=\s+Work Model\s*:)",
