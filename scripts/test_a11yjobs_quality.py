@@ -764,6 +764,27 @@ Preferred Qualifications
             ["ADS", "CPWA", "WAS"],
         )
 
+    def test_what_would_be_nice_to_have_certification_is_preferred(self):
+        source = """Role overview with enough context to explain a serious accessibility position and the product it supports.
+
+What You Will Do
+
+- Lead Section 508 evaluations and advise delivery teams on remediation.
+
+What You Will Need
+
+- Five years of WCAG auditing experience.
+
+What Would Be Nice To Have
+
+- IAAP certificate as a Certified Professional in Accessibility Core Competencies (CPACC).
+"""
+        sections = parse_description_sections(source)
+        structured = extract_structured_fields(source, sections)
+
+        self.assertIn("CPACC", structured["preferred_certifications"])
+        self.assertNotIn("CPACC", structured["required_certifications"])
+
     def test_inline_preferred_certification_is_not_marked_required(self):
         source = """Role overview with enough context to explain a serious accessibility QA position supporting public-sector applications.
 
@@ -1440,6 +1461,31 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertEqual(source, "direct")
         self.assertEqual(resolved_url, "https://job-boards.greenhouse.io/example/jobs/123")
         self.assertEqual(session.get.call_args_list[1].args[0], apply_url + "/go")
+
+    def test_external_fetch_uses_workday_detail_page_instead_of_apply_shell(self):
+        apply_url = (
+            "https://example.wd1.myworkdayjobs.com/en-US/External/job/"
+            "Accessibility-Engineer_123/apply"
+        )
+        detail_url = apply_url.removesuffix("/apply")
+        detail_page = (
+            '<html><head><script type="application/ld+json">'
+            '{"@context":"https://schema.org","@type":"JobPosting",'
+            '"title":"Accessibility Engineer","datePosted":"2026-07-17",'
+            '"description":"Example Company is hiring an accessibility engineer to test '
+            'web and mobile products with assistive technology, conduct WCAG reviews, and '
+            'document remediation guidance for product teams."}'
+            '</script></head><body><h1>Accessibility Engineer</h1></body></html>'
+        )
+        session = Mock()
+        session.get.return_value = Mock(status_code=200, text=detail_page, url=detail_url)
+
+        text, source, resolved_url = fetch_external_text(session, apply_url)
+
+        self.assertEqual(text, detail_page)
+        self.assertEqual(source, "direct")
+        self.assertEqual(resolved_url, detail_url)
+        self.assertEqual(session.get.call_args.args[0], detail_url)
 
     def test_validation_rejects_broken_optional_qualification_tail(self):
         record = {

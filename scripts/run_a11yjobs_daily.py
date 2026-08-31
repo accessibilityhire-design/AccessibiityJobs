@@ -744,7 +744,8 @@ _SECTION_PATTERNS = [
         re.compile(
             r"^(?:preferred qualifications?|preferred experience|preferred skills?|desired(?: experience)?|"
             r"desirable(?: skills?)?|advantageous|preferred certification|"
-            r"nice[- ]to[- ]have qualifications?|nice to have|good[- ]to[- ]have skills?|bonus points?|a plus)$",
+            r"nice[- ]to[- ]have qualifications?|nice to have|what would be nice to have|"
+            r"good[- ]to[- ]have skills?|bonus points?|a plus)$",
             re.I,
         ),
     ),
@@ -1875,6 +1876,19 @@ def normalize_external_content(text: str) -> str:
 def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[str], str, Optional[str]]:
     if not url or not url_is_valid(url):
         return None, "invalid", None
+
+    # Workday's /apply route is only an application shell: it can repeat the
+    # title in OpenGraph/URL chrome while omitting the authoritative
+    # JobPosting JSON-LD (date, employer, location, and description). Fetch the
+    # sibling detail route so direct-evidence reconciliation cannot retain
+    # stale discovery-board facts.
+    parsed_url = urlparse(url)
+    if (
+        (parsed_url.hostname or "").lower().endswith(".myworkdayjobs.com")
+        and parsed_url.path.rstrip("/").lower().endswith("/apply")
+    ):
+        detail_path = parsed_url.path.rstrip("/")[:-len("/apply")]
+        url = parsed_url._replace(path=detail_path or "/").geturl()
 
     def try_fetch(fetch_url: str) -> Tuple[Optional[str], Optional[str]]:
         try:
