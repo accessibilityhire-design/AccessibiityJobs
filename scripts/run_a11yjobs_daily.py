@@ -755,6 +755,7 @@ _SECTION_PATTERNS = [
         "ignore",
         re.compile(
             r"^(?:benefits?|why join (?:us|our team)|what we offer|what you['’]?ll get|compensation|salary|pay range|location|keywords|"
+            r"work remotely\s*-\s*(?:yes|no)|"
             r"physical demands?|application requirements?|position type\s*(?:&|and)\s*work location|"
             r"what['’]?s in it for you\??|impact you['’]?ll make|how to apply|accessibility and inclusion|"
             r"be more|"
@@ -2972,6 +2973,22 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
         if posted_time:
             posted = parse_date_text(str(posted_time.get("datetime") or ""))
     if not posted:
+        # SelectMinds renders the authoritative posting date as a sibling value
+        # before its label.  Similar-listing cards use different classes, so
+        # this selector stays scoped to the current job's detail metadata.
+        posted_label = soup.find(
+            "span",
+            class_="field_label",
+            string=re.compile(r"^\s*Post Date\s*$", re.I),
+        )
+        posted_value = (
+            posted_label.parent.select_one(".field_value")
+            if posted_label and posted_label.parent
+            else None
+        )
+        if posted_value:
+            posted = parse_date_text(posted_value.get_text(" ", strip=True))
+    if not posted:
         posted_match = re.search(r"\bDate Posted\s*:\s*(\d{1,2}/\d{1,2}/\d{4})\b", visible, re.I)
         posted = parse_date_text(posted_match.group(1)) if posted_match else None
     if posted:
@@ -3377,7 +3394,10 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
         conflicts.extend(reconcile_explicit_external_facts(job, content))
         has_job_detail = external_content_has_job_detail(content, external_jsonld)
         evidence_host = hostname_without_www(job.get("apply_url"))
-        if evidence_host.endswith("fa.oraclecloud.com") and not has_job_detail:
+        if (
+            evidence_host.endswith("fa.oraclecloud.com")
+            or evidence_host.endswith("fa.ocs.oraclecloud.com")
+        ) and not has_job_detail:
             conflicts.append("Direct Oracle ATS page lacks a live job description")
         if external_content_is_closed(content):
             conflicts.append("Direct employer or ATS page says the job is closed")

@@ -151,6 +151,32 @@ class DescriptionQualityTests(unittest.TestCase):
         self.assertIn("Proven expertise", sections["requirements"])
         self.assertNotIn("Generic employer profile", sections["requirements"])
 
+    def test_explicit_work_remotely_label_ends_requirements_section(self):
+        source = """The coordinator supports disabled students by evaluating documentation,
+determining eligibility, arranging accommodations, and coordinating accessible
+academic and testing services with faculty and external providers.
+
+**Responsibilities:**
+- Coordinate academic accommodations and accessible testing services.
+
+**Qualifications:**
+- Minimum of 3–5 years of experience in disability services.
+- Strong understanding of ADA and Section 504.
+
+**Work Remotely - No**
+Work Location: Buffalo, NY
+Pay: $45,000 - $48,750 Annually
+
+**About D'Youville University:**
+Generic employer profile that does not belong in requirements.
+"""
+
+        sections = parse_description_sections(source)
+
+        self.assertIn("Minimum of 3–5 years", sections["requirements"])
+        self.assertNotIn("Work Location", sections["requirements"])
+        self.assertNotIn("Generic employer profile", sections["requirements"])
+
     def test_mozilla_team_heading_restores_overview_before_role_sections(self):
         source = """**Why Mozilla?**
         Generic employer profile that should not become the role overview.
@@ -1635,32 +1661,56 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         self.assertIsNone(job["city"])
         self.assertEqual(job["country"], "CA")
 
-    def test_oracle_metadata_shell_is_not_verified_direct_evidence(self):
-        ats_url = "https://example.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/123"
-        ats_page = """<html><head>
-        <meta property="og:title" content="Accessibility Specialist" />
-        <meta property="og:description" content="Example Company accessibility role." />
-        </head><body><footer>Example Company careers privacy and legal links.</footer></body></html>"""
-        response = Mock(status_code=200, text=ats_page, url=ats_url)
-        session = Mock()
-        session.get.return_value = response
+    def test_selectminds_detail_post_date_overrides_discovery_date(self):
         job = {
-            "title": "Accessibility Specialist",
-            "company": "Example Company",
-            "country": "GB",
-            "location": "London, United Kingdom",
-            "work_arrangement": "onsite",
-            "source_url": "https://www.linkedin.com/jobs/view/123",
-            "apply_url": ats_url,
-            "description": "A" * 120,
-            "key_responsibilities": "Test accessible products.",
-            "requirements": "Know WCAG.",
+            "title": "Document Accessibility Specialist, Temporary",
+            "date_posted": "2026-08-31",
+            "created_at": "2026-08-31T00:00:00Z",
         }
+        source = """<html><body>
+        <dd class="job_post_date">
+          <span class="field_value">Aug 18, 2026</span>
+          <span class="field_label">Post Date</span>
+        </dd>
+        <div class="similar-listing"><span class="label job_post_date">
+          Post Date: Aug 20, 2026
+        </span></div>
+        </body></html>"""
 
-        enriched = enrich_job(session, job)
+        conflicts = reconcile_explicit_external_facts(job, source)
 
-        self.assertFalse(enriched["direct_evidence_verified"])
-        self.assertIn("lacks a live job description", enriched["evidence_conflicts"][0])
+        self.assertEqual(conflicts, [])
+        self.assertEqual(job["date_posted"], "2026-08-18")
+        self.assertEqual(job["created_at"], "2026-08-18T00:00:00Z")
+
+    def test_oracle_metadata_shell_is_not_verified_direct_evidence(self):
+        for host in ("example.fa.oraclecloud.com", "example.fa.ocs.oraclecloud.com"):
+            with self.subTest(host=host):
+                ats_url = f"https://{host}/hcmUI/CandidateExperience/en/sites/CX/job/123"
+                ats_page = """<html><head>
+                <meta property="og:title" content="Accessibility Specialist" />
+                <meta property="og:description" content="Example Company accessibility role." />
+                </head><body><footer>Example Company careers privacy and legal links.</footer></body></html>"""
+                response = Mock(status_code=200, text=ats_page, url=ats_url)
+                session = Mock()
+                session.get.return_value = response
+                job = {
+                    "title": "Accessibility Specialist",
+                    "company": "Example Company",
+                    "country": "GB",
+                    "location": "London, United Kingdom",
+                    "work_arrangement": "onsite",
+                    "source_url": "https://www.linkedin.com/jobs/view/123",
+                    "apply_url": ats_url,
+                    "description": "A" * 120,
+                    "key_responsibilities": "Test accessible products.",
+                    "requirements": "Know WCAG.",
+                }
+
+                enriched = enrich_job(session, job)
+
+                self.assertFalse(enriched["direct_evidence_verified"])
+                self.assertIn("lacks a live job description", enriched["evidence_conflicts"][0])
 
     def test_board_apply_page_does_not_prevent_direct_ats_discovery(self):
         board_url = "https://www.linkedin.com/jobs/view/123"
