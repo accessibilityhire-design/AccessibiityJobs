@@ -1422,9 +1422,9 @@ def check_duplicate_db(db_url: str, source_url: str, title: str, company: str) -
     norm_company = normalize_text(company)
     sql = (
         "SELECT id FROM jobs "
-        "WHERE lower(regexp_replace(title, '[^a-z0-9]+', '', 'g')) = "
+        "WHERE regexp_replace(lower(title), '[^a-z0-9]+', '', 'g') = "
         f"{sql_literal(norm_title)} "
-        "AND lower(regexp_replace(company, '[^a-z0-9]+', '', 'g')) = "
+        "AND regexp_replace(lower(company), '[^a-z0-9]+', '', 'g') = "
         f"{sql_literal(norm_company)} "
         "LIMIT 1;"
     )

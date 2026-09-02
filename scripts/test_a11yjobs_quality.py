@@ -1,13 +1,14 @@
 import json
 import unittest
 from datetime import date
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from bs4 import BeautifulSoup
 
 from run_a11yjobs_daily import (
     REQUIREMENTS_FALLBACK,
     RESPONSIBILITIES_FALLBACK,
+    check_duplicate_db,
     extract_company_website,
     extract_experience,
     extract_structured_fields,
@@ -45,6 +46,25 @@ from run_a11yjobs_daily import (
     validate_enriched_record,
     validate_record,
 )
+
+
+class DuplicateGuardTests(unittest.TestCase):
+    @patch("run_a11yjobs_daily.psql_scalar", side_effect=[None, "existing-id"])
+    def test_title_company_duplicate_query_normalizes_case_before_stripping(self, psql_scalar):
+        duplicate, reason = check_duplicate_db(
+            "postgresql://example",
+            "https://example.com/jobs/new-opening",
+            "Senior Accessibility Specialist",
+            "Royal London",
+        )
+
+        self.assertTrue(duplicate)
+        self.assertEqual(reason, "title_company")
+        duplicate_sql = psql_scalar.call_args_list[1].args[1]
+        self.assertIn("regexp_replace(lower(title)", duplicate_sql)
+        self.assertIn("regexp_replace(lower(company)", duplicate_sql)
+        self.assertIn("'senioraccessibilityspecialist'", duplicate_sql)
+        self.assertIn("'royallondon'", duplicate_sql)
 
 
 class DescriptionQualityTests(unittest.TestCase):
