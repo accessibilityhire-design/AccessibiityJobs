@@ -3307,7 +3307,11 @@ def reconcile_usajobs_details(job: Dict[str, Any], content: str) -> None:
     job["wcag_level"] = structured["wcag_level"]
     job["years_experience"] = structured["years_experience"]
     # Alternative degree/experience routes do not establish a required degree.
-    job["education_level"] = None if re.search(r"\nOR\n", job.get("requirements") or "") else structured["education_level"]
+    if re.search(r"\bOR\b", job.get("requirements") or ""):
+        job["education_level"] = None
+        job["years_experience"] = None
+    else:
+        job["education_level"] = structured["education_level"]
     contact = soup.select_one("#agencycontact")
     job["contact_email"] = extract_contact_email(contact.get_text("\n", strip=True)) if contact else None
     for button in soup.select("button[aria-controls]"):

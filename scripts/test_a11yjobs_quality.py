@@ -124,6 +124,11 @@ class DescriptionQualityTests(unittest.TestCase):
         self.assertEqual(job["travel_required"], "none")
         self.assertEqual(job["contact_email"], "vacancy@example.gov")
         self.assertIsNone(job["wcag_level"])
+        posting["qualifications"] += "<p>OR</p><p>Ph.D. or equivalent doctoral degree.</p>"
+        alternative_content = '<script type="application/ld+json">' + json.dumps(posting) + '</script>'
+        reconcile_usajobs_details(job, alternative_content)
+        self.assertIsNone(job["education_level"])
+        self.assertIsNone(job["years_experience"])
 
     def test_inertia_listing_payload_exposes_jobs_and_pagination(self):
         payload = {
