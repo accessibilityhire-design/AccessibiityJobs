@@ -40,6 +40,7 @@ from run_a11yjobs_daily import (
     parse_salary,
     reconcile_external_jobposting,
     reconcile_explicit_external_facts,
+    reconcile_usajobs_details,
     search_alternate_urls,
     trim_legal_boilerplate,
     convert_nan_to_insert_ready,
@@ -68,6 +69,62 @@ class DuplicateGuardTests(unittest.TestCase):
 
 
 class DescriptionQualityTests(unittest.TestCase):
+    def test_taleo_apply_route_fetches_authoritative_detail(self):
+        session = Mock()
+        detail_url = "https://fa009.taleo.net/careersection/ex/jobdetail.ftl?job=2602132"
+        content = "<html><body>Digital Accessibility Systems Analyst. " + "Accessibility testing and qualifications. " * 10 + "</body></html>"
+        session.get.return_value = Mock(status_code=200, text=content, url=detail_url)
+        text, source, resolved = fetch_external_text(session, detail_url.replace("jobdetail", "jobapply"))
+        self.assertEqual(session.get.call_args.args[0], detail_url)
+        self.assertEqual((text, source, resolved), (content, "direct", detail_url))
+
+    def test_taleo_named_posting_date_overrides_newer_board_date(self):
+        content = """<html><script>
+        descRequisition: {_size: 1, _hles: ['reqTitleLinkAction','reqPostingDate','reqUnpostingDate']}
+        api.fillList('requisitionDescriptionInterface', 'descRequisition', ['Analyst','Aug 19, 2026, 2:37:03 PM','Sep 3, 2026, 11:59:00 PM']);
+        </script><body>Job Posting</body></html>"""
+        job = {"date_posted": "2026-09-02"}
+        reconcile_explicit_external_facts(job, content)
+        self.assertEqual(job["date_posted"], "2026-08-19")
+        self.assertEqual(job["created_at"], "2026-08-19T00:00:00Z")
+        self.assertIn("not strictly later", validate_enriched_record(job, date(2026, 8, 31))[0])
+        mismatched = content.replace("'reqTitleLinkAction',", "")
+        job = {"date_posted": "2026-09-02"}
+        reconcile_explicit_external_facts(job, mismatched)
+        self.assertEqual(job["date_posted"], "2026-09-02")
+
+    def test_usajobs_preserves_authored_sections_and_visible_salary_range(self):
+        posting = {
+            "@type": "JobPosting",
+            "description": "The Smithsonian Institution is hiring a web administrator to maintain accessible museum websites and services.",
+            "responsibilities": "<p>Ensure websites and digital documents meet Section 508 and WCAG Level AA requirements.</p>",
+            "qualifications": "<p>One year of specialized experience developing, maintaining, and securing websites and web applications.</p>",
+            "baseSalary": {"currency": "USD", "value": {"value": 85447, "unitText": "YEAR"}},
+            "jobLocation": {"address": {"addressLocality": "Washington", "addressRegion": "DC"}},
+        }
+        content = '<html><script type="application/ld+json">' + json.dumps(posting) + '</script>' + '''
+        <h1 class="usajobs-joa-banner__title">Information Technology Specialist (Website Administrator &amp;amp; Technologist)</h1>
+        <dl><dt>Salary</dt><dd>$85,447 - $111,087 per year</dd></dl>
+        <dl><dt>Work schedule</dt><dd>Full-time - Full-Time, Permanent</dd></dl>
+        <dl><dt>Telework eligible</dt><dd>Yes, as determined by agency policy.</dd></dl>
+        <dl><dt>Remote job</dt><dd>No</dd></dl>
+        <dl><dt>Travel Required</dt><dd>Not required</dd></dl>
+        <h3>Conditions of employment</h3><ul><li>Pass Pre-employment Background Investigation</li></ul>
+        <div id="agencycontact">Email vacancy@example.gov</div></html>'''
+        job = {"apply_url": "https://www.usajobs.gov/job/882965700", "salary_min": 85447, "salary_max": 85447}
+        reconcile_usajobs_details(job, content)
+        self.assertIn("Website Administrator & Technologist", job["title"])
+        self.assertIn("specialized experience", job["requirements"])
+        self.assertIn("Background Investigation", job["requirements"])
+        self.assertNotIn("Background Investigation", job["key_responsibilities"])
+        self.assertEqual((job["salary_min"], job["salary_max"], job["salary_type"]), (85447, 111087, "annual"))
+        self.assertEqual(job["city"], "Washington")
+        self.assertEqual(job["work_arrangement"], "hybrid")
+        self.assertEqual(job["employment_type"], "full-time")
+        self.assertEqual(job["travel_required"], "none")
+        self.assertEqual(job["contact_email"], "vacancy@example.gov")
+        self.assertIsNone(job["wcag_level"])
+
     def test_inertia_listing_payload_exposes_jobs_and_pagination(self):
         payload = {
             "component": "welcome",

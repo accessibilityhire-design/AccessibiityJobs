@@ -1895,7 +1895,14 @@ def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[s
 
     def try_fetch(fetch_url: str) -> Tuple[Optional[str], Optional[str]]:
         try:
+            parsed = urlparse(fetch_url)
+            if (parsed.hostname or "").endswith(".taleo.net") and parsed.path.endswith("/jobapply.ftl"):
+                fetch_url = parsed._replace(path=parsed.path.replace("/jobapply.ftl", "/jobdetail.ftl")).geturl()
             response = session.get(fetch_url, timeout=5)
+            resolved = urlparse(response.url)
+            if (resolved.hostname or "").endswith(".taleo.net") and resolved.path.endswith("/jobapply.ftl"):
+                detail_url = resolved._replace(path=resolved.path.replace("/jobapply.ftl", "/jobdetail.ftl")).geturl()
+                response = session.get(detail_url, timeout=5)
             if response.status_code >= 400:
                 return None, None
             text = response.text
@@ -2965,6 +2972,23 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
             job["years_experience"] = "10+"
 
     posted = None
+    # Taleo fills its labeled posting-date elements from parallel bootstrap
+    # arrays. Read only those named fields, never an arbitrary date in prose.
+    taleo_fields = re.search(r"descRequisition\s*:\s*\{.*?_hles\s*:\s*\[(.*?)\]", content, re.S)
+    taleo_values = re.search(
+        r"api\.fillList\('requisitionDescriptionInterface',\s*'descRequisition',\s*\[(.*?)\]\);",
+        content, re.S,
+    )
+    if taleo_fields and taleo_values:
+        token_pattern = r"'((?:\\.|[^'\\])*)'"
+        names = re.findall(token_pattern, taleo_fields.group(1))
+        values = re.findall(token_pattern, taleo_values.group(1))
+        if len(names) == len(values):
+            fields = dict(zip(names, values))
+            posted_text = fields.get("reqPostingDate", "")
+            date_match = re.match(r"[A-Za-z]+ \d{1,2}, \d{4}", posted_text)
+            if date_match:
+                posted = parse_date_text(date_match.group(0))
     posted_meta = soup.select_one('[itemprop="datePosted"][content]')
     if posted_meta:
         posted = parse_date_text(str(posted_meta.get("content") or ""))
@@ -3224,6 +3248,80 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
     return conflicts
 
 
+def reconcile_usajobs_details(job: Dict[str, Any], content: str) -> None:
+    """Preserve USAJOBS' separate authored sections and labeled work facts."""
+    if hostname_without_www(job.get("apply_url")) != "usajobs.gov":
+        return
+    soup = BeautifulSoup(content, "html.parser")
+    posting = extract_external_jobposting(content) or {}
+    # Its JSON-LD description is only the summary; duties and qualifications
+    # are independent properties and must not be replaced by generic notices.
+    for target, source in (("description", "description"), ("key_responsibilities", "responsibilities"), ("requirements", "qualifications")):
+        value = posting.get(source)
+        if isinstance(value, str) and len(strip_html(value)) >= 50:
+            job[target] = normalize_description_text(strip_html(html.unescape(value)))
+    title = soup.select_one("h1.usajobs-joa-banner__title")
+    if title:
+        job["title"] = clean_text(html.unescape(title.get_text(" ", strip=True)))
+    locations = posting.get("jobLocation") or []
+    if isinstance(locations, dict):
+        locations = [locations]
+    if locations and isinstance(locations[0], dict):
+        address = locations[0].get("address") or {}
+        if address.get("addressLocality"):
+            job["city"] = clean_text(address["addressLocality"])
+    conditions_heading = soup.find("h3", string=re.compile(r"^Conditions of employment$", re.I))
+    conditions = conditions_heading.find_next_sibling("ul") if conditions_heading else None
+    if conditions and job.get("requirements"):
+        job["requirements"] += "\n\nConditions of employment:\n" + normalize_description_text(strip_html(str(conditions)))
+
+    def labeled(label: str) -> str:
+        term = soup.find("dt", string=lambda value: value and value.strip() == label)
+        value = term.find_next_sibling("dd") if term else None
+        return clean_text(value.get_text(" ", strip=True)) if value else ""
+
+    salary = labeled("Salary")
+    minimum, maximum, _, interval = parse_salary(salary)
+    currency = (posting.get("baseSalary") or {}).get("currency")
+    if minimum is not None and maximum is not None and currency in CURRENCIES and not validate_salary(minimum, maximum, interval):
+        job.update(salary_min=minimum, salary_max=maximum, currency=currency, salary_type=interval)
+        job["salary_range"] = format_salary_evidence(minimum, maximum, currency, interval)
+    schedule = labeled("Work schedule")
+    if schedule:
+        job["employment_type"] = normalize_employment_type(schedule)
+        job["type"] = job["employment_type"]
+    remote, telework = labeled("Remote job"), labeled("Telework eligible")
+    if remote.lower() == "yes":
+        job["work_arrangement"] = "remote"
+    elif remote.lower() == "no" and telework.lower().startswith("yes"):
+        job["work_arrangement"] = "hybrid"
+    elif remote.lower() == "no" and telework.lower() == "no":
+        job["work_arrangement"] = "onsite"
+    if labeled("Travel Required").lower() == "not required":
+        job["travel_required"] = "none"
+    # The full page carries the actual qualifications and contact block.
+    sections = {key: job.get(key) for key in ("description", "key_responsibilities", "requirements", "nice_to_have")}
+    structured = extract_structured_fields("\n\n".join(str(value or "") for value in sections.values()), sections)
+    for key in ("required_skills", "preferred_skills", "required_certifications", "preferred_certifications", "accessibility_focus", "assistive_tech_experience"):
+        job[key] = json.dumps(structured[key], ensure_ascii=True) if structured[key] else None
+    job["wcag_level"] = structured["wcag_level"]
+    job["years_experience"] = structured["years_experience"]
+    # Alternative degree/experience routes do not establish a required degree.
+    job["education_level"] = None if re.search(r"\nOR\n", job.get("requirements") or "") else structured["education_level"]
+    contact = soup.select_one("#agencycontact")
+    job["contact_email"] = extract_contact_email(contact.get_text("\n", strip=True)) if contact else None
+    for button in soup.select("button[aria-controls]"):
+        if button.get_text(" ", strip=True) != "Benefits":
+            continue
+        benefit_panel = soup.find(id=button["aria-controls"])
+        if benefit_panel:
+            benefit_data = extract_structured_fields(benefit_panel.get_text("\n", strip=True), {})
+            job["benefits"] = json.dumps(benefit_data["benefits"], ensure_ascii=True) if benefit_data["benefits"] else None
+            for key in ("health_insurance", "retirement", "professional_development"):
+                job[key] = benefit_data["benefit_flags"].get(key) or None
+        break
+
+
 def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -> List[str]:
     """Prefer explicit employer/ATS JobPosting facts and report disagreements."""
     conflicts: List[str] = []
@@ -3389,6 +3487,7 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
         source_used = "aggregator"
 
     if content:
+        source_content = content
         external_jsonld = extract_external_jobposting(content)
         conflicts = reconcile_external_jobposting(job, external_jsonld) if external_jsonld else []
         conflicts.extend(reconcile_explicit_external_facts(job, content))
@@ -3471,6 +3570,8 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
             job["wcag_level"] = structured["wcag_level"]
             job["accessibility_focus"] = json.dumps(structured["accessibility_focus"], ensure_ascii=False) if structured["accessibility_focus"] else None
             job["assistive_tech_experience"] = json.dumps(structured["assistive_tech_experience"], ensure_ascii=False) if structured["assistive_tech_experience"] else None
+
+        reconcile_usajobs_details(job, source_content)
 
     if "direct_evidence_verified" not in job:
         job["direct_evidence_verified"] = False
