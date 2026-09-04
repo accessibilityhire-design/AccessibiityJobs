@@ -69,6 +69,36 @@ class DuplicateGuardTests(unittest.TestCase):
 
 
 class DescriptionQualityTests(unittest.TestCase):
+    def test_icims_outer_shell_fetches_nested_job_detail(self):
+        outer_url = "https://employees-example.icims.com/jobs/172875/example/job"
+        iframe_url = outer_url + "?in_iframe=1"
+        outer = Mock(
+            status_code=200,
+            text=(
+                f'<html><iframe src="{iframe_url}"></iframe>'
+                + "outer shell " * 30
+                + "</html>"
+            ),
+            url=outer_url,
+        )
+        detail = Mock(
+            status_code=200,
+            text=(
+                "<html><body>Authoritative accessibility responsibilities "
+                "and qualifications. " + "x" * 200 + "</body></html>"
+            ),
+            url=iframe_url,
+        )
+        session = Mock()
+        session.get.side_effect = [outer, detail]
+
+        text, source, resolved = fetch_external_text(session, outer_url)
+
+        self.assertEqual(text, detail.text)
+        self.assertEqual(source, "direct")
+        self.assertEqual(resolved, iframe_url)
+        self.assertEqual(session.get.call_args_list[1].args[0], iframe_url)
+
     def test_taleo_apply_route_fetches_authoritative_detail(self):
         session = Mock()
         detail_url = "https://fa009.taleo.net/careersection/ex/jobdetail.ftl?job=2602132"
@@ -1857,6 +1887,66 @@ Hiring Range is $57,542.40 - $63,296.64 USD Annual.
         text = "For general company information, contact info@example.com."
         self.assertIsNone(extract_contact_email(text))
         self.assertIsNone(extract_contact_email("For questions, contact Jobs@Stevens.edu."))
+
+    def test_contact_email_ignores_nondiscrimination_policy_contact(self):
+        text = (
+            "For information regarding the nondiscrimination and Title IX policies, "
+            "contact Nicholas D'Agostino at nicholas.dagostino@example.edu."
+        )
+        self.assertIsNone(extract_contact_email(text))
+        compliance_text = (
+            "If you require accommodation or assistance with the application "
+            "process, contact USMTTACompliance@example.com."
+        )
+        self.assertIsNone(extract_contact_email(compliance_text))
+
+    def test_applytojob_visible_posted_date_and_open_ended_close_override_jsonld(self):
+        source = """<html><body><main>
+        Posted: September 2, 2026
+        Closing Date: Open until filled, with priority consideration by September 23, 2026.
+        Connecticut State Community College cannot sponsor work visas.
+        This campus director leads disability and accessibility services, reviews
+        student accommodation requests, and trains faculty on legal compliance.
+        </main></body></html>"""
+        job = {
+            "date_posted": "2026-09-03",
+            "created_at": "2026-09-03T00:00:00Z",
+            "valid_through": "2026-12-02",
+            "application_deadline": "2026-12-02T00:00:00Z",
+            "visa_sponsorship": None,
+        }
+
+        reconcile_explicit_external_facts(job, source)
+
+        self.assertEqual(job["date_posted"], "2026-09-02")
+        self.assertEqual(job["created_at"], "2026-09-02T00:00:00Z")
+        self.assertIsNone(job["valid_through"])
+        self.assertIsNone(job["application_deadline"])
+        self.assertFalse(job["visa_sponsorship"])
+
+    def test_salary_and_application_sections_stop_preferred_qualifications(self):
+        source = """Position Summary
+
+        This campus director ensures equitable access for disabled students and leads accommodation services.
+
+        Preferred Qualifications
+
+        - Advanced knowledge of disability law and accessibility best practices.
+
+        Salary and Benefits
+
+        - Salary $84,997 approximate annual.
+
+        Application Instructions
+
+        Submit a cover letter and resume.
+        """
+
+        sections = parse_description_sections(source)
+
+        self.assertIn("Advanced knowledge", sections["nice_to_have"])
+        self.assertNotIn("84,997", sections["nice_to_have"])
+        self.assertNotIn("cover letter", sections["nice_to_have"])
 
     def test_explicit_direct_labels_override_board_classification(self):
         source = """<html><body><main>

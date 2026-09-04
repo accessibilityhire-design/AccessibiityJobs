@@ -754,13 +754,14 @@ _SECTION_PATTERNS = [
     (
         "ignore",
         re.compile(
-            r"^(?:benefits?|why join (?:us|our team)|what we offer|what you['’]?ll get|compensation|salary|pay range|location|keywords|"
+            r"^(?:benefits?|why join (?:us|our team)|what we offer|what you['’]?ll get|compensation|salary(?: and benefits?)?|pay range|location|keywords|"
             r"work remotely\s*-\s*(?:yes|no)|"
-            r"physical demands?|application requirements?|position type\s*(?:&|and)\s*work location|"
+            r"physical demands?|application requirements?|application instructions?|position type\s*(?:&|and)\s*work location|"
             r"what['’]?s in it for you\??|impact you['’]?ll make|how to apply|accessibility and inclusion|"
             r"be more|"
             r"pre-employment checks|sponsorship\s*/\s*work rights(?: for .+)?|"
             r"travel expectations?|hiring journey|hiring process|application process|posting end date|"
+            r"additional information|selection process|background screening|equity statement|continuing notice of nondiscrimination|"
             r"company snapshot|our core principles|use of ai in hiring|seniority level|employment type|why [A-Za-z0-9&.' -]{2,80}\??|"
             r"job function|industries|we value equal opportunity|applicants with disabilities|"
             r"about us|about the team|about royal london|inclusion,? diversity and belonging|"
@@ -1485,7 +1486,16 @@ def extract_contact_email(text: str) -> Optional[str]:
         if not match:
             continue
         context = _plain_markdown(text[max(0, match.start() - 160):match.end() + 160]).lower()
-        if "reasonable accommodation" in context:
+        if "reasonable accommodation" in context or re.search(
+            r"\b(?:require|request)(?:ing)?\s+(?:an\s+)?accommodation\b",
+            context,
+        ):
+            continue
+        if any(marker in context for marker in (
+            "nondiscrimination", "non-discrimination", "title ix",
+            "equity and civil rights", "equal opportunity employer",
+        )):
+            # Policy/EEO contacts are not recruiting contacts for the role.
             continue
         if re.search(
             r"\b(?:email|contact|send|submit|questions?|recruiter|hiring manager|apply)\b",
@@ -1923,6 +1933,35 @@ def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[s
             redirected_text, redirected_url = try_fetch(javascript_redirect.group(1))
             if redirected_text:
                 text, resolved_url = redirected_text, redirected_url
+    if text and hostname_without_www(resolved_url or url).endswith(".icims.com"):
+        resolved = urlparse(resolved_url or url)
+        if parse_qs(resolved.query).get("in_iframe") != ["1"]:
+            iframe_url = None
+            iframe_soup = BeautifulSoup(text, "html.parser")
+            iframe = iframe_soup.find(
+                "iframe",
+                src=re.compile(r"[?&]in_iframe=1(?:&|$)", re.I),
+            )
+            if iframe and iframe.get("src"):
+                iframe_url = urljoin(
+                    resolved_url or url,
+                    html.unescape(str(iframe["src"])),
+                )
+            if not iframe_url:
+                iframe_match = re.search(
+                    r"icimsFrame\.src\s*=\s*['\"]([^'\"]+[?&]in_iframe=1[^'\"]*)['\"]",
+                    text,
+                    re.I,
+                )
+                if iframe_match:
+                    iframe_url = urljoin(
+                        resolved_url or url,
+                        html.unescape(iframe_match.group(1).replace(r"\/", "/")),
+                    )
+            if iframe_url:
+                iframe_text, iframe_resolved_url = try_fetch(iframe_url)
+                if iframe_text:
+                    text, resolved_url = iframe_text, iframe_resolved_url
     blocked_markers = [
         "enable javascript",
         "access denied",
@@ -3015,6 +3054,14 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
     if not posted:
         posted_match = re.search(r"\bDate Posted\s*:\s*(\d{1,2}/\d{1,2}/\d{4})\b", visible, re.I)
         posted = parse_date_text(posted_match.group(1)) if posted_match else None
+    if not posted:
+        posted_match = re.search(
+            r"\b(?:Date\s+)?Posted\s*:\s*"
+            r"([A-Za-z]+\s+\d{1,2},\s+\d{4}|\d{4}-\d{2}-\d{2})\b",
+            visible,
+            re.I,
+        )
+        posted = parse_date_text(posted_match.group(1)) if posted_match else None
     if posted:
         job["date_posted"] = posted.isoformat()
         job["created_at"] = f"{posted.isoformat()}T00:00:00Z"
@@ -3025,6 +3072,14 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
         if valid_through:
             job["valid_through"] = valid_through.isoformat()
             job["application_deadline"] = f"{valid_through.isoformat()}T00:00:00Z"
+    if re.search(r"\bClosing Date\s*:\s*Open until filled\b", visible, re.I):
+        # A generated JSON-LD validThrough value is not an application
+        # deadline when the authored posting explicitly says it stays open.
+        job["valid_through"] = None
+        job["application_deadline"] = None
+
+    if re.search(r"\bcannot sponsor work visas?\b", visible, re.I):
+        job["visa_sponsorship"] = False
 
     industry_meta = soup.select_one('[itemprop="industry"][content]')
     if industry_meta and industry_meta.get("content"):
