@@ -70,6 +70,7 @@ JOB_BOARD_HOSTS = {
     "google.com",
     "monster.com",
     "remotive.com",
+    "remoterocketship.com",
     "role.com",
     "simplyhired.com",
     "tealhq.com",

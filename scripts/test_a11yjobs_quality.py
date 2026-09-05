@@ -1255,6 +1255,11 @@ class MultiSourceQualityTests(unittest.TestCase):
         self.assertFalse(
             is_direct_job_url("https://clearedjobs.net/job/example-job")
         )
+        self.assertFalse(
+            is_direct_job_url(
+                "https://www.remoterocketship.com/us/company/example/jobs/example-job/"
+            )
+        )
         self.assertTrue(
             is_direct_job_url("https://jobs.lever.co/example-company/example-job")
         )
