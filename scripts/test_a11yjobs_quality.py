@@ -1257,6 +1257,19 @@ class MultiSourceQualityTests(unittest.TestCase):
         )
         self.assertFalse(
             is_direct_job_url(
+                "https://dailyremote.com/remote-job/digital-access-consultant-5551080"
+            )
+        )
+        self.assertFalse(
+            is_direct_job_url("https://ca.jobrapido.com/jobpreview/example-job")
+        )
+        self.assertFalse(
+            is_direct_job_url(
+                "https://qatestingjobs.com/jobs/example-accessibility-test-job"
+            )
+        )
+        self.assertFalse(
+            is_direct_job_url(
                 "https://www.remoterocketship.com/us/company/example/jobs/example-job/"
             )
         )
