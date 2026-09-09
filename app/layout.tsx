@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { Suspense } from "react";
@@ -14,15 +14,6 @@ const inter = Inter({
   preload: true,
   fallback: ["system-ui", "arial"],
   adjustFontFallback: true,
-});
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-space-grotesk",
-  weight: ["500", "600", "700"],
-  preload: true,
-  fallback: ["system-ui", "arial"],
 });
 
 export const metadata: Metadata = {
@@ -101,26 +92,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
-      <body className="flex flex-col min-h-screen antialiased bg-background text-foreground">
-        {/* Preload and critical CSS injected via Script for proper optimization */}
-        <Script
-          id="critical-css"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              const style=document.createElement('style');
-              style.textContent='.container{max-width:1280px;margin:0 auto}nav{display:flex;align-items:center;justify-content:space-between}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}';
-              document.head.appendChild(style);
-              const link2=document.createElement('link');link2.rel='preconnect';link2.href='https://fonts.googleapis.com';
-              const link3=document.createElement('link');link3.rel='preconnect';link3.href='https://fonts.gstatic.com';link3.crossOrigin='anonymous';
-              const link4=document.createElement('link');link4.rel='dns-prefetch';link4.href='https://vitals.vercel-insights.com';
-              const link5=document.createElement('link');link5.rel='dns-prefetch';link5.href='https://va.vercel-scripts.com';
-              document.head.append(link2,link3,link4,link5);
-            `,
-          }}
-        />
-
+    <html lang="en" className={inter.variable}>
+      <body className="flex flex-col min-h-[100dvh] antialiased bg-background text-foreground">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[60] focus:px-4 focus:py-2 focus:bg-[var(--ink)] focus:text-[var(--paper)] focus:rounded-md focus:shadow-lg"

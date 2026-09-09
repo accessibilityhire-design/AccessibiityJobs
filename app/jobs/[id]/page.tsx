@@ -21,6 +21,7 @@ import { relatedJobs } from '@/lib/jobs-query';
 import { ShareButton } from '@/components/ShareButton';
 import { JobCard } from '@/components/JobCard';
 import { replaceEmDashes } from '@/lib/text-style';
+import { salaryLabel, locationLabel } from '@/lib/job-presentation';
 
 // Serve cached HTML to crawlers and visitors; refresh every 10 minutes
 export const revalidate = 600;
@@ -70,20 +71,6 @@ function parseJsonField(field: string | null): string[] {
   }
 }
 
-function formatSalary(min: number | null, max: number | null, currency: string | null): string | null {
-  if (!min && !max) return null;
-  if (!currency || !/^[A-Z]{3}$/i.test(currency)) return null;
-  const formatter = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency.toUpperCase(),
-    maximumFractionDigits: 0
-  });
-  if (min && max) return `${formatter.format(min)} – ${formatter.format(max)}`;
-  if (min) return `From ${formatter.format(min)}`;
-  if (max) return `Up to ${formatter.format(max)}`;
-  return null;
-}
-
 function isRealContactEmail(email: string | null): boolean {
   if (!email) return false;
   const emailLower = email.toLowerCase();
@@ -100,15 +87,6 @@ function isRealContactEmail(email: string | null): boolean {
   }
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   return emailRegex.test(email);
-}
-
-function colorFromString(input: string) {
-  let hash = 0;
-  for (let i = 0; i < input.length; i++) {
-    hash = input.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `oklch(0.78 0.10 ${hue})`;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -199,12 +177,8 @@ export default async function JobDetailPage({ params }: PageProps) {
   const showResponsibilities = hasMeaningfulJobSection(job.keyResponsibilities);
   const showRequirements = hasMeaningfulJobSection(job.requirements);
 
-  const formattedSalary = formatSalary(job.salaryMin, job.salaryMax, job.currency);
-  const salary = formattedSalary || job.salaryRange;
-  const salaryPeriod = formattedSalary && job.salaryType
-    ? ({ annual: 'year', monthly: 'month', hourly: 'hour', daily: 'day', project: 'project' } as Record<string, string>)[job.salaryType.toLowerCase()] || job.salaryType
-    : null;
-  const location = replaceEmDashes(job.specificLocation || job.city || job.location || 'Location not specified');
+  const salary = salaryLabel(job);
+  const location = locationLabel(job);
   const workArrangement = job.workArrangement || job.type || 'full-time';
   const sourceConfig = getSourceConfig(job.jobSource);
   const companyWebsite = validCompanyWebsite(job.companyWebsite);
@@ -216,10 +190,12 @@ export default async function JobDetailPage({ params }: PageProps) {
       : `WCAG ${job.wcagLevel}`
     : null;
 
-  const avatarColor = colorFromString(companyName || 'job');
   const initial = (companyName || 'J').charAt(0).toUpperCase();
 
   const canonicalUrl = `https://accessibilityjobs.net${canonicalPath}`;
+  const applicationHref = job.sourceUrl || (isRealContactEmail(job.contactEmail)
+    ? `mailto:${job.contactEmail}?subject=${encodeURIComponent(`Application for ${jobTitle}`)}`
+    : null);
   const jobStructuredData = expired ? null : generateJobStructuredData(job, canonicalUrl);
   const pageStructuredData = generateWebPageStructuredData({
     name: `${jobTitle} at ${companyName}`,
@@ -247,23 +223,13 @@ export default async function JobDetailPage({ params }: PageProps) {
       />
 
       {/* ================= HERO ================= */}
-      <section className="relative bg-[var(--ink)] text-[var(--paper)] overflow-hidden">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-40 -right-20 h-[28rem] w-[28rem] rounded-full"
-          style={{
-            background:
-              'radial-gradient(circle, color-mix(in oklab, var(--lime) 50%, transparent), transparent 65%)',
-          }}
-        />
-        <div aria-hidden="true" className="absolute inset-0 ink-grid opacity-60" />
-
+      <section className="border-b border-border bg-white">
         <div className="relative container mx-auto px-4 py-10 md:py-14">
           <div className="flex items-center justify-between mb-8">
             <Link
               href="/"
               aria-label="Back to all jobs"
-              className="group inline-flex items-center gap-2 text-sm text-white/70 hover:text-[var(--lime)] transition-colors"
+              className="group inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-[var(--brand)] transition-colors"
             >
               <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" aria-hidden="true" />
               Back to all jobs
@@ -272,7 +238,7 @@ export default async function JobDetailPage({ params }: PageProps) {
             {sourceConfig && (
               <span
                 aria-label={`Job sourced from ${sourceConfig.label}`}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-white/15 px-3 py-1 text-xs font-medium text-white/75"
+                className="inline-flex items-center gap-1.5 rounded-full bg-muted border border-border px-3 py-1 text-xs font-medium text-muted-foreground"
               >
                 <Link2 className="h-3 w-3" aria-hidden="true" />
                 via {sourceConfig.label}
@@ -283,11 +249,11 @@ export default async function JobDetailPage({ params }: PageProps) {
           {expired && (
             <div
               role="status"
-              className="mb-8 rounded-xl border border-[color-mix(in_oklab,var(--saffron)_50%,transparent)] bg-[color-mix(in_oklab,var(--saffron)_18%,transparent)] px-4 py-3 text-sm text-[var(--paper)]"
+              className="mb-8 rounded-xl border border-[color-mix(in_oklab,var(--saffron)_50%,transparent)] bg-[color-mix(in_oklab,var(--saffron)_18%,transparent)] px-4 py-3 text-sm text-[var(--ink)]"
             >
               <strong>This listing has expired.</strong> It&apos;s kept here for
               reference, but the position may already be filled.{' '}
-              <Link href="/#roles" className="underline underline-offset-4 hover:text-[var(--lime)]">
+              <Link href="/#roles" className="underline underline-offset-4 hover:text-[var(--brand)]">
                 Browse current openings
               </Link>
             </div>
@@ -298,22 +264,19 @@ export default async function JobDetailPage({ params }: PageProps) {
               <div className="flex items-center gap-3">
                 <span
                   aria-hidden="true"
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-xl font-display font-bold text-xl text-[var(--ink)]"
-                  style={{
-                    background: `color-mix(in oklab, ${avatarColor} 75%, white)`,
-                  }}
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-md border border-border bg-muted font-semibold text-xl text-muted-foreground"
                 >
                   {initial}
                 </span>
                 <div>
-                  <p className="text-sm font-medium text-white/70">{companyName}</p>
+                  <p className="text-sm font-medium text-muted-foreground">{companyName}</p>
                   {job.industry && (
-                    <p className="text-xs text-white/50">{job.industry}</p>
+                    <p className="text-xs text-muted-foreground">{job.industry}</p>
                   )}
                 </div>
               </div>
 
-              <h1 className="display-lg mt-6 text-[var(--paper)] max-w-3xl">
+              <h1 className="display-lg mt-6 text-[var(--ink)] max-w-3xl">
                 {jobTitle}
               </h1>
 
@@ -323,7 +286,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                 </Chip>
                 <Chip icon={<Clock className="h-3.5 w-3.5" />}>
                   {job.employmentType?.replace('-', ' ').replace(/\b\w/g, (l) => l.toUpperCase()) ||
-                    'Full Time'}
+                    'Employment not specified'}
                 </Chip>
                 {job.jobLevel && (
                   <Chip icon={<Users className="h-3.5 w-3.5" />}>
@@ -332,50 +295,35 @@ export default async function JobDetailPage({ params }: PageProps) {
                 )}
               </div>
 
-              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-white/75">
+              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-white/40" aria-hidden="true" />
+                  <MapPin className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   {location}
                 </span>
                 {salary && (
                   <span className="inline-flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-[var(--lime)]" aria-hidden="true" />
-                    <span className="font-semibold text-[var(--paper)]">{salary}</span>
-                    {salaryPeriod && <span className="text-white/50">/ {salaryPeriod}</span>}
+                    <DollarSign className="h-4 w-4 text-[var(--brand)]" aria-hidden="true" />
+                    <span className="font-semibold text-[var(--ink)]">{salary}</span>
+
                   </span>
                 )}
                 <span className="inline-flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-white/40" aria-hidden="true" />
+                  <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   Posted {formatDistanceToNow(new Date(job.createdAt), { addSuffix: true })}
                 </span>
               </div>
+              <div className="mt-6 flex flex-wrap gap-3 lg:hidden">
+                {!expired && applicationHref && (
+                  <a href={applicationHref} target={job.sourceUrl ? '_blank' : undefined} rel="noopener noreferrer" className="primary-button min-h-12 px-6" aria-label={`Apply for ${jobTitle}${job.sourceUrl ? ' on the original posting' : ' via email'}`}>
+                    {job.sourceUrl ? 'Apply now' : 'Apply via email'}<ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                  </a>
+                )}
+                <ShareButton title={`${jobTitle} at ${companyName}`} url={canonicalUrl} />
+              </div>
             </div>
 
-            {/* Desktop Apply CTA */}
+            {/* Desktop sharing; application details appear beside the description. */}
             <div className="hidden lg:flex flex-col gap-3 min-w-[240px]">
-              {job.sourceUrl ? (
-                <Button variant="lime" size="xl" asChild>
-                  <a
-                    href={job.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Apply for ${jobTitle} on original posting`}
-                  >
-                    Apply now
-                    <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                  </a>
-                </Button>
-              ) : (
-                <Button variant="lime" size="xl" asChild>
-                  <a
-                    href={`mailto:${job.contactEmail}?subject=Application for ${jobTitle}`}
-                    aria-label={`Apply for ${jobTitle} via email`}
-                  >
-                    <Mail className="h-4 w-4" aria-hidden="true" />
-                    Apply via email
-                  </a>
-                </Button>
-              )}
               <ShareButton title={`${jobTitle} at ${companyName}`} url={canonicalUrl} />
             </div>
           </div>
@@ -386,18 +334,18 @@ export default async function JobDetailPage({ params }: PageProps) {
       <section className="container mx-auto px-4 py-10 md:py-14">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           {/* Main */}
-          <div className="lg:col-span-2 space-y-12">
-            <Section color="var(--ink)" title="About the role">
+          <div className="lg:col-span-2 min-w-0 space-y-9">
+            <Section title="About the role">
               <div
-                className="prose prose-slate max-w-none leading-relaxed job-description"
+                className="prose prose-slate max-w-[72ch] leading-relaxed job-description"
                 dangerouslySetInnerHTML={{ __html: formatJobDescription(job.description) }}
               />
             </Section>
 
             {showResponsibilities && (
-              <Section color="var(--lime)" title="Key responsibilities">
+              <Section title="Key responsibilities">
                 <div
-                  className="prose prose-slate max-w-none leading-relaxed job-description"
+                  className="prose prose-slate max-w-[72ch] leading-relaxed job-description"
                   dangerouslySetInnerHTML={{
                     __html: formatJobDescription(job.keyResponsibilities),
                   }}
@@ -406,9 +354,9 @@ export default async function JobDetailPage({ params }: PageProps) {
             )}
 
             {showRequirements && (
-              <Section color="var(--saffron)" title="Requirements">
+              <Section title="Requirements">
                 <div
-                  className="prose prose-slate max-w-none leading-relaxed job-description"
+                  className="prose prose-slate max-w-[72ch] leading-relaxed job-description"
                   dangerouslySetInnerHTML={{
                     __html: formatJobDescription(job.requirements),
                   }}
@@ -417,9 +365,9 @@ export default async function JobDetailPage({ params }: PageProps) {
             )}
 
             {job.niceToHave && (
-              <Section color="var(--ink-soft)" title="Nice to have">
+              <Section title="Nice to have">
                 <div
-                  className="prose prose-slate max-w-none leading-relaxed job-description"
+                  className="prose prose-slate max-w-[72ch] leading-relaxed job-description"
                   dangerouslySetInnerHTML={{
                     __html: formatJobDescription(job.niceToHave),
                   }}
@@ -428,7 +376,7 @@ export default async function JobDetailPage({ params }: PageProps) {
             )}
 
             {(requiredSkills.length > 0 || preferredSkills.length > 0) && (
-              <Section color="var(--ink)" title="Skills & expertise">
+              <Section title="Skills & expertise">
                 <div className="space-y-6">
                   {requiredSkills.length > 0 && (
                     <div>
@@ -472,17 +420,19 @@ export default async function JobDetailPage({ params }: PageProps) {
           {/* Sidebar */}
           <aside className="space-y-5">
             {/* Apply Card */}
-            <div className="lg:sticky lg:top-24 rounded-2xl border border-[var(--border)] bg-white p-6 shadow-[0_24px_60px_-30px_rgba(16,16,32,0.25)]">
+            <div className="rounded-lg border border-[var(--border)] bg-white p-6 ">
               <p className="eyebrow">Apply</p>
               <h2 className="font-display text-xl font-semibold tracking-tight mt-2 text-[var(--ink)]">
-                Ready for the next step?
+                Apply for this job
               </h2>
               <p className="text-sm text-[var(--muted-foreground)] mt-2">
                 Applications go directly to the company or their original posting.
               </p>
 
               <div className="mt-5 space-y-3">
-                {job.sourceUrl ? (
+                {expired ? (
+                  <p className="text-sm text-muted-foreground">This listing has expired. <Link href="/#roles" className="text-[var(--brand)] underline">Browse current jobs</Link>.</p>
+                ) : job.sourceUrl ? (
                   <>
                     <Button variant="lime" size="lg" className="w-full" asChild>
                       <a
@@ -504,7 +454,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                   <>
                     <Button variant="ink" size="lg" className="w-full" asChild>
                       <a
-                        href={`mailto:${job.contactEmail}?subject=Application for ${jobTitle}`}
+                        href={applicationHref || ''}
                         aria-label={`Apply for ${jobTitle} via email`}
                       >
                         <Mail className="h-4 w-4" aria-hidden="true" />
@@ -549,22 +499,22 @@ export default async function JobDetailPage({ params }: PageProps) {
                         href={companyWebsite}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label={`Apply for ${jobTitle} on company website`}
+                        aria-label={`Visit ${companyName} website`}
                       >
                         <Globe className="h-4 w-4" aria-hidden="true" />
-                        Apply on company site
+                        Visit company website
                       </a>
                     </Button>
                     <p className="text-xs text-[var(--muted-foreground)] text-center">
-                      You&apos;ll be redirected to the company&apos;s careers page
+                      Check the company website for application details
                     </p>
                   </>
                 ) : (
                   <>
                     <div className="rounded-lg bg-[color-mix(in_oklab,var(--saffron)_15%,white)] border border-[color-mix(in_oklab,var(--saffron)_35%,white)] p-4">
                       <p className="text-sm text-[var(--ink)]">
-                        <strong>Contact pending.</strong> We&apos;re working on getting the
-                        application details for this role. Search for the company directly.
+                        <strong>Application details unavailable.</strong> Check the
+                        employer&apos;s website for this role.
                       </p>
                     </div>
                     <Button variant="outline" size="lg" className="w-full" asChild>
@@ -585,7 +535,7 @@ export default async function JobDetailPage({ params }: PageProps) {
             </div>
 
             {/* Job Details */}
-            <div className="rounded-2xl border border-[var(--border)] bg-white p-6">
+            <div className="rounded-lg border border-[var(--border)] bg-white p-6">
               <p className="eyebrow">Details</p>
               <h3 className="font-display text-lg font-semibold mt-1 mb-4 text-[var(--ink)]">
                 About this role
@@ -657,7 +607,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
             {/* Benefits */}
             {(benefits.length > 0 || job.healthInsurance || job.retirement || job.professionalDevelopment || job.ptoDetails) && (
-              <div className="rounded-2xl border border-[var(--border)] bg-white p-6">
+              <div className="rounded-lg border border-[var(--border)] bg-white p-6">
                 <p className="eyebrow">Benefits</p>
                 <h3 className="font-display text-lg font-semibold mt-1 mb-4 text-[var(--ink)]">
                   What&apos;s included
@@ -681,7 +631,7 @@ export default async function JobDetailPage({ params }: PageProps) {
             )}
 
             {sourceConfig && job.sourceUrl && (
-              <div className="rounded-2xl border border-[var(--border)] bg-white p-6">
+              <div className="rounded-lg border border-[var(--border)] bg-white p-6">
                 <p className="eyebrow">Source</p>
                 <h3 className="font-display text-lg font-semibold mt-1 mb-2 text-[var(--ink)]">
                   Posted on {sourceConfig.label}
@@ -711,7 +661,7 @@ export default async function JobDetailPage({ params }: PageProps) {
             <h2 className="font-display text-2xl md:text-3xl font-semibold tracking-tight text-[var(--ink)] mt-2 mb-8">
               Similar roles
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6">
+            <div className="overflow-hidden rounded-lg border border-border divide-y divide-border">
               {related.map((relatedJob) => (
                 <JobCard key={relatedJob.id} job={relatedJob} />
               ))}
@@ -725,7 +675,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
 function Chip({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/8 border border-white/15 px-3 py-1.5 text-sm font-medium text-white/90">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-muted border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground">
       {icon}
       {children}
     </span>
@@ -734,21 +684,14 @@ function Chip({ icon, children }: { icon: React.ReactNode; children: React.React
 
 function Section({
   title,
-  color,
   children,
 }: {
   title: string;
-  color: string;
   children: React.ReactNode;
 }) {
   return (
     <section>
-      <h2 className="font-display text-2xl md:text-3xl font-semibold tracking-tight text-[var(--ink)] mb-5 flex items-center gap-3">
-        <span
-          aria-hidden="true"
-          className="inline-block h-6 w-1.5 rounded-full"
-          style={{ background: color }}
-        />
+      <h2 className="text-xl font-semibold text-[var(--ink)] mb-4">
         {title}
       </h2>
       <div className="text-[var(--ink-soft)]">{children}</div>

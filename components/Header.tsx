@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Menu, X, Sparkles } from 'lucide-react';
+import { ChevronDown, Menu, X } from 'lucide-react';
 
 const resourceLinks = [
   { label: 'Certifications', href: '/certifications' },
@@ -20,7 +21,6 @@ export function Header() {
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileResourcesOpen, setMobileResourcesOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const resourcesMenuRef = useRef<HTMLLIElement>(null);
   const resourcesButtonRef = useRef<HTMLButtonElement>(null);
   const mobileButtonRef = useRef<HTMLButtonElement>(null);
@@ -42,13 +42,6 @@ export function Header() {
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [mobileMenuOpen]);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -73,16 +66,9 @@ export function Header() {
   };
 
   return (
-    <header
-      className={[
-        'sticky top-0 z-50 transition-all duration-300',
-        scrolled
-          ? 'bg-white/85 backdrop-blur-xl border-b border-[var(--border)] shadow-[0_10px_30px_-22px_rgba(16,16,32,0.18)]'
-          : 'bg-white border-b border-[var(--border)]',
-      ].join(' ')}
-    >
-      <div className="w-full px-4 md:px-6">
-        <div className="max-w-7xl mx-auto">
+    <header className="sticky top-0 z-50 border-b border-border bg-white">
+      <div className="w-full px-5 md:px-8">
+        <div className="max-w-[1216px] mx-auto">
           <nav
             className="flex items-center justify-between h-16 md:h-[72px]"
             aria-label="Main navigation"
@@ -129,7 +115,7 @@ export function Header() {
                 {resourcesOpen && (
                   <ul
                     id="resources-menu"
-                    className="absolute top-full right-0 mt-2 w-64 bg-white border border-[var(--border)] rounded-xl shadow-[0_22px_60px_-20px_rgba(16,16,32,0.25)] py-2 overflow-hidden"
+                    className="absolute top-full right-0 mt-2 w-64 bg-white border border-[var(--border)] rounded-xl shadow-sm py-2 overflow-hidden"
                     onKeyDown={handleResourcesKeyDown}
                   >
                     {resourceLinks.map((l) => (
@@ -154,9 +140,8 @@ export function Header() {
               <li className="ml-2">
                 <Link
                   href="/post-job"
-                  className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] text-[var(--paper)] px-5 py-2 text-sm font-semibold transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  className="inline-flex items-center gap-2 rounded-md bg-[var(--ink)] text-[var(--paper)] px-5 py-2 text-sm font-semibold transition-colors hover:bg-[var(--brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                 >
-                  <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                   Post a Job
                 </Link>
               </li>
@@ -165,7 +150,7 @@ export function Header() {
             {/* Mobile button */}
             <button
               ref={mobileButtonRef}
-              className="lg:hidden inline-flex items-center justify-center h-10 w-10 rounded-full text-[var(--ink)] hover:bg-[color-mix(in_oklab,var(--ink)_6%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/40 transition-colors"
+              className="lg:hidden inline-flex items-center justify-center h-11 w-11 rounded-md text-[var(--ink)] hover:bg-[color-mix(in_oklab,var(--ink)_6%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/40 transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={mobileMenuOpen}
@@ -229,9 +214,8 @@ export function Header() {
                   <Link
                     href="/post-job"
                     onClick={closeMobileMenu}
-                    className="flex items-center justify-center gap-2 w-full rounded-full bg-[var(--ink)] text-[var(--paper)] py-3 text-sm font-semibold"
+                    className="flex items-center justify-center gap-2 w-full rounded-md bg-[var(--ink)] text-[var(--paper)] py-3 text-sm font-semibold"
                   >
-                    <Sparkles className="h-4 w-4" aria-hidden="true" />
                     Post a Job
                   </Link>
                 </li>
@@ -253,12 +237,14 @@ function NavLink({
   children: React.ReactNode;
   onClick?: () => void;
 }) {
+  const active = usePathname() === href;
   return (
     <li>
       <Link
         href={href}
+        aria-current={active ? 'page' : undefined}
         onClick={onClick}
-        className="px-3 py-2 text-sm font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/40"
+        className="px-3 py-2 text-sm font-medium text-[var(--ink-soft)] hover:text-[var(--ink)] aria-[current=page]:bg-muted aria-[current=page]:text-foreground rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/40"
       >
         {children}
       </Link>

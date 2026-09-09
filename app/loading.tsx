@@ -1,24 +1,14 @@
 export default function Loading() {
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="mb-12 text-center">
-        <div className="h-12 bg-gray-200 rounded-md animate-pulse w-3/4 mx-auto mb-4" />
-        <div className="h-6 bg-gray-200 rounded-md animate-pulse w-2/3 mx-auto" />
-      </div>
-
-      <div className="bg-white p-6 rounded-lg border mb-8">
-        <div className="h-10 bg-gray-200 rounded-md animate-pulse w-full" />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="bg-white rounded-lg border p-6 space-y-4">
-            <div className="h-6 bg-gray-200 rounded animate-pulse" />
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3" />
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2" />
-            <div className="h-20 bg-gray-200 rounded animate-pulse" />
-          </div>
-        ))}
+    <div role="status" aria-label="Loading jobs" className="container px-5 py-10 md:px-8">
+      <span className="sr-only">Loading jobs…</span>
+      <div aria-hidden="true" className="animate-pulse">
+        <div className="mb-4 h-9 w-3/4 max-w-xl rounded bg-gray-200" />
+        <div className="mb-10 h-5 w-2/3 max-w-lg rounded bg-gray-200" />
+        <div className="mb-8 h-12 rounded border border-border bg-white" />
+        <div className="space-y-0 overflow-hidden rounded-lg border border-border lg:w-3/4">
+          {[1, 2, 3, 4].map(i => <div key={i} className="space-y-4 border-b border-border bg-white p-6 last:border-0"><div className="h-4 w-1/3 rounded bg-gray-200" /><div className="h-6 w-3/4 rounded bg-gray-200" /><div className="h-4 w-1/2 rounded bg-gray-200" /><div className="h-4 w-1/4 rounded bg-gray-200" /></div>)}
+        </div>
       </div>
     </div>
   );

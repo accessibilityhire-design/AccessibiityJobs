@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import ts from 'typescript';
+import vm from 'node:vm';
+import { createRequire } from 'node:module';
+const runtimeRequire = createRequire(import.meta.url);
+const cache = new Map();
+function load(file) {
+  if (cache.has(file)) return cache.get(file);
+  const output = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+  const mod = { exports: {} };
+  vm.runInNewContext(output, { exports: mod.exports, module: mod, require: p => p.startsWith('@/') ? load(path.resolve(p.replace('@/', '') + '.ts')) : runtimeRequire(p), Intl, Date });
+  cache.set(file, mod.exports);
+  return mod.exports;
+}
+const { parseJobsSearchParams: parse, containsPattern, countryAliases, searchTerms } = load('lib/job-search.ts');
+const { salaryLabel, locationLabel, skillLabels } = load('lib/job-presentation.ts');
+assert.equal(parse({ search: '  engineer   accessibility ' }).search, 'engineer accessibility');
+assert.equal(parse({ search: ['one', 'two'] }).search, '');
+assert.equal(parse({ search: 'WCAG' }).sort, 'relevance');
+assert.equal(parse({ sort: 'relevance' }).sort, 'newest');
+assert.equal(parse({ posted: '365', page: 'Infinity', type: 'anything' }).posted, 'all');
+assert.equal(parse({ page: '-1' }).page, 1);
+assert.equal(parse({ page: '999999999' }).page, 10000);
+assert.equal(containsPattern('50%_jobs'), '%50\\%\\_jobs%');
+assert(countryAliases('United States').includes('US'));
+assert(countryAliases('India').includes('IN'));
+assert.equal(searchTerms('WCAG wcag engineer').length, 2);
+assert.equal(salaryLabel({ salaryMin: null, salaryMax: null, salaryRange: 'Competitive', currency: null, salaryType: null }), null);
+assert.equal(salaryLabel({ salaryMin: 50, salaryMax: null, salaryRange: null, currency: 'USD', salaryType: 'hourly' }).replace(/\s/g, ' '), 'From USD 50 / hour');
+assert.equal(salaryLabel({ salaryMin: null, salaryMax: 5000, salaryRange: null, currency: 'EUR', salaryType: 'monthly' }).replace(/\s/g, ' '), 'Up to EUR 5,000 / month');
+assert.equal(locationLabel({ city: 'London', country: 'GB', location: null, specificLocation: null }), 'London, United Kingdom');
+assert.equal(skillLabels('["WCAG",null,{},"WCAG","NVDA"]').length, 2);
+console.log('Search and job presentation: 16 regression checks passed.');

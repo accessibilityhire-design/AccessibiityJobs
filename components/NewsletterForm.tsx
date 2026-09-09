@@ -6,7 +6,7 @@ import { ArrowUpRight } from 'lucide-react';
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
 /**
- * Email capture for job alerts. Dark-surface styling to sit in the footer.
+ * Email capture for job alerts. Shared email subscription form.
  */
 export function NewsletterForm() {
   const [email, setEmail] = useState('');
@@ -30,7 +30,7 @@ export function NewsletterForm() {
         return;
       }
       setStatus('success');
-      setMessage("You're on the list. New accessibility roles will go straight to your inbox.");
+      setMessage("You’re subscribed. Thanks for joining the job updates list.");
       setEmail('');
     } catch {
       setStatus('error');
@@ -39,8 +39,8 @@ export function NewsletterForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mt-6 max-w-md" noValidate>
-      <label htmlFor="newsletter-email" className="block text-sm font-medium text-white/90 mb-2">
+    <form onSubmit={handleSubmit} className="mt-6 max-w-md">
+      <label htmlFor="newsletter-email" className="block text-sm font-medium text-foreground mb-2">
         Get new accessibility jobs in your inbox
       </label>
       <div className="flex gap-2">
@@ -54,12 +54,12 @@ export function NewsletterForm() {
           placeholder="you@example.com"
           aria-describedby="newsletter-status"
           aria-invalid={status === 'error' || undefined}
-          className="h-11 flex-1 min-w-0 rounded-full border border-white/20 bg-white/5 px-4 text-sm text-white placeholder:text-white/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--lime)]"
+          className="h-11 flex-1 min-w-0 rounded-md border border-input bg-white px-3 text-sm text-foreground placeholder:text-[var(--placeholder)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
         />
         <button
           type="submit"
           disabled={status === 'loading'}
-          className="inline-flex items-center gap-1.5 h-11 rounded-full bg-[var(--lime)] text-[var(--ink)] px-5 text-sm font-semibold transition-transform hover:scale-[1.02] disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 h-11 rounded-md bg-[var(--brand)] text-white px-5 text-sm font-semibold transition-colors hover:bg-[#193f68] disabled:opacity-60"
         >
           {status === 'loading' ? 'Subscribing…' : 'Subscribe'}
           <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -69,7 +69,7 @@ export function NewsletterForm() {
         id="newsletter-status"
         role="status"
         aria-live="polite"
-        className={`mt-2 text-sm ${status === 'error' ? 'text-[#ffb4a8]' : 'text-white/80'}`}
+        className={`mt-2 text-sm ${status === 'error' ? 'text-red-700' : 'text-muted-foreground'}`}
       >
         {message}
       </p>

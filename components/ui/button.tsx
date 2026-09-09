@@ -9,12 +9,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // default = ink pill (primary CTA on light surfaces)
+        // Primary action on light surfaces
         default:
-          "bg-[var(--ink)] text-[var(--paper)] hover:bg-[color-mix(in_oklab,var(--ink)_92%,white)] shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_10px_22px_-12px_rgba(16,16,32,0.5)]",
-        // lime = hero CTA, bold accent
+          "bg-[var(--ink)] text-[var(--paper)] hover:bg-[color-mix(in_oklab,var(--ink)_92%,white)] ",
+        // Compatibility alias for the brand action
         lime:
-          "bg-[var(--lime)] text-[var(--ink)] font-semibold hover:brightness-[0.97] shadow-[0_8px_24px_-10px_color-mix(in_oklab,var(--lime)_60%,transparent)]",
+          "bg-[var(--brand)] text-white font-semibold hover:bg-[#193f68]",
         // ink = explicit alias for default
         ink:
           "bg-[var(--ink)] text-[var(--paper)] hover:bg-[color-mix(in_oklab,var(--ink)_92%,white)]",
@@ -32,10 +32,10 @@ const buttonVariants = cva(
         link: "text-[var(--ink)] underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 px-5 py-2 has-[>svg]:px-4",
+        default: "h-11 px-5 py-2 has-[>svg]:px-4",
         sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5 text-xs",
-        lg: "h-12 rounded-full px-7 text-[0.95rem] has-[>svg]:px-6",
-        xl: "h-14 rounded-full px-9 text-base has-[>svg]:px-7",
+        lg: "h-12 rounded-md px-7 text-[0.95rem] has-[>svg]:px-6",
+        xl: "h-14 rounded-md px-9 text-base has-[>svg]:px-7",
         pill: "h-10 rounded-full px-6",
         icon: "size-10 rounded-full",
         "icon-sm": "size-8 rounded-full",

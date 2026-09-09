@@ -16,7 +16,7 @@ interface JobsViewProps {
 }
 
 /**
- * Server-rendered job grid with real, crawlable ?page= pagination links.
+ * Server-rendered job list with real, crawlable ?page= pagination links.
  */
 export function JobsView({
     jobs,
@@ -39,13 +39,14 @@ export function JobsView({
 
     if (jobs.length === 0) {
         return (
-            <div className="text-center py-16 rounded-2xl border border-dashed border-[var(--border)] bg-[color-mix(in_oklab,var(--ink)_3%,transparent)]">
+            <div className="text-center px-6 py-14 rounded-lg border border-border bg-white">
                 <h3 className="font-display text-xl font-semibold text-[var(--ink)]">
-                    No roles match this view
+                    No jobs match your search
                 </h3>
                 <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                    Try another filter. New listings drop throughout the week.
+                    Try fewer keywords, a nearby location, or a different work arrangement.
                 </p>
+                <Link href="/#roles" className="primary-button mt-5 px-5 py-2.5">View all jobs</Link>
             </div>
         );
     }
@@ -65,13 +66,13 @@ export function JobsView({
     }
 
     const navButtonClass =
-        'inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] text-[var(--ink)] hover:border-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)] transition-all';
+        'inline-flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] text-[var(--ink)] hover:border-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--paper)] transition-colors';
     const disabledClass =
-        'inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] text-[var(--ink)] opacity-40';
+        'inline-flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] text-[var(--ink)] opacity-40';
 
     return (
         <div className="space-y-10">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6">
+            <div className="overflow-hidden rounded-lg border border-border divide-y divide-border">
                 {jobs.map((job) => (
                     <JobCard key={job.id} job={job} />
                 ))}
@@ -79,7 +80,7 @@ export function JobsView({
 
             {totalPages > 1 && (
                 <nav
-                    className="flex justify-center items-center gap-2 pt-6"
+                    className="flex justify-center items-center gap-1 sm:gap-2 pt-2"
                     aria-label="Pagination"
                 >
                     {page === 1 ? (
@@ -108,7 +109,7 @@ export function JobsView({
                                 aria-current={p === page ? 'page' : undefined}
                                 aria-label={p === page ? `Page ${p}, current page` : `Page ${p}`}
                                 className={[
-                                    'inline-flex h-10 min-w-10 items-center justify-center rounded-full text-sm font-medium transition-all px-3',
+                                    'inline-flex h-11 min-w-11 items-center justify-center rounded-md text-sm font-medium transition-colors px-3',
                                     p === page
                                         ? 'bg-[var(--ink)] text-[var(--paper)]'
                                         : 'text-[var(--muted-foreground)] hover:text-[var(--ink)] hover:bg-[color-mix(in_oklab,var(--ink)_6%,transparent)]',

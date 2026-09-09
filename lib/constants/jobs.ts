@@ -2,13 +2,13 @@
  * Two decoupled listing windows:
  *
  * - DISPLAY window: how long a job stays visible on the site (board, search,
- *   related jobs, feed). Generous so the board stays populated.
+ *   related jobs, feed). Defaults to the same freshness window as Google.
  * - GOOGLE window: how long a job is treated as fresh for Google Jobs. It
  *   caps validThrough, and past it a job is dropped from JobPosting schema,
  *   set to noindex, excluded from the sitemap, and flagged "may be filled".
  *   Kept at ~90 days so we never tell Google a stale job is still open.
  */
-export const JOB_DISPLAY_DAYS = Number(process.env.JOB_DISPLAY_DAYS) || 365;
+export const JOB_DISPLAY_DAYS = Number(process.env.JOB_DISPLAY_DAYS) || 90;
 export const JOB_GOOGLE_VALID_DAYS = Number(process.env.JOB_GOOGLE_VALID_DAYS) || 90;
 
 type JobDates = { createdAt: Date | string; applicationDeadline?: Date | string | null };

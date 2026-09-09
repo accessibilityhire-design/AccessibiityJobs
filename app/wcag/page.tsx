@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { RelatedJobs } from '@/components/RelatedJobs';
 import { generatePageMetadata, generateFAQStructuredData } from '@/lib/seo-config';
-import { BookOpen, CheckCircle, AlertTriangle, Sparkles, ExternalLink, ArrowRight } from 'lucide-react';
+import { BookOpen, CheckCircle, AlertTriangle, BookMarked, ExternalLink, ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = generatePageMetadata({
   title: 'WCAG Guidelines - Web Content Accessibility Guidelines Complete Guide',
@@ -74,7 +74,7 @@ export default function WCAGPage() {
         {/* What is WCAG - Expanded */}
         <section className="content-card">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
               <BookOpen className="w-6 h-6 text-blue-600" />
             </div>
             <div>
@@ -200,7 +200,7 @@ export default function WCAGPage() {
         {/* Common Violations */}
         <section className="content-card">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-100 to-orange-100 flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
               <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
             <div>
@@ -282,7 +282,7 @@ export default function WCAGPage() {
         <section className="info-box">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-6 h-6 text-blue-600" />
+              <BookMarked className="w-6 h-6 text-blue-600" />
             </div>
             <div>
               <h3>WCAG 3.0 Coming Soon</h3>

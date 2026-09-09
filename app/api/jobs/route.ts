@@ -10,6 +10,10 @@ export async function GET(request: NextRequest) {
       employment: searchParams.get('employment') || undefined,
       level: searchParams.get('level') || undefined,
       page: searchParams.get('page') || undefined,
+      location: searchParams.get('location') || undefined,
+      posted: searchParams.get('posted') || undefined,
+      salary: searchParams.get('salary') || undefined,
+      sort: searchParams.get('sort') || undefined,
     });
 
     const perPage = Math.min(

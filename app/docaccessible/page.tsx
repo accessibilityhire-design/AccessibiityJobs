@@ -134,7 +134,7 @@ export default function DocAccessiblePage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <Card className="bg-muted border-blue-200">
           <CardContent className="pt-6 text-center">
             <h3 className="text-2xl font-bold mb-3">Build Accessibility Skills Around Documentation</h3>
             <p className="text-gray-700 mb-5">

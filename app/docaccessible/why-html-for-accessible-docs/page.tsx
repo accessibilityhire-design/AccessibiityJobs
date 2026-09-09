@@ -85,7 +85,7 @@ export default function WhyHtmlForAccessibleDocsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <Card className="bg-muted border-blue-200">
           <CardContent className="pt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <p className="font-semibold text-gray-900">See the source perspective</p>

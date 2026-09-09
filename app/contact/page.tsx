@@ -57,7 +57,7 @@ export default function ContactPage() {
           {state.succeeded ? (
             <div className="py-12 text-center">
               <div className="mb-6">
-                <div className="mx-auto w-20 h-20 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-2xl flex items-center justify-center">
+                <div className="mx-auto w-20 h-20 bg-muted rounded-2xl flex items-center justify-center">
                   <CheckCircle className="h-10 w-10 text-emerald-600" />
                 </div>
               </div>

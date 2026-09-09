@@ -10,9 +10,9 @@ import { generateJobCollectionStructuredData, safeJsonLd } from '@/lib/seo';
 export const revalidate = 300;
 
 const REMOTE_JOBS_METADATA: Metadata = generatePageMetadata({
-  title: 'Remote Accessibility Jobs: Work From Anywhere',
+  title: 'Remote Accessibility Jobs: Find Your Next Role',
   description:
-    'Browse remote digital accessibility jobs: accessibility engineers, WCAG auditors, a11y consultants, and inclusive design roles you can do from anywhere.',
+    'Browse remote digital accessibility jobs for engineers, WCAG auditors, a11y consultants, and inclusive designers. Check location eligibility for each role.',
   path: '/remote-accessibility-jobs',
   keywords: [
     'remote accessibility jobs',
@@ -66,24 +66,23 @@ export default async function RemoteJobsPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionData) }}
       />
-      <section className="container mx-auto px-4 py-14 md:py-20">
+      <section className="container mx-auto px-5 py-8 md:px-8 md:py-10">
         <Breadcrumbs
           items={[{ label: 'Remote Accessibility Jobs', href: '/remote-accessibility-jobs' }]}
         />
         <div className="max-w-3xl">
-          <span className="eyebrow">Remote-first</span>
           <h1 className="display-lg mt-2 text-[var(--ink)]">
             Remote accessibility jobs.
           </h1>
           <p className="mt-4 text-lg text-[var(--ink-soft)] leading-relaxed">
             {result ? `${result.total.toLocaleString()} live remote roles` : 'Live remote roles'}{' '}
-            in digital accessibility, including engineering, auditing, design, and consulting positions
-            you can do from anywhere. Updated daily.
+            in digital accessibility, including engineering, auditing, design, and consulting.
+            Check each listing for eligible locations and time zones.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/?type=remote#roles"
-              className="inline-flex items-center gap-2 h-11 rounded-full border border-[var(--border)] bg-white text-[var(--ink)] px-6 font-medium hover:border-[var(--ink)] transition-colors"
+              className="inline-flex items-center gap-2 h-11 rounded-md border border-input bg-white text-[var(--brand)] px-5 font-medium hover:border-[var(--brand)] transition-colors"
             >
               Search & filter remote roles
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -91,7 +90,7 @@ export default async function RemoteJobsPage({
           </div>
         </div>
 
-        <div className="mt-12">
+        <div className="mt-8">
           {result && result.jobs.length > 0 ? (
             <JobsView
               jobs={result.jobs}
@@ -102,13 +101,14 @@ export default async function RemoteJobsPage({
               anchor=""
             />
           ) : (
-            <div className="text-center py-16 rounded-2xl border border-dashed border-[var(--border)]">
+            <div role={result ? 'status' : 'alert'} className="bg-white p-8 rounded-lg border border-border">
               <p className="font-display text-xl font-semibold text-[var(--ink)]">
-                No remote roles right now
+                {result ? 'No remote roles right now' : 'We couldn’t load the remote jobs'}
               </p>
               <p className="text-sm text-[var(--muted-foreground)] mt-1">
-                New listings drop throughout the week. Check back soon.
+                {result ? 'Try the full board for hybrid and onsite opportunities.' : 'Please try again in a moment.'}
               </p>
+              <Link href="/#roles" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--brand)] underline-offset-4 hover:underline">Browse all jobs</Link>
             </div>
           )}
         </div>

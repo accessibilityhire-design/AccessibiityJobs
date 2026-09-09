@@ -23,7 +23,7 @@ export default function AccessibilityToolsPage() {
         <p className="text-xl text-gray-600 mb-12">Comprehensive accessibility solutions for organizations and developers</p>
 
         {/* Accessibility.Build Section */}
-        <Card className="mb-12 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <Card className="mb-12 bg-muted border-blue-200">
           <CardHeader>
             <div className="flex items-center gap-3 mb-2">
               <Shield className="h-8 w-8 text-blue-600" />
@@ -268,7 +268,7 @@ export default function AccessibilityToolsPage() {
         </Card>
 
         {/* CTA Section */}
-        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+        <Card className="bg-muted border-blue-200">
           <CardContent className="pt-6 text-center">
             <h3 className="text-2xl font-bold mb-4">Master Professional Tools</h3>
             <p className="text-gray-700 mb-6">Proficiency in professional accessibility tools is essential for accessibility careers</p>

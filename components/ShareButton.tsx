@@ -40,7 +40,7 @@ export function ShareButton({ title, url, className }: ShareButtonProps) {
       onClick={handleShare}
       className={
         className ||
-        'inline-flex items-center justify-center gap-2 h-10 rounded-full border border-white/20 text-white/80 hover:bg-white/5 hover:border-white/40 text-sm transition-colors'
+        'inline-flex items-center justify-center gap-2 h-11 rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground text-sm transition-colors'
       }
     >
       {copied ? (

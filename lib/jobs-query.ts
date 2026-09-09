@@ -5,43 +5,15 @@
  */
 import { db } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
-import { and, or, eq, gte, isNull, ilike, desc, sql, count, countDistinct, SQL } from 'drizzle-orm';
+import { and, or, eq, gte, lte, isNull, ilike, desc, asc, sql, count, countDistinct, SQL } from 'drizzle-orm';
 import { JOB_DISPLAY_DAYS, JOB_GOOGLE_VALID_DAYS } from '@/lib/constants/jobs';
+import { containsPattern, countryAliases, searchTerms, type JobsFilter } from '@/lib/job-search';
+export { parseJobsSearchParams, EMPLOYMENT_TYPES, WORK_ARRANGEMENTS, JOB_LEVELS } from '@/lib/job-search';
+export type { JobsFilter } from '@/lib/job-search';
 
 export { JOB_DISPLAY_DAYS, JOB_GOOGLE_VALID_DAYS };
 
 export const JOBS_PER_PAGE = 12;
-
-export const EMPLOYMENT_TYPES = ['full-time', 'part-time', 'contract', 'freelance', 'internship'] as const;
-export const WORK_ARRANGEMENTS = ['remote', 'hybrid', 'onsite'] as const;
-export const JOB_LEVELS = ['entry', 'mid', 'senior', 'lead', 'principal', 'director', 'vp', 'c-level'] as const;
-
-export interface JobsFilter {
-  search?: string;
-  type?: string; // work arrangement
-  employment?: string;
-  level?: string;
-  page?: number;
-}
-
-export function parseJobsSearchParams(params: {
-  search?: string;
-  type?: string;
-  employment?: string;
-  level?: string;
-  page?: string;
-}): Required<JobsFilter> {
-  const page = Math.max(1, parseInt(params.page || '1', 10) || 1);
-  const clean = (value: string | undefined, allowed: readonly string[]) =>
-    value && allowed.includes(value) ? value : 'all';
-  return {
-    search: (params.search || '').trim().slice(0, 100),
-    type: clean(params.type, WORK_ARRANGEMENTS),
-    employment: clean(params.employment, EMPLOYMENT_TYPES),
-    level: clean(params.level, JOB_LEVELS),
-    page,
-  };
-}
 
 function cutoffDaysAgo(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -50,7 +22,7 @@ function cutoffDaysAgo(days: number): Date {
 /** Excludes scraped rows whose company name is junk (masked at read time). */
 function validCompanyConditions(): SQL[] {
   return [
-    sql`lower(trim(${jobs.company})) NOT IN ('nan', 'null', 'undefined', 'n/a', 'none', 'tbd', 'unknown', 'pending', 'not specified')`,
+    sql`lower(trim(${jobs.company})) NOT IN ('nan', 'null', 'undefined', 'n/a', 'none', 'tbd', 'unknown', 'pending', 'not specified', 'unknown company', 'company information pending', 'company not available')`,
     sql`length(trim(${jobs.company})) >= 2`,
   ];
 }
@@ -63,6 +35,7 @@ export function activeJobsWhere(): SQL {
   return and(
     eq(jobs.status, 'approved'),
     gte(jobs.createdAt, cutoffDaysAgo(JOB_DISPLAY_DAYS)),
+    lte(jobs.createdAt, new Date()),
     or(isNull(jobs.applicationDeadline), gte(jobs.applicationDeadline, new Date())),
     ...validCompanyConditions()
   )!;
@@ -76,6 +49,7 @@ export function indexableJobsWhere(): SQL {
   return and(
     eq(jobs.status, 'approved'),
     gte(jobs.createdAt, cutoffDaysAgo(JOB_GOOGLE_VALID_DAYS)),
+    lte(jobs.createdAt, new Date()),
     or(isNull(jobs.applicationDeadline), gte(jobs.applicationDeadline, new Date())),
     ...validCompanyConditions()
   )!;
@@ -94,10 +68,30 @@ function filtersWhere(filter: Required<JobsFilter>): SQL {
     conditions.push(eq(jobs.jobLevel, filter.level));
   }
   if (filter.search) {
-    const term = `%${filter.search.replace(/[%_\\]/g, '\\$&')}%`;
-    conditions.push(
-      or(ilike(jobs.title, term), ilike(jobs.company, term), ilike(jobs.description, term))
-    );
+    // Every word must match, but words can appear in different fields/order.
+    // No paid inference or external search service on the request path.
+    for (const word of searchTerms(filter.search)) {
+      const term = containsPattern(word);
+      conditions.push(or(
+        ilike(jobs.title, term), ilike(jobs.company, term), ilike(jobs.description, term),
+        ilike(jobs.requiredSkills, term), ilike(jobs.requirements, term),
+        ilike(jobs.city, term), ilike(jobs.country, term), ilike(jobs.location, term),
+      ));
+    }
+  }
+  if (filter.location) {
+    const aliases = countryAliases(filter.location);
+    const term = containsPattern(filter.location);
+    conditions.push(or(
+      ...aliases.map(alias => sql`lower(${jobs.country}) = ${alias.toLowerCase()}`),
+      ilike(jobs.city, term), ilike(jobs.specificLocation, term), ilike(jobs.location, term),
+    ));
+  }
+  if (filter.posted !== 'all') {
+    conditions.push(gte(jobs.createdAt, cutoffDaysAgo(Number(filter.posted))));
+  }
+  if (filter.salary === '1') {
+    conditions.push(or(gte(jobs.salaryMin, 1), gte(jobs.salaryMax, 1)));
   }
 
   return and(...conditions)!;
@@ -110,12 +104,24 @@ export async function queryJobs(filter: Required<JobsFilter>, perPage: number = 
 
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const page = Math.min(filter.page, totalPages);
+  const order: SQL[] = [];
+  if (filter.search && filter.sort === 'relevance') {
+    const scores = searchTerms(filter.search).map(word => {
+      const term = containsPattern(word);
+      return sql`(CASE WHEN ${jobs.title} ILIKE ${term} THEN 10 ELSE 0 END
+        + CASE WHEN ${jobs.company} ILIKE ${term} THEN 5 ELSE 0 END
+        + CASE WHEN ${jobs.requiredSkills} ILIKE ${term} THEN 2 ELSE 0 END)`;
+    });
+    order.push(desc(sql`(CASE WHEN ${jobs.title} ILIKE ${containsPattern(filter.search)} THEN 40 ELSE 0 END
+      + ${sql.join(scores, sql` + `)})`));
+  }
+  order.push(filter.sort === 'oldest' ? asc(jobs.createdAt) : desc(jobs.createdAt), asc(jobs.id));
 
   const rows = await db
     .select()
     .from(jobs)
     .where(where)
-    .orderBy(desc(jobs.createdAt))
+    .orderBy(...order)
     .limit(perPage)
     .offset((page - 1) * perPage);
 

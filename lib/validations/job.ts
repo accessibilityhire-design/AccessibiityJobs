@@ -10,11 +10,11 @@ export const jobSubmissionSchema = z.object({
   
   // Job Details
   jobLevel: z.string().optional(),
-  employmentType: z.string().min(1, 'Employment type is required'),
+  employmentType: z.string({ error: 'Select an employment type' }).min(1, 'Select an employment type'),
   department: z.string().max(100).optional(),
   
   // Location & Remote Work
-  workArrangement: z.enum(['remote', 'hybrid', 'onsite']),
+  workArrangement: z.enum(['remote', 'hybrid', 'onsite'], { error: 'Select remote, hybrid, or onsite' }),
   timezone: z.string().optional(),
   country: z.string().optional(),
   city: z.string().max(100).optional(),

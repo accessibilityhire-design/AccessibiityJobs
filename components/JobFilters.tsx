@@ -1,191 +1,93 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useTransition } from 'react';
-import { Search } from 'lucide-react';
+import { useRef, useState, useTransition } from 'react';
+import { MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
+import type { JobsFilter } from '@/lib/job-search';
 
-interface JobFiltersProps {
-  initialType?: string;
-  initialSearch?: string;
-  initialEmployment?: string;
-  initialLevel?: string;
-  totalCount?: number;
-}
+const fields = [
+  { name: 'type', label: 'Work arrangement', options: [['all', 'Any arrangement'], ['remote', 'Remote'], ['hybrid', 'Hybrid'], ['onsite', 'Onsite']] },
+  { name: 'employment', label: 'Employment type', options: [['all', 'Any employment'], ['full-time', 'Full-time'], ['part-time', 'Part-time'], ['contract', 'Contract'], ['freelance', 'Freelance'], ['internship', 'Internship']] },
+  { name: 'level', label: 'Seniority level', options: [['all', 'Any seniority'], ['entry', 'Entry level'], ['mid', 'Mid level'], ['senior', 'Senior'], ['lead', 'Lead'], ['principal', 'Principal'], ['director', 'Director'], ['vp', 'Vice president'], ['c-level', 'Executive']] },
+  { name: 'posted', label: 'Date posted', options: [['all', 'Any time'], ['1', 'Past 24 hours'], ['7', 'Past week'], ['30', 'Past month']] },
+] as const;
 
-const ARRANGEMENTS: Array<{ value: string; label: string }> = [
-  { value: 'all', label: 'All roles' },
-  { value: 'remote', label: 'Remote' },
-  { value: 'hybrid', label: 'Hybrid' },
-  { value: 'onsite', label: 'Onsite' },
-];
-
-const EMPLOYMENT_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'all', label: 'Any employment type' },
-  { value: 'full-time', label: 'Full-time' },
-  { value: 'part-time', label: 'Part-time' },
-  { value: 'contract', label: 'Contract' },
-  { value: 'freelance', label: 'Freelance' },
-  { value: 'internship', label: 'Internship' },
-];
-
-const LEVEL_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'all', label: 'Any seniority' },
-  { value: 'entry', label: 'Entry level' },
-  { value: 'mid', label: 'Mid level' },
-  { value: 'senior', label: 'Senior' },
-  { value: 'lead', label: 'Lead' },
-  { value: 'principal', label: 'Principal' },
-  { value: 'director', label: 'Director' },
-];
-
-const selectClass =
-  'h-9 rounded-full border border-[var(--border)] bg-white px-3 pr-8 text-sm text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]';
-
-export function JobFilters({
-  initialType = 'all',
-  initialSearch = '',
-  initialEmployment = 'all',
-  initialLevel = 'all',
-  totalCount,
-}: JobFiltersProps) {
+export function JobFilters({ filter, totalCount }: { filter: Required<JobsFilter>; totalCount?: number }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [searchValue, setSearchValue] = useState(initialSearch);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const locationInput = useRef<HTMLInputElement>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const selectedType = searchParams.get('type') || initialType;
-  const selectedEmployment = searchParams.get('employment') || initialEmployment;
-  const selectedLevel = searchParams.get('level') || initialLevel;
-
-  const applyParams = (updates: Record<string, string>) => {
+  const apply = (updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(updates)) {
-      if (!value || value === 'all') {
-        params.delete(key);
-      } else {
-        params.set(key, value);
-      }
+    for (const [key, value] of Object.entries({ search: searchInput.current?.value.trim() || '', location: locationInput.current?.value.trim() || '', ...updates })) {
+      if (!value || value === 'all') params.delete(key);
+      else params.set(key, value);
     }
-    params.delete('page'); // any filter change restarts at page 1
-    const query = params.toString();
-    startTransition(() => {
-      router.push(query ? `/?${query}#roles` : '/#roles', { scroll: false });
-    });
+    params.delete('page');
+    startTransition(() => router.push(`/?${params.toString()}#roles`, { scroll: false }));
   };
-
-  const handleSearchSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    applyParams({ search: searchValue.trim() });
+  const clear = () => {
+    if (searchInput.current) searchInput.current.value = '';
+    if (locationInput.current) locationInput.current.value = '';
+    startTransition(() => router.push('/#roles', { scroll: false }));
   };
+  const activeFilters = Boolean(filter.search || filter.location || fields.some(f => filter[f.name] !== 'all') || filter.salary === '1');
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-        <form onSubmit={handleSearchSubmit} role="search" className="flex-1 min-w-0">
-          <label htmlFor="job-search" className="sr-only">
-            Search jobs by title, company, or keyword
-          </label>
-          <div className="relative flex items-center">
-            <Search
-              className="absolute left-4 h-4 w-4 text-[var(--muted-foreground)]"
-              aria-hidden="true"
-            />
-            <input
-              id="job-search"
-              type="search"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              placeholder="Search title, company, or keyword…"
-              className="h-11 w-full rounded-full border border-[var(--border)] bg-white pl-11 pr-24 text-sm text-[var(--ink)] placeholder:text-[var(--placeholder)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]"
-            />
-            <button
-              type="submit"
-              className="absolute right-1.5 inline-flex h-8 items-center rounded-full bg-[var(--ink)] px-4 text-sm font-medium text-[var(--paper)] hover:opacity-90 transition-opacity"
-            >
-              Search
-            </button>
+    <div aria-busy={isPending} className="space-y-5">
+      <form key={JSON.stringify([filter.search, filter.location])} role="search" onSubmit={event => { event.preventDefault(); apply({}); }}>
+        <div className="grid gap-3 md:grid-cols-[1.5fr_1fr_auto] md:items-end">
+          <div>
+            <label htmlFor="job-search" className="mb-2 block text-sm font-semibold">Job title, company, or keyword</label>
+            <div className="relative">
+              <Search className="absolute left-3.5 top-4 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <input ref={searchInput} id="job-search" name="search" type="search" maxLength={100} defaultValue={filter.search} placeholder="e.g. accessibility engineer, WCAG" className="search-input pl-10" />
+            </div>
           </div>
-        </form>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="filter-employment" className="sr-only">
-            Employment type
-          </label>
-          <select
-            id="filter-employment"
-            value={selectedEmployment}
-            onChange={(e) => applyParams({ employment: e.target.value })}
-            className={selectClass}
-          >
-            {EMPLOYMENT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-
-          <label htmlFor="filter-level" className="sr-only">
-            Seniority level
-          </label>
-          <select
-            id="filter-level"
-            value={selectedLevel}
-            onChange={(e) => applyParams({ level: e.target.value })}
-            className={selectClass}
-          >
-            {LEVEL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label htmlFor="job-location" className="mb-2 block text-sm font-semibold">Location</label>
+            <div className="relative">
+              <MapPin className="absolute left-3.5 top-4 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <input ref={locationInput} id="job-location" name="location" maxLength={100} defaultValue={filter.location} placeholder="City or country" className="search-input pl-10" />
+            </div>
+          </div>
+          <button type="submit" disabled={isPending} className="primary-button h-12 px-7">{isPending ? 'Searching…' : 'Find jobs'}</button>
         </div>
+      </form>
+      <button type="button" onClick={() => setFiltersOpen(!filtersOpen)} aria-expanded={filtersOpen} aria-controls="advanced-job-filters" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-input bg-white px-4 text-sm font-medium md:hidden">
+        <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />Filters
+        {(fields.filter(f => filter[f.name] !== 'all').length + Number(filter.salary === '1')) > 0 && <span>({fields.filter(f => filter[f.name] !== 'all').length + Number(filter.salary === '1')})</span>}
+      </button>
+      <div id="advanced-job-filters" className={`${filtersOpen ? 'flex' : 'hidden md:flex'} flex-wrap items-end gap-3 border-t border-border pt-5`}>
+        {fields.map(field => (
+          <div key={field.name} className="min-w-0 flex-1 basis-[140px] md:flex-none md:basis-auto">
+            <label htmlFor={`filter-${field.name}`} className="mb-1.5 block text-xs font-medium text-muted-foreground">{field.label}</label>
+            <select id={`filter-${field.name}`} value={filter[field.name]} disabled={isPending} onChange={e => apply({ [field.name]: e.target.value })} className="filter-select w-full">
+              {field.options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </div>
+        ))}
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm md:ml-1">
+          <input type="checkbox" checked={filter.salary === '1'} disabled={isPending} onChange={e => apply({ salary: e.target.checked ? '1' : 'all' })} className="h-4 w-4 accent-[var(--brand)]" />
+          Salary listed
+        </label>
+        {activeFilters && <button type="button" onClick={clear} disabled={isPending} className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-[var(--brand)] hover:underline md:ml-auto"><X className="h-3.5 w-3.5" aria-hidden="true" />Clear filters</button>}
       </div>
-
-      <div
-        role="group"
-        aria-label="Filter jobs by work arrangement"
-        className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-      >
-        <div className="flex items-center gap-3">
-          <span className="eyebrow hidden md:inline-block">Filter</span>
-          <div className="inline-flex flex-wrap items-center gap-2 p-1 rounded-full bg-[color-mix(in_oklab,var(--ink)_5%,transparent)] border border-[var(--border)]">
-            {ARRANGEMENTS.map((opt) => {
-              const active = selectedType === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => applyParams({ type: opt.value })}
-                  aria-pressed={active}
-                  className={[
-                    'relative inline-flex items-center h-9 px-4 rounded-full text-sm font-medium transition-all',
-                    active
-                      ? 'bg-[var(--ink)] text-[var(--paper)] shadow-[0_6px_16px_-8px_rgba(16,16,32,0.4)]'
-                      : 'text-[var(--muted-foreground)] hover:text-[var(--ink)]',
-                  ].join(' ')}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <p role="status" className="text-sm text-muted-foreground">
+          {isPending ? 'Updating results…' : typeof totalCount === 'number' ? <><strong className="text-foreground">{totalCount.toLocaleString()} job{totalCount === 1 ? '' : 's'}</strong>{activeFilters ? totalCount === 1 ? ' matches your search' : ' match your search' : ' available'}</> : 'Job listings are temporarily unavailable'}
+        </p>
+        <div className="flex items-center gap-2 text-sm">
+          <label htmlFor="filter-sort" className="text-muted-foreground">Sort by</label>
+          <select id="filter-sort" className="filter-select" value={filter.sort} disabled={isPending} onChange={e => apply({ sort: e.target.value })}>
+            <option value="newest">Newest first</option>
+            {filter.search && <option value="relevance">Most relevant</option>}
+            <option value="oldest">Oldest first</option>
+          </select>
         </div>
-
-        {typeof totalCount === 'number' && (
-          <p role="status" aria-live="polite" className="text-sm text-[var(--muted-foreground)]">
-            {isPending ? (
-              'Updating results…'
-            ) : (
-              <>
-                <span className="font-display font-semibold text-[var(--ink)] text-base">
-                  {totalCount.toLocaleString()}
-                </span>{' '}
-                open role{totalCount === 1 ? '' : 's'}
-              </>
-            )}
-          </p>
-        )}
       </div>
     </div>
   );

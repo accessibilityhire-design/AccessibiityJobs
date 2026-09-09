@@ -29,7 +29,7 @@ export default function AboutPage() {
         {/* Mission Section */}
         <section className="content-card">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
               <Target className="w-6 h-6 text-blue-600" />
             </div>
             <div>
@@ -66,7 +66,7 @@ export default function AboutPage() {
         {/* For Job Seekers */}
         <section className="content-card">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
               <Users className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
@@ -89,7 +89,7 @@ export default function AboutPage() {
         {/* For Employers */}
         <section className="content-card">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
               <Briefcase className="w-6 h-6 text-purple-600" />
             </div>
             <div>
@@ -111,7 +111,7 @@ export default function AboutPage() {
         {/* What We Focus On */}
         <section className="content-card">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-100 to-amber-100 flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
               <Award className="w-6 h-6 text-orange-600" />
             </div>
             <div>

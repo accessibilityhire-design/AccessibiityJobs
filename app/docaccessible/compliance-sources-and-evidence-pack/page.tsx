@@ -87,7 +87,7 @@ export default function ComplianceSourcesAndEvidencePackPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <Card className="bg-muted border-blue-200">
           <CardContent className="pt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-start gap-3">
               <Shield className="h-5 w-5 text-blue-700 mt-0.5" />

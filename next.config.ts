@@ -60,15 +60,8 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      {
-        source: '/_next/static/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
+      // Next manages its own asset caching. Forcing immutable headers here
+      // also cached development chunks and broke previews after code edits.
       {
         source: '/:path*',
         headers: [

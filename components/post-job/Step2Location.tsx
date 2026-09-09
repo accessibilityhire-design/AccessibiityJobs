@@ -54,7 +54,7 @@ export function Step2Location({
             control={control}
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger id="workArrangement" aria-invalid={errors.workArrangement ? 'true' : 'false'}>
+                <SelectTrigger id="workArrangement" aria-required="true" aria-invalid={errors.workArrangement ? 'true' : 'false'} aria-describedby={errors.workArrangement ? 'workArrangement-error' : undefined}>
                   <SelectValue placeholder="Select work arrangement" />
                 </SelectTrigger>
                 <SelectContent>
@@ -65,14 +65,14 @@ export function Step2Location({
               </Select>
             )}
           />
-          {errors.workArrangement && <p role="alert" className="text-sm text-red-600">{errors.workArrangement.message}</p>}
+          {errors.workArrangement && <p id="workArrangement-error" role="alert" className="text-sm text-red-600">{errors.workArrangement.message}</p>}
         </div>
 
         {workArrangement !== 'remote' && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="country">Country *</Label>
+                <Label htmlFor="country">Country</Label>
                 <Input
                   id="country"
                   placeholder={detectedCountry || "e.g. United States"}
@@ -157,4 +157,3 @@ export function Step2Location({
     </Card>
   );
 }
-

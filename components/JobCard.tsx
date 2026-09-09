@@ -1,186 +1,47 @@
 import Link from 'next/link';
 import { Job } from '@/lib/db/schema';
 import { formatDistanceToNow } from 'date-fns';
-import { MapPin, Clock, ArrowUpRight } from 'lucide-react';
+import { MapPin, ArrowRight } from 'lucide-react';
 import { jobPath } from '@/lib/slug';
 import { formatCompanyName } from '@/lib/job-formatter';
 import { replaceEmDashes } from '@/lib/text-style';
+import { salaryLabel, locationLabel, skillLabels } from '@/lib/job-presentation';
 
-interface JobCardProps {
-    job: Job;
-}
+export function JobCard({ job }: { job: Job }) {
+  const title = replaceEmDashes(job.title);
+  const company = formatCompanyName(job.company);
+  const salary = salaryLabel(job);
+  const skills = skillLabels(job.requiredSkills).slice(0, 3);
+  const posted = new Date(job.createdAt);
+  const age = new Date().getTime() - posted.getTime();
+  const isNew = age >= 0 && age < 3 * 86400000;
+  const arrangement = { remote: 'Remote', hybrid: 'Hybrid', onsite: 'Onsite' }[job.workArrangement];
 
-// Deterministic pastel ring color from company name so every tile is distinct
-function colorFromString(input: string) {
-    let hash = 0;
-    for (let i = 0; i < input.length; i++) {
-        hash = input.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const hue = Math.abs(hash) % 360;
-    return `oklch(0.78 0.10 ${hue})`;
-}
-
-export function JobCard({ job }: JobCardProps) {
-    const jobTitle = replaceEmDashes(job.title);
-    const companyName = formatCompanyName(job.company);
-    const formatSalary = () => {
-        if (job.salaryRange) return job.salaryRange;
-        if (!job.currency || !/^[A-Z]{3}$/i.test(job.currency)) return 'Competitive';
-        const formatter = new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: job.currency.toUpperCase(),
-            maximumFractionDigits: 0,
-        });
-        const suffix = job.salaryType === 'hourly'
-            ? '/hr'
-            : job.salaryType === 'daily'
-            ? '/day'
-            : job.salaryType === 'monthly'
-            ? '/mo'
-            : '';
-        if (job.salaryMin && job.salaryMax) {
-            if (job.salaryMin === job.salaryMax) {
-                return `${formatter.format(job.salaryMin)}${suffix}`;
-            }
-            const fmt = (n: number) => formatter.format(n);
-            return `${fmt(job.salaryMin)}–${fmt(job.salaryMax)}${suffix}`;
-        }
-        return 'Competitive';
-    };
-
-    const getSkills = () => {
-        try {
-            if (!job.requiredSkills) return [] as string[];
-            const skills = JSON.parse(job.requiredSkills);
-            return Array.isArray(skills) ? skills.slice(0, 3) : [];
-        } catch {
-            return [];
-        }
-    };
-
-    const skills = getSkills();
-    const totalSkills = (() => {
-        try {
-            return JSON.parse(job.requiredSkills || '[]').length;
-        } catch {
-            return 0;
-        }
-    })();
-
-    const isNew =
-        job.createdAt &&
-        new Date().getTime() - new Date(job.createdAt).getTime() < 7 * 24 * 60 * 60 * 1000;
-
-    const arrangementLabel =
-        job.workArrangement === 'remote'
-            ? 'Remote'
-            : job.workArrangement === 'hybrid'
-            ? 'Hybrid'
-            : 'Onsite';
-
-    const avatarColor = colorFromString(job.company || 'job');
-    const initial = (job.company || 'J').charAt(0).toUpperCase();
-
-    return (
-        <Link
-            href={jobPath(job)}
-            className="group relative flex flex-col h-full rounded-2xl border border-[var(--border)] bg-white p-6 transition-all duration-300 hover:border-[var(--ink)] hover:shadow-[0_18px_40px_-22px_rgba(16,16,32,0.25)] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)] focus-visible:ring-offset-2 overflow-hidden"
-        >
-            {/* Lime corner wedge on hover */}
-            <span
-                aria-hidden="true"
-                className="pointer-events-none absolute top-0 right-0 h-0 w-0 border-l-[48px] border-b-[48px] border-l-transparent border-b-[var(--lime)] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-            />
-
-            {/* Meta row */}
-            <div className="flex items-center gap-2 mb-4 text-[0.7rem] font-semibold tracking-wide uppercase">
-                {isNew && (
-                    <span className="inline-flex items-center rounded-full bg-[color-mix(in_oklab,var(--saffron)_22%,white)] text-[color-mix(in_oklab,var(--saffron)_60%,var(--ink))] px-2 py-0.5 border border-[color-mix(in_oklab,var(--saffron)_35%,white)]">
-                        New
-                    </span>
-                )}
-                <span className="inline-flex items-center rounded-full bg-[color-mix(in_oklab,var(--ink)_5%,transparent)] text-[var(--ink)] px-2 py-0.5 border border-[var(--border)]">
-                    {arrangementLabel}
-                </span>
-                {job.employmentType && (
-                    <span className="inline-flex items-center rounded-full text-[var(--muted-foreground)] px-2 py-0.5 border border-[var(--border)]">
-                        {job.employmentType === 'full-time'
-                            ? 'Full-time'
-                            : job.employmentType.replace('-', ' ')}
-                    </span>
-                )}
-            </div>
-
-            {/* Company + title */}
-            <div className="flex items-start gap-4 mb-5">
-                <span
-                    aria-hidden="true"
-                    className="inline-flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl font-display font-bold text-lg text-[var(--ink)]"
-                    style={{
-                        background: `color-mix(in oklab, ${avatarColor} 55%, white)`,
-                        boxShadow: `inset 0 0 0 1.5px ${avatarColor}`,
-                    }}
-                >
-                    {initial}
-                </span>
-                <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-[var(--muted-foreground)] truncate">
-                        {companyName}
-                    </p>
-                    <h3 className="font-display text-lg md:text-[1.35rem] font-semibold leading-tight tracking-tight text-[var(--ink)] group-hover:text-[var(--ink)] transition-colors line-clamp-2 mt-0.5">
-                        {jobTitle}
-                    </h3>
-                </div>
-            </div>
-
-            {/* Info row */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-[var(--muted-foreground)] mb-5">
-                <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span className="truncate max-w-[14rem]">
-                        {replaceEmDashes(job.city && job.country ? `${job.city}, ${job.country}` : job.location || '')}
-                    </span>
-                </span>
-                <span className="text-[var(--ink)] font-semibold">{formatSalary()}</span>
-                <span className="inline-flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                    {job.createdAt
-                        ? formatDistanceToNow(new Date(job.createdAt), { addSuffix: true })
-                        : 'Recently'}
-                </span>
-            </div>
-
-            {/* Skills */}
-            {skills.length > 0 && (
-                <div className="mb-6 flex flex-wrap gap-1.5">
-                    {skills.map((skill: string, i: number) => (
-                        <span
-                            key={i}
-                            className="text-[0.72rem] font-medium text-[var(--muted-foreground)] px-2 py-1 rounded-md bg-[color-mix(in_oklab,var(--ink)_4%,transparent)]"
-                        >
-                            {skill}
-                        </span>
-                    ))}
-                    {totalSkills > 3 && (
-                        <span className="text-[0.72rem] font-medium text-[var(--muted-foreground)] px-2 py-1">
-                            +{totalSkills - 3}
-                        </span>
-                    )}
-                </div>
-            )}
-
-            {/* CTA */}
-            <div className="mt-auto pt-5 border-t border-[var(--border)] flex items-center justify-between">
-                <span className="font-medium text-sm text-[var(--ink)] group-hover:text-[var(--ink)]">
-                    View role
-                </span>
-                <span
-                    aria-hidden="true"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--ink)_6%,transparent)] text-[var(--ink)] transition-all duration-300 group-hover:bg-[var(--lime)] group-hover:rotate-45"
-                >
-                    <ArrowUpRight className="h-4 w-4" />
-                </span>
-            </div>
-        </Link>
-    );
+  return (
+    <article className="job-listing group relative bg-white p-5 transition-colors hover:bg-[var(--surface-subtle)] sm:p-6">
+      <div className="flex items-start gap-4">
+        <span aria-hidden="true" className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border bg-[var(--surface-subtle)] text-base font-semibold text-muted-foreground sm:inline-flex">{company.charAt(0).toUpperCase()}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="text-sm text-muted-foreground">{company}</p>
+            {isNew && <span className="text-xs font-semibold text-[var(--brand)]">New</span>}
+          </div>
+          <h3 className="mt-1.5 text-lg font-semibold leading-snug tracking-normal text-foreground">
+            <Link href={jobPath(job)} aria-label={`${title} at ${company}`} className="after:absolute after:inset-0 after:content-[''] hover:text-[var(--brand)] focus-visible:after:outline-2 focus-visible:after:outline-[var(--brand)] focus-visible:after:-outline-offset-2">{title}</Link>
+          </h3>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+            <span className="inline-flex items-start gap-1.5"><MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{locationLabel(job)}</span>
+            {arrangement && <span>{arrangement}</span>}
+            {job.employmentType && <span className="capitalize">{job.employmentType}</span>}
+          </div>
+          <p className={`mt-2 text-sm ${salary ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>{salary || 'Salary not listed'}</p>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-1.5">{skills.map(skill => <span key={skill} className="rounded border border-border px-2 py-1 text-xs text-muted-foreground">{skill}</span>)}</div>
+            <time dateTime={posted.toISOString()} className="text-xs text-muted-foreground">{formatDistanceToNow(posted, { addSuffix: true })}</time>
+          </div>
+        </div>
+        <ArrowRight className="mt-1 hidden h-4 w-4 shrink-0 text-muted-foreground group-hover:text-[var(--brand)] sm:block" aria-hidden="true" />
+      </div>
+    </article>
+  );
 }
