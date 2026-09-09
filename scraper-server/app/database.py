@@ -97,7 +97,7 @@ class Database:
                 return result['count'] > 0
         except Exception as e:
             logger.error(f"Error checking job existence: {e}")
-            return False
+            raise
     
     def insert_job(self, job_data: Dict[str, Any]) -> Optional[str]:
         """Insert a job into the database, returns job ID or None"""
@@ -142,10 +142,10 @@ class Database:
                 # Ensure all required fields have defaults
                 defaults = {
                     'company_website': None, 'company_size': None, 'industry': None,
-                    'job_level': 'mid', 'department': None,
-                    'timezone': None, 'country': 'United States', 'city': None,
+                    'job_level': None, 'department': None,
+                    'timezone': None, 'country': None, 'city': None,
                     'specific_location': None, 'relocation_assistance': False,
-                    'salary_min': None, 'salary_max': None, 'currency': 'USD',
+                    'salary_min': None, 'salary_max': None, 'currency': None,
                     'salary_type': None, 'equity_offered': False, 'bonus_structure': None,
                     'years_experience': None, 'education_level': None,
                     'required_certifications': '[]', 'preferred_certifications': '[]',

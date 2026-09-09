@@ -110,6 +110,14 @@ class ScraperManager:
             
             # Deduplicate all jobs
             unique_jobs = self._deduplicate_jobs(all_jobs)
+            known_count = 0
+            pending_jobs = []
+            for job in unique_jobs:
+                if db.job_exists(job.get('title', ''), job.get('company', '')):
+                    known_count += 1
+                else:
+                    pending_jobs.append(job)
+            unique_jobs = pending_jobs
             
             # AI Enhancement step (if enabled)
             enhanced_jobs = unique_jobs
@@ -130,7 +138,7 @@ class ScraperManager:
             
             # Insert jobs into database
             inserted = 0
-            skipped = 0
+            skipped = known_count
             failed = 0
             
             for job in enhanced_jobs:

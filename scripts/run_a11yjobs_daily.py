@@ -7,6 +7,7 @@ employer or ATS pages are preferred when available, while aggregator-only
 records require corroboration from another source before insertion.
 """
 
+import argparse
 import csv
 import html
 import json
@@ -23,12 +24,14 @@ from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from ingestion_support import (bounded_int, canonical_job_url, discovery_cutoff,
+                               DuplicateIndex, ingestion_lock, insert_batch)
 from dotenv import load_dotenv
 
 BASE_URL = "https://www.a11yjobs.com"
 LIST_URL = f"{BASE_URL}/"
 
-OUTPUT_DIR = "/Users/khushwantparihar/AccessibiityJobs/scripts/output"
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 CANDIDATES_JSON = os.path.join(OUTPUT_DIR, "multisource_jobs_candidates_final_with_nan.json")
 CANDIDATES_CSV = os.path.join(OUTPUT_DIR, "multisource_jobs_candidates_final_table.csv")
 INSERT_READY_JSON = os.path.join(OUTPUT_DIR, "multisource_jobs_insert_ready_final.json")
@@ -230,12 +233,15 @@ def psql_query(db_url: str, sql: str) -> Tuple[int, str, str]:
     ]
 
     for attempt in range(4):
-        result = subprocess.run(
-            ["psql", "-d", db_url, "-At", "-v", "ON_ERROR_STOP=1", "-c", sql],
-            capture_output=True,
-            text=True,
-            env={**os.environ, "PGCONNECT_TIMEOUT": "10"},
-        )
+        try:
+            result = subprocess.run(
+                ["psql", "-d", db_url, "-At", "-v", "ON_ERROR_STOP=1", "-c", sql],
+                capture_output=True, text=True, timeout=45,
+                env={**os.environ, "PGCONNECT_TIMEOUT": "10"},
+            )
+        except subprocess.TimeoutExpired:
+            # TimeoutExpired includes the command/DSN in its default message.
+            raise RuntimeError('Database query timed out; no automatic retry performed') from None
         code = result.returncode
         out = result.stdout.strip()
         err = result.stderr.strip()
@@ -245,7 +251,7 @@ def psql_query(db_url: str, sql: str) -> Tuple[int, str, str]:
 
         err_lower = err.lower()
         is_transient = any(marker in err_lower for marker in transient_markers)
-        if is_transient and attempt < 3:
+        if is_transient and attempt < 3 and sql.lstrip().upper().startswith("SELECT"):
             time.sleep(2 ** attempt)
             continue
         return code, out, err
@@ -270,6 +276,19 @@ def fetch_cutoff_date(db_url: str) -> date:
 def fetch_total_count(db_url: str) -> int:
     out = psql_scalar(db_url, "SELECT COUNT(*) FROM jobs;")
     return int(out) if out else 0
+
+
+def fetch_existing_records(db_url: str) -> List[Dict[str, Any]]:
+    # json_agg(row) can span lines; psql_scalar intentionally returns one line.
+    code, output, error = psql_query(db_url,
+        "SELECT COALESCE(json_agg(j), '[]'::json) FROM "
+        "(SELECT title, company, source_url, additional_notes FROM jobs) j;")
+    if code:
+        raise RuntimeError(error or 'Database identity snapshot failed')
+    records = json.loads(output)
+    if not isinstance(records, list):
+        raise ValueError('Database identity snapshot must be a list')
+    return records
 
 
 def fetch_page(session: requests.Session, url: str, retries: int = 3) -> Optional[BeautifulSoup]:
@@ -1419,6 +1438,10 @@ def sql_literal(value: Any) -> str:
     return "'" + text + "'"
 
 
+def job_identity(job):
+    return (normalize_text(job.get("title") or ""), normalize_company_for_dedupe(job.get("company") or ""))
+
+
 def check_duplicate_db(db_url: str, source_url: str, title: str, company: str) -> Tuple[bool, str]:
     if source_url:
         sql = f"SELECT id FROM jobs WHERE source_url = {sql_literal(source_url)} LIMIT 1;"
@@ -1893,9 +1916,17 @@ def normalize_external_content(text: str) -> str:
     return normalize_description_text(strip_html(text))
 
 
+def is_authentication_url(url: Optional[str]) -> bool:
+    if not url:
+        return False
+    return bool(re.search(r"/(?:log-?in|sign-?in|sign-?up|register)(?:[/.;]|$)", urlparse(url).path, re.I))
+
+
 def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[str], str, Optional[str]]:
     if not url or not url_is_valid(url):
         return None, "invalid", None
+    if is_authentication_url(url):
+        return None, "requires_sign_in", url
 
     # Workday's /apply route is only an application shell: it can repeat the
     # title in OpenGraph/URL chrome while omitting the authoritative
@@ -1916,6 +1947,8 @@ def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[s
             if (parsed.hostname or "").endswith(".taleo.net") and parsed.path.endswith("/jobapply.ftl"):
                 fetch_url = parsed._replace(path=parsed.path.replace("/jobapply.ftl", "/jobdetail.ftl")).geturl()
             response = session.get(fetch_url, timeout=5)
+            if is_authentication_url(response.url):
+                return None, response.url
             resolved = urlparse(response.url)
             if (resolved.hostname or "").endswith(".taleo.net") and resolved.path.endswith("/jobapply.ftl"):
                 detail_url = resolved._replace(path=resolved.path.replace("/jobapply.ftl", "/jobdetail.ftl")).geturl()
@@ -1930,6 +1963,8 @@ def fetch_external_text(session: requests.Session, url: str) -> Tuple[Optional[s
             return None, None
 
     text, resolved_url = try_fetch(url)
+    if is_authentication_url(resolved_url):
+        return None, "requires_sign_in", resolved_url
     if text:
         javascript_redirect = re.search(
             r"navigateTo\([^,]+,[^,]+,\s*[\"'](https?://[^\"']+)",
@@ -2082,13 +2117,15 @@ def extract_apply_url(soup: BeautifulSoup, page_url: str, jsonld: Dict[str, Any]
         candidates.append(jsonld_url)
 
     for a in soup.find_all("a", href=True):
-        href = urljoin(BASE_URL, a.get("href", ""))
+        href = urljoin(page_url, a.get("href", ""))
         link_text = clean_text(a.get_text(" ", strip=True)).lower()
         if "apply" in link_text:
             candidates.append(href)
 
     for candidate in candidates:
         if not url_is_valid(candidate):
+            continue
+        if is_authentication_url(candidate):
             continue
         if candidate.rstrip("/") == page_url.rstrip("/"):
             continue
@@ -2326,7 +2363,12 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
     salary_text = extract_salary_text(soup)
 
     apply_url = extract_apply_url(soup, url, jsonld)
-    if not apply_url and isinstance(inertia_job, dict):
+    application_requires_sign_in = not apply_url and any(
+        "apply" in clean_text(a.get_text(" ", strip=True)).lower()
+        and is_authentication_url(urljoin(url, a.get("href", "")))
+        for a in soup.find_all("a", href=True)
+    )
+    if not apply_url and isinstance(inertia_job, dict) and not application_requires_sign_in:
         apply_url = url.rstrip("/") + "/apply"
     description = extract_best_description(soup, jsonld)
     if isinstance(inertia_job, dict) and not salary_text:
@@ -2464,6 +2506,7 @@ def parse_job_detail(session: requests.Session, url: str, listing_hint_date: Opt
         "updated_at": updated_at,
         "date_posted": date_posted.isoformat() if date_posted else None,
         "apply_url": apply_url,
+        "application_requires_sign_in": application_requires_sign_in,
         "valid_through": valid_through.isoformat() if valid_through else None,
     }
 
@@ -2508,7 +2551,7 @@ def is_job_board_url(url: Optional[str]) -> bool:
 
 
 def is_direct_job_url(url: Optional[str]) -> bool:
-    if not url or not url_is_valid(url) or is_job_board_url(url):
+    if not url or not url_is_valid(url) or is_job_board_url(url) or is_authentication_url(url):
         return False
     parsed = urlparse(url)
     generic_path = parsed.path.rstrip("/").lower()
@@ -2702,13 +2745,13 @@ def jobspy_record_to_job(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
-def scrape_jobspy_jobs(cutoff_date: date) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+def scrape_jobspy_jobs(cutoff_date: date, known_urls=None) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     try:
         from jobspy import scrape_jobs
     except ImportError as exc:
         return [], {"status": "unavailable", "error": f"python-jobspy is not installed: {exc}"}
 
-    results_per_source = max(1, int(os.getenv("MULTISOURCE_RESULTS_PER_SOURCE", "6")))
+    results_per_source = bounded_int("MULTISOURCE_RESULTS_PER_SOURCE", 20, 1, 100)
     requested_sources = [
         source.strip() for source in os.getenv("MULTISOURCE_SOURCES", ",".join(JOBSPY_SOURCES)).split(",")
         if source.strip() in SUPPORTED_JOBSPY_SOURCES
@@ -2726,6 +2769,8 @@ def scrape_jobspy_jobs(cutoff_date: date) -> Tuple[List[Dict[str, Any]], Dict[st
     requested_markets = [
         market for market in JOBSPY_MARKETS if market[0].lower() in requested_market_names
     ]
+    requested_sources = list(dict.fromkeys(requested_sources))
+    requested_terms = list(dict.fromkeys(requested_terms))
     if not requested_sources or not requested_terms or not requested_markets:
         return [], {"status": "failed", "error": "Multi-source configuration selected no sources, terms, or markets"}
     today_utc = datetime.now(timezone.utc).date()
@@ -2733,43 +2778,67 @@ def scrape_jobspy_jobs(cutoff_date: date) -> Tuple[List[Dict[str, Any]], Dict[st
     raw_rows: List[Dict[str, Any]] = []
     errors: List[str] = []
 
-    for location, indeed_country in requested_markets:
-        for search_term in requested_terms:
-            try:
-                frame = scrape_jobs(
-                    site_name=requested_sources,
-                    search_term=search_term,
-                    google_search_term=f"{search_term} jobs in {location} since {cutoff_date.isoformat()}",
-                    location=location,
-                    results_wanted=results_per_source,
-                    hours_old=hours_old,
-                    country_indeed=indeed_country,
-                    description_format="markdown",
-                    linkedin_fetch_description=True,
-                    verbose=0,
-                )
-            except Exception as exc:
-                errors.append(f"{location} | {search_term} | {type(exc).__name__}: {exc}")
-                continue
-            if frame is None or frame.empty:
-                continue
-            for row in frame.to_dict("records"):
-                row["_market"] = location
-                raw_rows.append(row)
+    # One worker per source keeps its requests serial and its failures isolated.
+    # A failing board cannot cancel useful results from another board.
+    def collect_source(source):
+        rows, failures, queries = [], [], []
+        consecutive_failures = 0
+        for location, indeed_country in requested_markets:
+            for search_term in requested_terms:
+                if consecutive_failures >= 3:
+                    queries.append({"source": source, "market": location, "term": search_term, "status": "circuit_open"})
+                    continue
+                started = time.monotonic()
+                try:
+                    frame = scrape_jobs(
+                        site_name=[source], search_term=search_term,
+                        google_search_term=f"{search_term} jobs in {location} since {cutoff_date.isoformat()}",
+                        location=location, results_wanted=results_per_source, hours_old=hours_old,
+                        country_indeed=indeed_country, description_format="markdown",
+                        linkedin_fetch_description=True, verbose=0,
+                    )
+                    consecutive_failures = 0
+                    result_rows = frame.to_dict("records") if frame is not None and not frame.empty else []
+                    for row in result_rows:
+                        row["_market"] = location
+                        rows.append(row)
+                    queries.append({"source": source, "market": location, "term": search_term,
+                        "status": "returned_rows" if result_rows else "no_results_or_blocked",
+                        "rows": len(result_rows), "seconds": round(time.monotonic() - started, 2)})
+                except Exception as exc:
+                    consecutive_failures += 1
+                    failures.append(f"{source} | {location} | {search_term} | {type(exc).__name__}")
+                    queries.append({"source": source, "market": location, "term": search_term, "status": "failed"})
+        return rows, failures, queries
+
+    query_report = []
+    with ThreadPoolExecutor(max_workers=bounded_int("MULTISOURCE_SEARCH_WORKERS", 2, 1, 3)) as executor:
+        # map preserves configuration order for repeatable review artifacts.
+        for rows, failures, queries in executor.map(collect_source, requested_sources):
+            raw_rows.extend(rows)
+            errors.extend(failures)
+            query_report.extend(queries)
 
     seen_urls = set()
     mapped_jobs: List[Dict[str, Any]] = []
     rejected_irrelevant = 0
+    skipped_known = 0
     raw_source_counts = dict(sorted(Counter(
         (clean_optional_text(row.get("site")) or "unknown").lower().replace("ziprecruiter", "zip_recruiter")
         for row in raw_rows
     ).items()))
     for row in raw_rows:
         row_url = clean_optional_text(row.get("job_url_direct")) or clean_optional_text(row.get("job_url"))
-        if row_url and row_url in seen_urls:
+        canonical = canonical_job_url(row_url)
+        if canonical and canonical in (known_urls or set()):
+            skipped_known += 1
             continue
-        if row_url:
-            seen_urls.add(row_url)
+        # Preserve independent sources even when they share an employer apply URL.
+        evidence_key = (clean_optional_text(row.get("site")), canonical)
+        if canonical and evidence_key in seen_urls:
+            continue
+        if canonical:
+            seen_urls.add(evidence_key)
         mapped = jobspy_record_to_job(row)
         if mapped:
             mapped_jobs.append(mapped)
@@ -2786,6 +2855,8 @@ def scrape_jobspy_jobs(cutoff_date: date) -> Tuple[List[Dict[str, Any]], Dict[st
         "raw_rows": len(raw_rows),
         "mapped_accessibility_jobs": len(mapped_jobs),
         "rejected_or_invalid": rejected_irrelevant,
+        "skipped_known": skipped_known,
+        "queries": query_report,
         "raw_source_counts": raw_source_counts,
         "sources_requested": requested_sources,
         "markets_requested": [location for location, _ in requested_markets],
@@ -3619,6 +3690,9 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
 
     if apply_url:
         text, source_used, resolved_url = fetch_external_text(session, apply_url)
+        if source_used == "requires_sign_in":
+            job["application_requires_sign_in"] = True
+            job["apply_url"] = None
         if text and external_content_matches_job(text, job):
             evidence_url = resolved_url or apply_url
             if is_direct_job_url(evidence_url):
@@ -3902,6 +3976,10 @@ def validate_record(record: Dict[str, Any]) -> List[str]:
         errors.append("Invalid source_url")
     if record.get("apply_url") and not url_is_valid(record["apply_url"]):
         errors.append("Invalid apply_url")
+    if is_authentication_url(record.get("apply_url")) or (
+        record.get("application_requires_sign_in") and not record.get("direct_evidence_verified")
+    ):
+        errors.append("Application link requires sign-in; no verified public employer link was found")
 
     return errors
 
@@ -3915,6 +3993,10 @@ def exclude_post_enrichment_cutoff_rows(
 
     for row in rows:
         posted = parse_date_text(row.get("date_posted") or "")
+        if not posted or posted > datetime.now(timezone.utc).date():
+            failures.append({"source_url": row.get("source_url"), "title": row.get("title"),
+                "company": row.get("company"), "errors": ["Missing, invalid, or future date_posted"]})
+            continue
         if posted and posted <= cutoff_date:
             failures.append({
                 "source_url": row.get("source_url") or "",
@@ -3962,7 +4044,10 @@ def process_candidate_job(
     local_session = requests.Session()
     local_session.headers.update(HEADERS)
 
-    job = enrich_job(local_session, dict(job))
+    try:
+        job = enrich_job(local_session, dict(job))
+    finally:
+        local_session.close()
 
     candidate = build_candidate_record(job)
     insert_candidate = convert_nan_to_insert_ready(candidate)
@@ -3980,25 +4065,30 @@ def process_candidate_job(
     return candidate, insert_candidate, None
 
 
-def main() -> int:
+def run_pipeline(dry_run: bool = False) -> int:
     db_url = load_database_url()
     print(f"🔐 Using DATABASE_URL: {mask_db_url(db_url)}")
 
     session = requests.Session()
     session.headers.update(HEADERS)
 
-    cutoff_date = fetch_cutoff_date(db_url)
+    # A failed database read raises before any source request or artifact write.
+    watermark = fetch_cutoff_date(db_url)
+    today_utc = datetime.now(timezone.utc).date()
+    cutoff_date = discovery_cutoff(watermark, today_utc,
+        bounded_int("MULTISOURCE_LOOKBACK_DAYS", 7, 1, 30))
     cutoff_override = os.getenv("A11YJOBS_CUTOFF_OVERRIDE")
     if cutoff_override:
         parsed_override = parse_date_text(cutoff_override)
-        if parsed_override:
-            cutoff_date = parsed_override
-            print(f"📅 cutoff_date_override_applied: {cutoff_date.isoformat()}")
-        else:
-            print(f"⚠️ Ignoring invalid A11YJOBS_CUTOFF_OVERRIDE: {cutoff_override}")
-    print(f"📅 cutoff_date: {cutoff_date.isoformat()}")
+        if not parsed_override or parsed_override >= today_utc:
+            raise ValueError("A11YJOBS_CUTOFF_OVERRIDE must be a valid date before today")
+        cutoff_date = parsed_override
+    print(f"database_watermark: {watermark.isoformat()}")
+    print(f"discovery_cutoff_exclusive: {cutoff_date.isoformat()}")
+    print(f"mode: {'dry-run' if dry_run else 'insert'}")
+    existing = fetch_existing_records(db_url)
+    known = DuplicateIndex(existing, job_identity)
 
-    today_utc = datetime.now(timezone.utc).date()
     source_errors: List[str] = []
     soup = fetch_page(session, LIST_URL)
     job_link_hints: Dict[str, Optional[date]] = {}
@@ -4026,18 +4116,30 @@ def main() -> int:
     job_links = sorted(job_link_hints.keys())
     links_after_listing_prefilter = [
         link for link in job_links
-        if job_link_hints.get(link) is None or job_link_hints[link] > cutoff_date
+        if canonical_job_url(link) not in known.urls
+        and (job_link_hints.get(link) is None or job_link_hints[link] > cutoff_date)
     ]
 
     a11yjobs_jobs: List[Dict[str, Any]] = []
-    for link in links_after_listing_prefilter:
-        job = parse_job_detail(session, link, listing_hint_date=job_link_hints.get(link))
-        if job:
-            a11yjobs_jobs.append(job)
-        time.sleep(0.2)
+    def fetch_detail(link):
+        with requests.Session() as detail_session:
+            detail_session.headers.update(HEADERS)
+            return parse_job_detail(detail_session, link, listing_hint_date=job_link_hints.get(link))
+
+    with ThreadPoolExecutor(max_workers=bounded_int("MULTISOURCE_DETAIL_WORKERS", 4, 1, 6)) as executor:
+        pending = {executor.submit(fetch_detail, link): link for link in links_after_listing_prefilter}
+        for future in as_completed(pending):
+            try:
+                job = future.result()
+                if job:
+                    a11yjobs_jobs.append(job)
+                else:
+                    source_errors.append(f"a11yjobs detail unavailable: {pending[future]}")
+            except Exception as exc:
+                source_errors.append(f"a11yjobs detail failed: {pending[future]} ({type(exc).__name__})")
 
     print("🔎 Collecting additional job boards with JobSpy")
-    jobspy_jobs, jobspy_report = scrape_jobspy_jobs(cutoff_date)
+    jobspy_jobs, jobspy_report = scrape_jobspy_jobs(cutoff_date, known.urls)
     source_errors.extend(jobspy_report.get("errors") or [])
     if not soup and jobspy_report.get("status") in {"failed", "unavailable"}:
         raise RuntimeError("All source families failed before candidate generation")
@@ -4059,7 +4161,7 @@ def main() -> int:
 
     newer_source_jobs = [
         job for job in raw_jobs
-        if job.get("date_posted") and parse_date_text(job["date_posted"]) and parse_date_text(job["date_posted"]) > cutoff_date
+        if job.get("date_posted") and parse_date_text(job["date_posted"]) and cutoff_date < parse_date_text(job["date_posted"]) <= today_utc
     ]
     source_counts_newer = dict(sorted(Counter(job.get("job_source") or "unknown" for job in newer_source_jobs).items()))
     new_jobs, cross_source_duplicates = consolidate_source_candidates(newer_source_jobs)
@@ -4087,6 +4189,8 @@ def main() -> int:
     if not new_jobs:
         write_json(CANDIDATES_JSON, {
             "cutoff_date": cutoff_date.isoformat(),
+            "database_watermark": watermark.isoformat(),
+            "dry_run": dry_run,
             "latest_source_date": latest_source_date.isoformat() if latest_source_date else None,
             "source_counts_found": source_counts_found,
             "source_counts_newer": source_counts_newer,
@@ -4096,6 +4200,8 @@ def main() -> int:
         })
         write_json(INSERT_READY_JSON, {
             "cutoff_date": cutoff_date.isoformat(),
+            "database_watermark": watermark.isoformat(),
+            "dry_run": dry_run,
             "latest_source_date": latest_source_date.isoformat() if latest_source_date else None,
             "source_counts_found": source_counts_found,
             "source_counts_newer": source_counts_newer,
@@ -4151,16 +4257,8 @@ def main() -> int:
             })
             continue
 
-        try:
-            is_dup, dup_reason = check_duplicate_db(db_url, source_url, title, company)
-        except Exception as exc:
-            failures.append({
-                "source_url": source_url,
-                "title": title,
-                "company": company,
-                "errors": [f"Duplicate check DB error: {exc}"],
-            })
-            continue
+        dup_reason = known.reason(job)
+        is_dup = bool(dup_reason)
         if is_dup:
             duplicates.append({
                 "source_url": source_url,
@@ -4174,14 +4272,21 @@ def main() -> int:
         jobs_for_enrichment.append(job)
 
     if jobs_for_enrichment:
-        max_workers = min(8, len(jobs_for_enrichment))
+        max_workers = min(bounded_int("MULTISOURCE_ENRICHMENT_WORKERS", 4, 1, 8), len(jobs_for_enrichment))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_map = {
                 executor.submit(process_candidate_job, job, cutoff_date): job
                 for job in jobs_for_enrichment
             }
             for future in as_completed(future_map):
-                candidate, insert_candidate, failure = future.result()
+                try:
+                    candidate, insert_candidate, failure = future.result()
+                except Exception as exc:
+                    failed_job = future_map[future]
+                    failures.append({"source_url": failed_job.get("source_url"),
+                        "title": failed_job.get("title"), "company": failed_job.get("company"),
+                        "errors": [f"Enrichment failed: {type(exc).__name__}"]})
+                    continue
                 candidates_with_nan.append(candidate)
                 if failure:
                     failures.append(failure)
@@ -4193,8 +4298,26 @@ def main() -> int:
     )
     failures.extend(cutoff_failures)
 
+    # Employer enrichment can converge previously different discovery URLs.
+    # Deduplicate again before artifacts and preflight, recording every exclusion.
+    reconciled_index = DuplicateIndex(existing, job_identity)
+    unique_ready = []
+    for row in sorted(insert_ready, key=job_identity):
+        reason = reconciled_index.reason(row)
+        if reason:
+            duplicates.append({"source_url": row.get("source_url"), "title": row.get("title"),
+                "company": row.get("company"), "reason": f"post_enrichment_{reason}"})
+        else:
+            reconciled_index.add(row)
+            unique_ready.append(row)
+    insert_ready = unique_ready
+
+    candidates_with_nan.sort(key=job_identity)
+    insert_ready.sort(key=job_identity)
     write_json(CANDIDATES_JSON, {
         "cutoff_date": cutoff_date.isoformat(),
+        "database_watermark": watermark.isoformat(),
+        "dry_run": dry_run,
         "latest_source_date": latest_source_date.isoformat() if latest_source_date else None,
         "source_counts_found": source_counts_found,
         "source_counts_newer": source_counts_newer,
@@ -4208,6 +4331,8 @@ def main() -> int:
 
     write_json(INSERT_READY_JSON, {
         "cutoff_date": cutoff_date.isoformat(),
+        "database_watermark": watermark.isoformat(),
+        "dry_run": dry_run,
         "latest_source_date": latest_source_date.isoformat() if latest_source_date else None,
         "source_counts_found": source_counts_found,
         "source_counts_newer": source_counts_newer,
@@ -4238,7 +4363,15 @@ def main() -> int:
             print(f"- {err}")
         return 1
 
-    run_id = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    if dry_run:
+        print(json.dumps({"mode": "dry-run", "candidates": len(candidates_with_nan),
+            "insert_ready": len(insert_ready), "duplicates": len(duplicates),
+            "validation_failures": len(failures), "source_errors": source_errors,
+            "database_writes": 0}, indent=2))
+        return 0
+
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    print(f"run_id: {run_id}", flush=True)
 
     inserted = 0
     skipped_duplicates = 0
@@ -4303,49 +4436,9 @@ def main() -> int:
         "updated_at",
     ]
 
-    for job in insert_ready:
-        job = enforce_varchar_limits(job)
-        source_url = job.get("source_url") or ""
-        title = job.get("title") or ""
-        company = job.get("company") or ""
-        try:
-            is_dup, _ = check_duplicate_db(db_url, source_url, title, company)
-        except Exception as exc:
-            errors += 1
-            insert_error_report.append({
-                "source_url": source_url,
-                "title": title,
-                "company": company,
-                "error": f"duplicate check failed: {exc}",
-            })
-            continue
-        if is_dup:
-            skipped_duplicates += 1
-            continue
-
-        notes = job.get("additional_notes")
-        if notes:
-            notes = f"{notes}; run_id={run_id}"
-        else:
-            notes = f"run_id={run_id}"
-        job["additional_notes"] = notes
-
-        values = [job.get(col) for col in columns]
-        values_sql = ", ".join([sql_literal(v) for v in values])
-        insert_sql = f"INSERT INTO jobs ({', '.join(columns)}) VALUES ({values_sql});"
-
-        code, _, err = psql_query(db_url, insert_sql)
-        if code == 0:
-            inserted += 1
-        else:
-            errors += 1
-            insert_error_report.append({
-                "source_url": source_url,
-                "title": title,
-                "company": company,
-                "error": err or "unknown insert error",
-            })
-            print(f"❌ Insert error for {source_url}: {err}")
+    # Re-read known identities under the transaction lock. Failed batches roll back.
+    inserted, skipped_duplicates = insert_batch(db_url,
+        [enforce_varchar_limits(job) for job in insert_ready], columns, job_identity, run_id)
 
     total_after = fetch_total_count(db_url)
 
@@ -4411,7 +4504,15 @@ def main() -> int:
     print(f"- {INSERT_READY_JSON}")
     print(f"- {CANDIDATES_CSV}")
 
-    return 0 if not post_errors else 1
+    return 0 if not post_errors and not errors else 1
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--dry-run', action='store_true', help='Discover and validate; never insert jobs')
+    args = parser.parse_args(argv)
+    with ingestion_lock(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))):
+        return run_pipeline(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
