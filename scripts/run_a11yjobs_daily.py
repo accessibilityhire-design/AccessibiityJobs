@@ -79,6 +79,7 @@ JOB_BOARD_HOSTS = {
     "tealhq.com",
     "workopolis.com",
     "ziprecruiter.com",
+    "ziprecruiter.in",
     "haystackapp.io",
     "jobmesh.io",
 }
@@ -737,6 +738,7 @@ _SECTION_PATTERNS = [
             r"specific skills? required|required education and experience|competencies|"
             r"essential skills? required|"
             r"how do we define success for your role\??|person specification|"
+            r"what you need to be considered|skills and experience|"
             r"required education|required knowledge,? skills?(?:,? and qualifications)?(?: \(nsqs\))?|"
             r"minimum education\s*(?:&|and)\s*experience|"
             r"tools?\s*&\s*technologies|your education|what you['’]?ll need|what you will need|"
@@ -748,7 +750,7 @@ _SECTION_PATTERNS = [
     (
         "preferred",
         re.compile(
-            r"^(?:preferred qualifications?|preferred experience|preferred skills?|desired(?: experience)?|"
+            r"^(?:preferred(?: qualifications?| experience| skills?)?(?:\s*\(not required\))?|desired(?: experience)?|"
             r"desirable(?: skills?)?|advantageous|preferred certification|"
             r"nice[- ]to[- ]have qualifications?|nice to have|what would be nice to have|"
             r"good[- ]to[- ]have skills?|bonus points?|a plus)$",
@@ -758,7 +760,7 @@ _SECTION_PATTERNS = [
     (
         "ignore",
         re.compile(
-            r"^(?:benefits?|why join (?:us|our team)|what we offer|what you['’]?ll get|compensation|salary(?: and benefits?)?|pay range|location|keywords|"
+            r"^(?:benefits?|why join (?:us|our team)|what we offer|here['’]?s what we offer|what you['’]?ll get|compensation|salary(?: and benefits?)?|pay range|location|keywords|"
             r"work remotely\s*-\s*(?:yes|no)|"
             r"physical demands?|application requirements?|application instructions?|position type\s*(?:&|and)\s*work location|"
             r"what['’]?s in it for you\??|impact you['’]?ll make|how to apply|accessibility and inclusion|"
@@ -862,6 +864,7 @@ def normalize_description_text(text: str) -> str:
             r"(?P<heading>"
             r"Your Opportunity|Project Coordination|How do we define success for your role\?|"
             r"What You(?:'|’|â)ll Be Doing|Your Responsibilities|What You(?:'|’|â)ll Bring|"
+            r"What you need to be considered|Skills and Experience|Here(?:'|’)s what we offer|"
             r"Job Description|About the role|Desirable(?: skills?)?|Advantageous|Person Specification|"
             r"Required Education|Preferred Certification|Required Skills|Preferred Skills|"
             r"Job Overview|Job Responsibilities|Essential Duties(?: and Responsibilities)?|"
@@ -2994,6 +2997,104 @@ def reconcile_explicit_external_facts(job: Dict[str, Any], content: str) -> List
 
     visible = _plain_markdown(normalize_external_content(content))
 
+    # AppOne can publish a generic office location in JobPosting microdata
+    # while the authored role description has a different, explicit Location
+    # line. The authored field is the role-specific fact and must win over the
+    # tenant/default office metadata (observed: Great Falls vs Des Moines).
+    description_meta = soup.select_one('[itemprop="description"][content]')
+    description_content = html.unescape(
+        str(description_meta.get("content") or "")
+    ) if description_meta else ""
+    authored_location_match = re.search(
+        r"(?:^|[\r\n])\s*Location\s*:\s*([^\r\n]+)",
+        description_content,
+        re.I,
+    )
+    if authored_location_match:
+        authored_location = clean_text(authored_location_match.group(1))
+        city, country = parse_location_fields(authored_location)
+        if re.search(r",\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?\s*$", authored_location):
+            country = "US"
+        if country not in set(COUNTRY_CODE_ALIASES.values()):
+            country = None
+        job["location"] = authored_location[:255]
+        job["specific_location"] = authored_location[:255]
+        job["city"] = city
+        job["country"] = country
+        job["work_arrangement"] = normalize_work_arrangement(
+            authored_location,
+            str(job.get("title") or ""),
+            description_content,
+        )
+
+    # Jibe/iCIMS career sites expose the actual job model alongside generic
+    # Google Jobs JSON-LD. The model is authoritative for locality, work model,
+    # posting date, and category; its JSON-LD often uses "UNAVAILABLE" for the
+    # city and manufactures a one-year validThrough value that is not a stated
+    # application deadline.
+    jibe_config_match = re.search(
+        r"window\.jobDescriptionConfig\s*=\s*",
+        content,
+    )
+    if jibe_config_match:
+        try:
+            jibe_config, _ = json.JSONDecoder().raw_decode(
+                content[jibe_config_match.end():].lstrip()
+            )
+        except (TypeError, ValueError):
+            jibe_config = None
+        jibe_job = jibe_config.get("job") if isinstance(jibe_config, dict) else None
+        if isinstance(jibe_job, dict):
+            posted = parse_date_text(str(jibe_job.get("posted_date") or ""))
+            if posted:
+                job["date_posted"] = posted.isoformat()
+                job["created_at"] = f"{posted.isoformat()}T00:00:00Z"
+
+            country = normalize_country_code(
+                jibe_job.get("country_code") or jibe_job.get("country")
+            )
+            state = clean_optional_text(jibe_job.get("state"))
+            full_location = clean_optional_text(
+                jibe_job.get("full_location") or jibe_job.get("short_location")
+            )
+            location_name = clean_optional_text(jibe_job.get("location_name")) or ""
+            city_match = re.match(r"^[A-Z]{3}-([^-]+)", location_name)
+            city = clean_optional_text(city_match.group(1)) if city_match else None
+            if city and city.upper() == "UNAVAILABLE":
+                city = None
+            display_parts = [
+                part
+                for part in (
+                    city,
+                    state,
+                    clean_optional_text(jibe_job.get("country")),
+                )
+                if part
+            ]
+            display_location = ", ".join(display_parts) or full_location
+            if display_location:
+                job["location"] = display_location[:255]
+                job["specific_location"] = display_location[:255]
+            job["city"] = city
+            job["country"] = country
+            if re.search(r"remote|home office|telecommut", location_name, re.I):
+                job["work_arrangement"] = "remote"
+
+            categories = jibe_job.get("categories") or []
+            if categories and isinstance(categories[0], dict):
+                category = clean_optional_text(categories[0].get("name"))
+                if category:
+                    job["department"] = category
+
+            explicit_deadline = next((
+                jibe_job.get(key)
+                for key in ("application_deadline", "valid_through", "closing_date")
+                if jibe_job.get(key)
+            ), None)
+            if not explicit_deadline:
+                job["valid_through"] = None
+                job["application_deadline"] = None
+
     experience_match = re.search(
         r"\bExperience\s*\(Years\)\s*:?\s*(\d{1,2})\b",
         visible,
@@ -3435,6 +3536,13 @@ def reconcile_external_jobposting(job: Dict[str, Any], jsonld: Dict[str, Any]) -
             # boards can prepend community or channel labels to the employer
             # name, which must not survive direct-source reconciliation.
             job["company"] = external_company
+        external_website = clean_optional_text(hiring_org.get("sameAs"))
+        if (
+            external_website
+            and url_is_valid(external_website)
+            and not is_job_board_url(external_website)
+        ):
+            job["company_website"] = external_website
 
     description = normalize_description_text(
         strip_html(html.unescape(str(jsonld.get("description") or "")))
@@ -3630,6 +3738,12 @@ def enrich_job(session: requests.Session, job: Dict[str, Any]) -> Dict[str, Any]
             if structured["years_experience"]:
                 job["years_experience"] = structured["years_experience"]
             job["education_level"] = structured["education_level"]
+            if re.search(
+                r"\b(?:degree|education requirement)\b.{0,300}\bor equivalent experience\b",
+                external_sections.get("requirements") or "",
+                re.I | re.S,
+            ):
+                job["education_level"] = None
             job["wcag_level"] = structured["wcag_level"]
             job["accessibility_focus"] = json.dumps(structured["accessibility_focus"], ensure_ascii=False) if structured["accessibility_focus"] else None
             job["assistive_tech_experience"] = json.dumps(structured["assistive_tech_experience"], ensure_ascii=False) if structured["assistive_tech_experience"] else None

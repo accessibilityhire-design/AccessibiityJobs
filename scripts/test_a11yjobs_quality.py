@@ -1270,12 +1270,101 @@ class MultiSourceQualityTests(unittest.TestCase):
         )
         self.assertFalse(
             is_direct_job_url(
+                "https://www.ziprecruiter.in/jobs/123-accessibility-specialist"
+            )
+        )
+        self.assertFalse(
+            is_direct_job_url(
                 "https://www.remoterocketship.com/us/company/example/jobs/example-job/"
             )
         )
         self.assertTrue(
             is_direct_job_url("https://jobs.lever.co/example-company/example-job")
         )
+
+    def test_preferred_heading_variants_are_separate_from_requirements(self):
+        sections = parse_description_sections(
+            "Role overview text that is long enough to be a complete and useful "
+            "description for applicants, including the product mission, team context, "
+            "and the accessibility outcomes this position will own.\n\n"
+            "Requirements\n"
+            "Five years of accessibility engineering experience with WCAG testing.\n\n"
+            "Preferred Qualifications (Not Required)\n"
+            "Experience with Storybook and backend integration.\n\n"
+            "Here's what we offer\n"
+            "Generic employer marketing copy that is not a qualification."
+        )
+
+        self.assertIn("Five years", sections["requirements"])
+        self.assertNotIn("Storybook", sections["requirements"])
+        self.assertIn("Storybook", sections["nice_to_have"])
+        self.assertNotIn("marketing", sections["nice_to_have"])
+
+    def test_authored_appone_location_overrides_generic_microdata_location(self):
+        job = {
+            "title": "Senior UI/UX Engineer",
+            "location": "Great Falls, VA, US",
+            "specific_location": "Great Falls, VA, US",
+            "city": "Great Falls",
+            "country": "US",
+            "work_arrangement": "onsite",
+        }
+        source = """<html><head>
+        <meta itemprop="datePosted" content="09/08/2026" />
+        <meta itemprop="description" content="Role: Senior UI Engineer&#10;&#10;Location: Des Moines, IA 50309&#10;&#10;Build accessible components and test them against WCAG." />
+        </head><body><p>Detailed role responsibilities and qualifications for accessibility engineering.</p></body></html>"""
+
+        conflicts = reconcile_explicit_external_facts(job, source)
+
+        self.assertEqual(conflicts, [])
+        self.assertEqual(job["location"], "Des Moines, IA 50309")
+        self.assertEqual(job["specific_location"], "Des Moines, IA 50309")
+        self.assertEqual(job["city"], "Des Moines")
+        self.assertEqual(job["country"], "US")
+        self.assertEqual(job["work_arrangement"], "onsite")
+
+    def test_jibe_job_model_overrides_unavailable_location_and_generated_deadline(self):
+        job = {
+            "title": "Lead Specialist, Accessibility",
+            "date_posted": "2026-09-08",
+            "created_at": "2026-09-08T00:00:00Z",
+            "location": "UNAVAILABLE, Uttar Pradesh, India",
+            "specific_location": "UNAVAILABLE, Uttar Pradesh, India",
+            "city": "UNAVAILABLE",
+            "country": "IN",
+            "department": "Information Technology",
+            "work_arrangement": "onsite",
+            "valid_through": "2027-09-08",
+            "application_deadline": "2027-09-08T00:00:00Z",
+        }
+        config = {
+            "job": {
+                "posted_date": "2026-09-08T04:28:00+0000",
+                "location_name": "IND-Noida-Remote/Home Office",
+                "state": "Uttar Pradesh",
+                "country": "India",
+                "country_code": "IN",
+                "full_location": "Uttar Pradesh, India",
+                "categories": [{"name": "Technology"}],
+            }
+        }
+        source = (
+            "<html><body><script>window.jobDescriptionConfig = "
+            + json.dumps(config)
+            + ";</script><p>Detailed accessibility role content.</p></body></html>"
+        )
+
+        conflicts = reconcile_explicit_external_facts(job, source)
+
+        self.assertEqual(conflicts, [])
+        self.assertEqual(job["date_posted"], "2026-09-08")
+        self.assertEqual(job["location"], "Noida, Uttar Pradesh, India")
+        self.assertEqual(job["city"], "Noida")
+        self.assertEqual(job["country"], "IN")
+        self.assertEqual(job["department"], "Technology")
+        self.assertEqual(job["work_arrangement"], "remote")
+        self.assertIsNone(job["valid_through"])
+        self.assertIsNone(job["application_deadline"])
 
     def test_authoritative_enriched_date_at_cutoff_is_excluded(self):
         newer_rows, failures = exclude_post_enrichment_cutoff_rows(
